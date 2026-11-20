@@ -1,5 +1,6 @@
-// Proves the built .app works on its own: its bundled ffmpeg + ONNX Runtime + Parakeet
-// transcribe real speech. Run after `npm run build` and `npm run fetch-model`.
+// Proves the built .app works on its own: it talks to this Mac's Claude Code, and its
+// bundled ffmpeg + ONNX Runtime + Parakeet transcribe real speech.
+// Run after `npm run build` and `npm run fetch-model`; needs Claude Code installed and signed in.
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -15,6 +16,12 @@ console.log('app:', app);
 console.log('contents:', fs.readdirSync(path.join(app, 'Contents/MacOS')).join(', '));
 execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' });
 console.log('codesign --verify: ok');
+
+// The packaged app asks this Mac's Claude Code about a sample transcript (on the subscription).
+const c0 = Date.now();
+const picks = JSON.parse(execFileSync(bin, ['--claude-test'], { encoding: 'utf8' }));
+console.log(`claude answered in ${((Date.now() - c0) / 1000).toFixed(1)} s:`, JSON.stringify(picks));
+if (!picks.keep.includes(2) || !picks.keep.includes(3)) throw new Error('claude dropped the good take');
 
 // A real 720p H.264 + AAC .mov, like a camera take: the speech clip looped to ~2.5 min
 // (two chunks, one seam), made with the app's own bundled ffmpeg.

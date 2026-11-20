@@ -2,6 +2,7 @@
 //! Apps opened from Finder get a minimal PATH, so we look in the usual install places
 //! and hand the child a sane PATH (in case `claude` is a Node script).
 
+use crate::error::AppError;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -23,6 +24,11 @@ pub fn find(candidates: &[PathBuf]) -> Option<PathBuf> {
     candidates.iter().find(|p| p.is_file()).cloned()
 }
 
+/// This Mac's `claude`, or the plain "install it" error.
+pub fn locate() -> Result<PathBuf, AppError> {
+    find(&candidates()).ok_or(AppError::ClaudeMissing)
+}
+
 /// Every `claude` we run goes through here.
 pub fn command(bin: &Path) -> Command {
     let dir = bin.parent().map(|d| d.display().to_string()).unwrap_or_default();
@@ -35,9 +41,9 @@ pub fn command(bin: &Path) -> Command {
 
 pub fn status(bin: Option<PathBuf>) -> Status {
     let Some(bin) = bin else {
-        return Status { state: "missing", message: "Install Claude Code to use Magic.".into() };
+        return Status { state: "missing", message: AppError::ClaudeMissing.to_string() };
     };
-    let signed_out = Status { state: "signed-out", message: "Open Terminal and run `claude`, then sign in.".into() };
+    let signed_out = Status { state: "signed-out", message: AppError::ClaudeSignedOut.to_string() };
     let Some(out) = run_with_timeout(command(&bin).args(["auth", "status"]), Duration::from_secs(15)) else {
         return signed_out;
     };
@@ -81,7 +87,8 @@ mod tests {
 
     #[test]
     fn missing_claude_says_so_in_plain_words() {
-        assert_eq!(status(None).state, "missing");
+        let s = status(None);
+        assert_eq!((s.state, s.message.as_str()), ("missing", "Install Claude Code to use Magic."));
     }
 
     #[test]

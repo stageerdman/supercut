@@ -1,5 +1,6 @@
 //! SuperCut: the Tauri shell. The web UI in ../src calls the commands below.
-//! Nothing is uploaded: the only network use is the one-time speech model download.
+//! Video and audio never leave the Mac. Network use: the one-time speech model download,
+//! and transcript text sent to Claude through the user's own Claude Code CLI.
 
 mod audio;
 mod claude;
@@ -38,6 +39,14 @@ async fn claude_status() -> claude::Status {
         .unwrap_or(claude::Status { state: "missing", message: "Couldn't check Claude Code.".into() })
 }
 
+/// One real Claude call on a sample transcript: proves Magic will work on this Mac.
+#[tauri::command]
+async fn claude_self_test() -> Result<claude::picks::Picks, AppError> {
+    tauri::async_runtime::spawn_blocking(|| claude::self_test::run(&claude::locate()?, "self-test"))
+        .await
+        .map_err(|e| AppError::ClaudeFailed(e.to_string()))?
+}
+
 #[tauri::command]
 fn add_video(project: State<Shared>, path: PathBuf) -> Result<Part, AppError> {
     let part = project.lock().unwrap().add(&path)?;
@@ -71,28 +80,38 @@ async fn transcribe_part(app: tauri::AppHandle, project: State<'_, Shared>, id: 
     .map_err(|e| AppError::Recognize(e.to_string()))?
 }
 
-fn main() {
-    // `SuperCut --transcribe <file>` prints the transcript as JSON and exits:
-    // lets `npm run smoke` prove the packaged app (bundled ffmpeg + ONNX Runtime) really works.
-    let args: Vec<String> = std::env::args().collect();
-    if let [_, flag, file] = args.as_slice() {
-        if flag == "--transcribe" {
-            let r = transcribe::transcribe_file(&parakeet::model_dir(), &audio::bundled_ffmpeg(), Path::new(file), "cli", |_, _| {});
-            match r {
-                Ok(t) => println!("{}", serde_json::to_string(&t).unwrap()),
-                Err(e) => {
-                    eprintln!("{e}");
-                    std::process::exit(1);
-                }
-            }
-            return;
+/// Prints the result as JSON, or the plain error and exit code 1.
+fn print_and_exit<T: Serialize>(result: Result<T, AppError>) -> ! {
+    match result {
+        Ok(v) => println!("{}", serde_json::to_string(&v).unwrap()),
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
         }
+    }
+    std::process::exit(0)
+}
+
+fn main() {
+    // CLI modes let `npm run smoke` prove the packaged app really works:
+    // `--transcribe <file>` (bundled ffmpeg + ONNX Runtime) and `--claude-test` (the user's Claude Code).
+    let args: Vec<String> = std::env::args().collect();
+    match args.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
+        [_, "--transcribe", file] => print_and_exit(transcribe::transcribe_file(
+            &parakeet::model_dir(),
+            &audio::bundled_ffmpeg(),
+            Path::new(file),
+            "cli",
+            |_, _| {},
+        )),
+        [_, "--claude-test"] => print_and_exit(claude::locate().and_then(|bin| claude::self_test::run(&bin, "cli"))),
+        _ => {}
     }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Shared::default())
-        .invoke_handler(tauri::generate_handler![claude_status, add_video, remove_part, transcribe_part])
+        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, add_video, remove_part, transcribe_part])
         .run(tauri::generate_context!())
         .expect("error while running SuperCut");
 }
