@@ -179,6 +179,11 @@ Each in its own file (a small JS module + Tailwind classes from the `@theme` tok
 - `Timeline` → `ClipView` (thumbnails + waveform, trim handles), `RemovedRangeView` (collapsed / open, yours / AI), `AddSlot`, `Playhead`, `SelectionChip`.
 - `Banner` — message + optional action.
 - `TranscriptPanel` (Phase 3).
+- `Magic` — the AI spot: toolbar button + states + results in the transcript. Contract: `design/ai-slot.md`.
+
+Built so far (`src/ui/`): `dropzone.js`, `player.js`, `status.js`, `timeline.js` (tiles + add-slot; thumbnails, waveform and trims later),
+`transcript.js` (words seek, current word lit, cut words struck through), `banner.js`, `magic.js` + `magic-button.js`.
+`src/main.js` only holds state and the Tauri wiring. Logic is tested without a window: `npm run test:ui`.
 
 ## Open questions (none block Phase 1)
 - Removed ranges collapsed by default vs full width hatched? I chose **collapsed** so the timeline matches what plays; check with 3 users (A3).
