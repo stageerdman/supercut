@@ -10,6 +10,14 @@
       <!-- Toolbar -->
       <header class="flex h-[52px] shrink-0 items-center border-b border-hairline px-4">
         <h1 id="title" class="min-w-0 flex-1 truncate font-semibold"></h1>
+        <!-- Status: what the app is doing, labeled, with its own bar. Gone when there's nothing to say (src/ui/status.js) -->
+        <div id="work" class="mr-4 hidden min-w-0 shrink items-center gap-3">
+          <span id="status" role="status" aria-live="polite" class="truncate tabular-nums text-text-secondary"></span>
+          <div id="progress-track" role="progressbar" aria-label="Transcription progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+               class="hidden h-1 w-24 shrink-0 overflow-hidden rounded-full bg-raised">
+            <div id="progress-bar" class="h-full rounded-full bg-accent transition-[width]" style="width: 0"></div>
+          </div>
+        </div>
         <!-- The AI spot: the one primary action, far right (src/ui/magic.js, design/ai-slot.md) -->
         <button id="magic" class="hidden"></button>
       </header>
@@ -48,12 +56,10 @@
           </aside>
         </div>
 
-        <!-- Transport row: play, time, the one status line -->
-        <div class="relative flex h-10 shrink-0 items-center gap-3 border-t border-hairline px-4">
-          <div id="progress-bar" class="absolute top-0 left-0 h-0.5 bg-accent transition-[width]" style="width: 0"></div>
+        <!-- Transport row: play, time -->
+        <div class="flex h-10 shrink-0 items-center gap-3 border-t border-hairline px-4">
           <button id="play" aria-label="Play" class="w-6 text-text hover:text-accent">▶</button>
           <span id="time" class="tabular-nums text-text-secondary">00:00 / 00:00</span>
-          <span id="status" role="status" aria-live="polite" class="ml-auto truncate text-text-secondary"></span>
         </div>
 
         <!-- Timeline: parts in order, then the add-slot while fewer than two -->

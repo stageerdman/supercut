@@ -13,3 +13,8 @@
   --color-on-accent: #0e0f11;
   --color-danger: #ff5a5f;
 }
+
+/* Selected words in the transcript: accent tint (design/visual-system.md: accent = selection). */
+#transcript ::selection {
+  background: rgb(255 106 61 / 0.32);
+}

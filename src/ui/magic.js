@@ -1,5 +1,6 @@
 // Magic: the AI spot. The toolbar's primary button + the AI's status and results.
-// Contract for the Claude Code connection: design/ai-slot.md. Until a runner is connected, Magic doesn't show.
+// Contract for the Claude Code connection: design/ai-slot.md. Magic shows as soon as a video is loaded.
+// Until a runner is connected it's a placeholder: pressing it says Magic isn't connected yet.
 //
 // States: off · ready · queued · running(stage) · (done → ready, summary in the status line)
 // A failed run changes nothing in the project: cuts are only handed on after success.
@@ -16,6 +17,7 @@ export function magicView(state) {
 
 const PRIVACY_KEY = 'supercut.magic.privacyShown';
 const PRIVACY = 'Only the text of your transcript is sent to Claude. Your video stays here.';
+export const NOT_CONNECTED = "Magic isn't connected yet. Soon it will pick your best takes; for now, cut words in the transcript.";
 
 /**
  * The controller. Every dependency is passed in so it runs (and is tested) without a window.
@@ -62,6 +64,7 @@ export function createMagic(deps) {
   async function press() {
     if (state.kind === 'off') return;
     if (state.kind === 'queued' || state.kind === 'running') return cancel();
+    if (!deps.runner) return deps.banner(NOT_CONNECTED);
     const claude = await deps.claude();
     if (claude.state !== 'ready') return deps.banner(...claudeBanner(claude));
     if (deps.project().transcribing) return set({ kind: 'queued' });
@@ -80,7 +83,7 @@ export function createMagic(deps) {
     /** Call whenever parts or transcripts change. */
     update() {
       const { parts, transcribing } = deps.project();
-      const usable = deps.runner && parts.length > 0;
+      const usable = parts.length > 0;
       if (!usable) return state.kind !== 'off' && (cancel(), set({ kind: 'off' }));
       if (state.kind === 'off') return set({ kind: 'ready' });
       if (state.kind === 'queued' && !transcribing) {

@@ -5,7 +5,9 @@ import { VIDEO, paintDrag } from './ui/dropzone.js';
 import { showBanner, hideBanner } from './ui/banner.js';
 import { workText, makeEta, createStatusLine } from './ui/status.js';
 import { renderTimeline } from './ui/timeline.js';
-import { renderTranscript, highlightWord } from './ui/transcript.js';
+import { renderTranscript, paintCuts, selectedWords, highlightWord } from './ui/transcript.js';
+import { toggleCut, createHistory } from './ui/cuts.js';
+import { bit } from './ui/bit.js';
 import { createMagic, claudeBanner } from './ui/magic.js';
 import { paintMagic } from './ui/magic-button.js';
 import { createPlayer } from './ui/player.js';
@@ -21,7 +23,7 @@ const MAX_PARTS = 2;
 /** [{ id, name, path, duration, transcript, error }] in play order. */
 let parts = [];
 let progress = null; // { part, stage, done, total } while working
-let cuts = []; // [{ part: id, s, e }] from the last Magic run
+const cuts = createHistory(); // cuts.now: [{ part: id, s, e }], yours and Magic's; ⌘Z / ⇧⌘Z walk it
 const secondsLeft = makeEta();
 const transcribing = () => parts.some((p) => !p.transcript && !p.error);
 
@@ -32,7 +34,7 @@ const claude = () => (claudeCheck ??= invoke('claude_status').catch(() => ({ sta
 
 // ---------- Components ----------
 
-const status = createStatusLine($('status'), $('progress-bar'), () =>
+const status = createStatusLine({ box: $('work'), text: $('status'), track: $('progress-track'), bar: $('progress-bar') }, () =>
   workText({
     progress,
     partNo: progress && parts.length > 1 ? parts.findIndex((p) => p.id === progress.part) + 1 : null,
@@ -56,7 +58,7 @@ const magic = createMagic({
   paint: (s) => { paintMagic(s); status.render(); },
   flash: (text, ms) => status.flash(text, ms),
   banner: showBanner,
-  onResult: (c) => { cuts = c; paintTranscript(); },
+  onResult: (c) => { cuts.push(c); paintCuts(cuts.now); },
 });
 $('magic').onclick = () => magic.press();
 
@@ -106,7 +108,7 @@ async function removePart(id) {
   await invoke('remove_part', { id }).catch((e) => showBanner(String(e)));
   const i = parts.findIndex((p) => p.id === id);
   parts = parts.filter((p) => p.id !== id);
-  cuts = cuts.filter((c) => c.part !== id);
+  cuts.forget(id);
   player.removed(i);
   render();
 }
@@ -147,15 +149,22 @@ document.addEventListener('keydown', (e) => {
   const typing = e.target.closest('input, textarea, [contenteditable]');
   if (e.metaKey && e.key === 'o') { e.preventDefault(); choose(); return; }
   if (e.metaKey && e.key === 'Enter') { e.preventDefault(); magic.press(); return; }
-  if (typing || e.metaKey || e.ctrlKey || e.altKey || !parts.length) return;
+  if (typing) return;
+  if (e.metaKey && e.key.toLowerCase() === 'z') { e.preventDefault(); paintCuts(e.shiftKey ? cuts.redo() : cuts.undo()); return; }
+  if (e.metaKey || e.ctrlKey || e.altKey || !parts.length) return;
   if (e.key === ' ' && !e.target.closest('button, [role=button]')) { e.preventDefault(); player.toggle(); }
-  else if (e.key === 'ArrowLeft') { e.preventDefault(); player.step(e.shiftKey ? -1 : -1 / 30); }
-  else if (e.key === 'ArrowRight') { e.preventDefault(); player.step(e.shiftKey ? 1 : 1 / 30); }
-  else if (e.key === 'j') player.step(-5);
-  else if (e.key === 'k') player.pause();
-  else if (e.key === 'l') player.play();
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); player.step(-bit()); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); player.step(bit()); }
+  else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); cutSelection(); }
 });
 $('play').onclick = () => player.toggle();
+
+/** Backspace: cut the selected words, or bring them back if they're all cut already. */
+function cutSelection() {
+  const picked = selectedWords();
+  if (!picked.length) return;
+  paintCuts(cuts.push(picked.reduce((list, g) => toggleCut(list, g.part, g.words), cuts.now)));
+}
 
 // ---------- Render ----------
 
@@ -188,7 +197,7 @@ function paintTimeline() {
 }
 
 function paintTranscript() {
-  renderTranscript({ parts, cuts, onSeek: (i, t) => player.show(i, t, true) });
+  renderTranscript({ parts, cuts: cuts.now, onSeek: (i, t) => player.show(i, t, true) });
 }
 
 render();

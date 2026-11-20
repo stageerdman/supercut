@@ -1,6 +1,6 @@
-// StatusLine: the one place that says what the app is doing (transport row, right side),
-// plus the 2 px progress bar under the row's top hairline.
-// States: idle (empty) · progress (text + %) · message (timed, e.g. "Transcript ready").
+// StatusLine: the one place that says what the app is doing — in the toolbar, left of Magic.
+// A label ("Transcribing… 42 %") plus its own small bar, so it never reads as the video's progress.
+// States: idle (gone) · progress (text + bar) · message (timed, e.g. "Transcript ready", then gone).
 import { eta } from './dom.js';
 
 /**
@@ -41,12 +41,19 @@ export function makeEta(now = () => Date.now()) {
   };
 }
 
-/** The live line. `work()` is asked for the current work text whenever nothing timed is showing. */
-export function createStatusLine(textEl, barEl, work) {
+/**
+ * The live line. `work()` is asked for the current work text whenever nothing timed is showing.
+ * @param {{box: HTMLElement, text: HTMLElement, track: HTMLElement, bar: HTMLElement}} els
+ */
+export function createStatusLine({ box, text, track, bar }, work) {
   let timer = null;
-  const paint = (text, pct) => {
-    textEl.textContent = text;
-    barEl.style.width = pct == null ? '0' : `${pct * 100}%`;
+  const paint = (t, pct) => {
+    box.classList.toggle('hidden', !t);
+    box.classList.toggle('flex', !!t);
+    text.textContent = t;
+    track.classList.toggle('hidden', pct == null);
+    bar.style.width = pct == null ? '0' : `${pct * 100}%`;
+    track.setAttribute('aria-valuenow', pct == null ? '0' : String(Math.round(pct * 100)));
   };
   return {
     /** Show a message for `ms`, then fall back to the work text. */

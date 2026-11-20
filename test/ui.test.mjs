@@ -2,9 +2,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { clock, eta } from '../src/ui/dom.js';
-import { workText, makeEta } from '../src/ui/status.js';
-import { magicView, createMagic, claudeBanner } from '../src/ui/magic.js';
-import { isCut } from '../src/ui/transcript.js';
+import { workText, makeEta, createStatusLine } from '../src/ui/status.js';
+import { magicView, createMagic, claudeBanner, NOT_CONNECTED } from '../src/ui/magic.js';
+import { isCut, toggleCut, createHistory } from '../src/ui/cuts.js';
+import { bit, setBit } from '../src/ui/bit.js';
 import { dropVerdict } from '../src/ui/dropzone.js';
 
 test('clock and eta read plainly', () => {
@@ -26,6 +27,26 @@ test('status line says one thing at a time', () => {
   assert.equal(workText({ progress: d }).text, 'Downloading speech model · 670 MB · 50 %');
 });
 
+test('toolbar status shows a labeled bar while transcribing, then goes away', () => {
+  const fake = () => {
+    const cls = new Set(['hidden']);
+    return { cls, style: {}, attrs: {}, textContent: '', setAttribute(k, v) { this.attrs[k] = v; },
+      classList: { toggle: (c, on) => (on ? cls.add(c) : cls.delete(c)) } };
+  };
+  const els = { box: fake(), text: fake(), track: fake(), bar: fake() };
+  let work = { text: 'Transcribing… 42 %', pct: 0.42 };
+  const line = createStatusLine(els, () => work);
+  line.render();
+  assert.equal(els.box.cls.has('hidden'), false);
+  assert.equal(els.track.cls.has('hidden'), false);
+  assert.equal(els.text.textContent, 'Transcribing… 42 %');
+  assert.equal(els.bar.style.width, '42%');
+  assert.equal(els.track.attrs['aria-valuenow'], '42');
+  work = { text: '', pct: null };
+  line.render();
+  assert.equal(els.box.cls.has('hidden'), true, 'done → gone');
+});
+
 test('time left waits for real speed, then extrapolates', () => {
   let now = 0;
   const left = makeEta(() => now);
@@ -42,6 +63,47 @@ test('a word is cut when its middle is', () => {
   assert.equal(isCut({ s: 1.2, e: 1.5 }, cuts), true);
   assert.equal(isCut({ s: 0.5, e: 1.4 }, cuts), false);
   assert.equal(isCut({ s: 2, e: 2.3 }, cuts), false);
+});
+
+const W = [{ s: 0, e: 0.4 }, { s: 0.5, e: 0.9 }, { s: 1, e: 1.4 }, { s: 1.5, e: 2 }];
+
+test('Backspace cuts the selected words; again brings them back', () => {
+  const cut = toggleCut([], 1, W.slice(1, 3));
+  assert.deepEqual(cut, [{ part: 1, s: 0.5, e: 1.4 }]);
+  assert.deepEqual(W.map((w) => isCut(w, cut)), [false, true, true, false]);
+  assert.deepEqual(toggleCut(cut, 1, W.slice(1, 3)), [], 'all cut → restored');
+  const more = toggleCut(cut, 1, W.slice(2, 4));
+  assert.deepEqual(W.map((w) => isCut(w, more)), [false, true, true, true], 'partly cut → all cut');
+  assert.deepEqual(toggleCut(cut, 2, W.slice(1, 3)).length, 2, 'other part is separate');
+});
+
+test('restoring one word splits a long cut (e.g. from Magic)', () => {
+  const magic = [{ part: 1, s: 0, e: 2 }, { part: 2, s: 0, e: 2 }];
+  const back = toggleCut(magic, 1, [W[1]]);
+  assert.deepEqual(back, [{ part: 1, s: 0, e: 0.5 }, { part: 1, s: 0.9, e: 2 }, { part: 2, s: 0, e: 2 }]);
+  assert.deepEqual(W.map((w) => isCut(w, back.filter((c) => c.part === 1))), [true, false, true, true]);
+});
+
+test('⌘Z / ⇧⌘Z walk the cuts; a removed part leaves history', () => {
+  const h = createHistory();
+  h.push([{ part: 1, s: 0, e: 1 }]);
+  h.push([{ part: 1, s: 0, e: 1 }, { part: 2, s: 0, e: 1 }]);
+  assert.equal(h.undo().length, 1);
+  assert.equal(h.undo().length, 0);
+  assert.equal(h.undo().length, 0, 'nothing left to undo');
+  assert.equal(h.redo().length, 1);
+  h.push([]);
+  assert.equal(h.redo().length, 0, 'a new cut clears redo');
+  h.undo();
+  assert.deepEqual(h.forget(1), []);
+});
+
+test('← → step one bit: a frame until the timeline sets its zoom', () => {
+  assert.equal(bit(), 1 / 30);
+  setBit(0.5);
+  assert.equal(bit(), 0.5);
+  setBit(0);
+  assert.equal(bit(), 1 / 30);
 });
 
 test('drop verdict', () => {
@@ -87,11 +149,21 @@ const okRunner = (result = { summary: '3 cuts', cuts: [{ part: 1, s: 0, e: 0.4 }
   cancel() { this.cancelled++; },
 });
 
-test('no runner, no Magic', () => {
+test('no runner yet: Magic still shows, and pressing it says it is not connected', async () => {
   const { m, log } = rig({ runner: null });
   m.update();
+  assert.equal(m.state.kind, 'ready');
+  await m.press();
+  assert.deepEqual(log.banners, [[NOT_CONNECTED, undefined]]);
+  assert.equal(m.state.kind, 'ready');
+});
+
+test('no video, no Magic', () => {
+  const { m, project } = rig({ runner: null });
+  m.update();
+  project.parts = [];
+  m.update();
   assert.equal(m.state.kind, 'off');
-  assert.deepEqual(log.states, []);
 });
 
 test('Magic runs, sends only text, hands on the cuts, says privacy once', async () => {

@@ -1,5 +1,5 @@
 // The Claude Code connection plugs in here — the only file it needs to touch on the UI side.
-// Contract: design/ai-slot.md. While `runner` is null the Magic button stays hidden.
+// Contract: design/ai-slot.md. While `runner` is null the Magic button shows but only says it isn't connected yet.
 //
 // export const runner = {
 //   run: ({ parts, onStage }) => invoke('run_magic', { parts }) ...,  // → { summary, cuts: [{ part, s, e }] }
