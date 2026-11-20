@@ -1,0 +1,179 @@
+# SuperCut — the one screen
+
+Author: Jony · 2026-11-20 · Status: **ready for build (Phase 1–2)**, later phases sketched so the layout won't have to move.
+Checked against: `design/user-model.md`. Visual tokens: `design/visual-system.md`.
+
+## User goal
+"Get my recording in, throw away the obvious junk, and hand it to the AI." — in one window, with no setup and no decisions they don't need.
+
+## What I removed, and why
+| Removed | Why |
+|---|---|
+| Welcome / onboarding screens | The empty screen *is* the onboarding: one drop target. |
+| New Project dialog, project naming | The project is named after the first video and autosaved. |
+| Media library / bin panel | At most two clips. The timeline is the library. |
+| Tool palette (razor, select, hand…) | One mode. Drag edges to trim, drag across to select, `S` to split. |
+| Inspector panel, effects, text, music, stickers | Not a goal. CapCut's look, not its toolbox. |
+| Separate "add second video" screen | A slot at the end of the timeline, and drop-anywhere. |
+| Settings window | Every choice has a default (export, model). Rules come in Phase 7 as one text box. |
+| Save button | Autosave. |
+| Export options dialog | One default (same size, HEVC MP4, next to the original). |
+| Magic options before running | Magic works with no setup; rules come later, after the first result. |
+
+## Layout
+
+One window, three zones. Nothing else.
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│ ● ● ●   my-video                              [ Export ]  [ ✦ Magic ]     │ ← toolbar (52)
+├───────────────────────────────────────────────────┬───────────────────────┤
+│                                                   │ Transcript (Phase 3)  │
+│                                                   │                       │
+│                     PLAYER                        │ So today I want to    │
+│                  (video, 16:9 fit)                │ show you ~~um~~ how…  │
+│                                                   │                       │
+│                                                   │                       │
+├───────────────────────────────────────────────────┴───────────────────────┤
+│  ▶  01:12 / 24:10                       Transcribing… 12 % · 3 min   ─◯─  │ ← transport row (40)
+│ ┌────────────────────────────┐▒▒▒┌───────────────────────┐ ┌ ─ ─ ─ ─ ┐    │
+│ │▌ clip 1 thumbnails       ▐│▒▒▒│▌ clip 2             ▐│   + Add      │
+│ │▌ ∿∿∿∿∿ waveform ∿∿∿∿∿∿∿∿ ▐│▒▒▒│▌ ∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿ ▐│ │ second  │    │ ← timeline (~160)
+│ └────────────────────────────┘▒▒▒└───────────────────────┘ └ ─ ─ ─ ─ ┘    │
+│        ▲ playhead                ▒ removed range (hatched)                │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Toolbar** (unified title bar, 52 pt): project name left (click to rename, optional), actions right. The **primary action sits far right**, where the eye ends.
+- **Player:** fills the space, video letterboxed on pure black. No controls on the video itself — the transport row is the only one.
+- **Transcript panel** (Phase 3 on): 320 pt, right of the player. Before Phase 3, or before a video loads, **it does not exist** — the player takes the full width. No empty panels, ever.
+- **Transport row:** play/pause, time (current / edited length), the one status line (centre-right), zoom slider (far right).
+- **Timeline:** one video track (thumbnails + waveform in the same clip, like CapCut). Clips sit in order with an 8 pt gap. The add-slot sits after the last clip while there are fewer than two.
+
+Window: min 960 × 600. Below 1100 pt wide the transcript panel becomes a toggle (`⌘T`) overlaying the right of the player.
+
+## The primary action, by state
+Exactly one filled button at any time.
+
+| State | Primary (filled) | Secondary (plain) |
+|---|---|---|
+| Empty | **Choose Video…** (in the drop zone) | — (toolbar empty) |
+| Video loaded, transcribing | **✦ Magic** (disabled, label "Magic", hint "Ready when the transcript is done") | Export |
+| Ready | **✦ Magic** | Export |
+| Magic done | **Review cuts** (Phase 6) | Export, ✦ Magic (again) |
+| All reviewed | **Export** | ✦ Magic |
+
+Before Phase 6 ships, "Magic done" keeps Magic as primary and Export secondary.
+
+## States
+
+### 1. Empty (first thing anyone sees)
+```
+┌──────────────────────────────────────────────────────────────┐
+│ ● ● ●                                                        │
+│                                                              │
+│              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐               │
+│                                                              │
+│              │        Drop a video here        │             │
+│                     [ Choose Video… ]                        │
+│              │                                 │             │
+│                  MP4 · MOV · M4V — up to 2 parts             │
+│              └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘               │
+│                                                              │
+│              Recent   ▢ my-video · Yesterday                 │ ← Phase 10, only if any
+└──────────────────────────────────────────────────────────────┘
+```
+- Drop zone: 520 × 280, centred, dashed 1.5 pt hairline, radius 16.
+- Headline (20 pt semibold): "Drop a video here". One button. One quiet hint line (13 pt secondary).
+- The **whole window** accepts drops, not only the zone. Also ⌘O and dropping on the Dock icon.
+- No logo, no tagline, no feature list.
+
+### 2. Drag over
+- Any valid file over the window: the zone border turns solid accent, fill accent at 8 %, headline "Drop to open". 120 ms ease.
+- Invalid file over the window: border secondary, headline "SuperCut opens video files". Drop does nothing harmful.
+- Over a loaded project: the add-slot (or, with two clips, the whole timeline) highlights; headline in the slot "Add as part 2".
+
+### 3. Opening
+- The editor layout appears **at once** (no spinner screen). The player shows the first frame as soon as AVFoundation has it; the clip on the timeline fills in thumbnails left to right as they render (skeleton tiles at surface-raised until then).
+- If opening takes > 1 s: status line "Opening my-video.mov…".
+
+### 4. One video loaded
+- Player shows frame 0, paused. Focus on the player so **Space plays** immediately.
+- Timeline zoomed to fit. Add-slot after the clip: dashed tile 120 pt wide, "+ Add part 2", secondary text. Clicking it opens the file picker; dropping on it adds.
+- Status line: "Transcribing…" (Phase 3) — until then empty.
+
+### 5. Two videos loaded
+- Clips in order, labelled "1" and "2" in a small badge (11 pt) top-left of each clip; the file name appears on hover.
+- Drag a clip left/right to swap order (the other clip slides aside, 180 ms).
+- Clip context menu (right-click): "Swap order", "Remove from project", "Show in Finder". Nothing else.
+- Add-slot disappears. Dropping a third file: banner "SuperCut works with two parts. Remove one to add another."
+
+### 6. Manual pre-cuts (Phase 2)
+No tools to pick. Three gestures, all undoable:
+- **Trim edges:** hover a clip edge → 6 pt handle appears (accent), cursor ↔. Drag inward; the trimmed part becomes a removed range. Drag back out to restore.
+- **Remove a middle part:** drag across the timeline (not on an edge) → selection (accent 20 % fill, 1 pt accent border). A small chip floats above it: **Remove ⌫**. Press ⌫ or click the chip.
+- **Split:** `S` splits at the playhead (for those who think in razor cuts). Not shown as a button; listed in the Help menu and the shortcut sheet.
+
+Removed ranges stay visible: **collapsed to a 12 pt hatched sliver** between kept parts (so the timeline shows the edited length), with a ↔ icon on hover; click → it opens back to full width with a **Restore** chip. Playback skips them.
+
+Time readout shows the **edited** length: "01:12 / 23:40", and while hovering the readout: "Original 24:10".
+
+Your cuts are drawn in neutral grey hatch; AI cuts (Phase 5) in accent hatch. One glance tells you who cut what.
+
+### 7. Transcribing (Phase 3)
+- Status line: "Transcribing… 12 % · about 3 min" with a 2 pt progress bar under the transport row's top hairline. You can play and cut meanwhile.
+- First run: "Downloading speech model · 465 MB · about 2 min" first, same place.
+- The transcript panel slides in (200 ms) when the first words arrive and fills as they come.
+- Done: status line "Transcript ready" for 3 s, then clears. Magic enables (fade 150 ms). If the app is in the background: a Mac notification.
+
+### 8. Magic running / done (Phase 5, sketched)
+- Magic button becomes a progress pill with stages ("Choosing the best takes…") and a ✕ to cancel. Everything else stays usable but the timeline is read-only (cursor shows why on hover: "Wait for Magic to finish").
+- Done: status line "38 cuts · 24:10 → 14:52 · ⌘Z to undo" for 6 s.
+
+### 9. Errors (one pattern for all)
+A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, one sentence + at most one action + ✕. It never blocks the screen. Examples:
+| Situation | Banner | Action |
+|---|---|---|
+| Unsupported file | "SuperCut can't open .mkv files yet. Try MP4 or MOV." | — |
+| Broken file | "This video can't be read. It may be damaged." | Show in Finder |
+| Audio-only file | "That's an audio file. Better audio comes in a later version." (Phase 8 replaces this) | — |
+| Third file | "SuperCut works with two parts. Remove one to add another." | — |
+| Source moved | "Can't find my-video.mov." | Locate… |
+| Claude not signed in (only when Magic is pressed) | "Sign in to Claude to use Magic: open Terminal and run `claude`." | Copy command |
+
+## Keyboard (works from the first second)
+| Key | Action |
+|---|---|
+| Space | Play / pause |
+| ← → | One frame (⇧ = 1 s) |
+| J K L | Back / pause / forward (editors' habit) |
+| S | Split at playhead |
+| ⌫ | Remove selection |
+| ⌘Z / ⇧⌘Z | Undo / redo |
+| ⌘O | Choose video |
+| ⌘ + / ⌘ − | Zoom timeline |
+| ⌘↩ | Magic (⌘M is taken by macOS Minimize) |
+| ⌘E | Export |
+| ⌘T | Toggle transcript (narrow windows) |
+
+## Accessibility
+- Contrast: text primary 15:1, secondary 7:1 on background; accent button uses dark label (see visual system). All ≥ 4.5:1.
+- Every control ≥ 28 × 28 pt hit area (macOS standard); toolbar buttons 32 pt tall.
+- Full keyboard reach; standard focus rings (accent).
+- VoiceOver: player "Video player, 01:12 of 23:40"; each clip "Part 1, my-video.mov, 12 minutes"; removed range "Removed, 20 seconds, by you"; drop zone "Drop a video, or choose one".
+- Respect Reduce Motion (slides become fades) and Increase Contrast (hairlines 2×).
+
+## Components (build once, reuse)
+Each in its own file, testable in isolation with SwiftUI previews of every state.
+- `PrimaryButton`, `SecondaryButton` — toolbar actions.
+- `DropZone` — empty, drag-valid, drag-invalid.
+- `PlayerView` — AVPlayerLayer wrapper.
+- `TransportBar` — play, time, `StatusLine`, zoom.
+- `StatusLine` — idle, progress (text + %), message (timed).
+- `Timeline` → `ClipView` (thumbnails + waveform, trim handles), `RemovedRangeView` (collapsed / open, yours / AI), `AddSlot`, `Playhead`, `SelectionChip`.
+- `Banner` — message + optional action.
+- `TranscriptPanel` (Phase 3).
+
+## Open questions (none block Phase 1)
+- Removed ranges collapsed by default vs full width hatched? I chose **collapsed** so the timeline matches what plays; check with 3 users (A3).
+- Light mode? Not in v1 — editors are dark; revisit with A5.
