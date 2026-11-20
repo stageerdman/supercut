@@ -20,6 +20,7 @@ pub enum AppError {
     ClaudeSignedOut,
     ClaudeBusy,
     ClaudeFailed(String),
+    Rules(String),
 }
 
 impl fmt::Display for AppError {
@@ -42,6 +43,7 @@ impl fmt::Display for AppError {
             Self::ClaudeSignedOut => write!(f, "Open Terminal and run `claude`, then sign in."),
             Self::ClaudeBusy => write!(f, "Claude is busy or your usage limit is reached. Try again in a few minutes."),
             Self::ClaudeFailed(why) => write!(f, "Claude couldn't answer: {why}"),
+            Self::Rules(why) => write!(f, "Couldn't read or save your editing rules. ({why})"),
         }
     }
 }

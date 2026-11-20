@@ -12,6 +12,7 @@ mod media;
 mod parakeet;
 mod project;
 mod recognizer;
+mod rules;
 mod transcribe;
 mod words;
 
@@ -48,12 +49,27 @@ async fn claude_self_test() -> Result<claude::picks::Picks, AppError> {
         .map_err(|e| AppError::ClaudeFailed(e.to_string()))?
 }
 
-/// Magic: the parts' transcripts (play order) → proposed cuts, chosen by the user's Claude.
+/// Magic: the parts' transcripts (play order) → proposed cuts, chosen by the user's Claude
+/// with the user's saved editing rules (read fresh each run, so a save applies at once).
 #[tauri::command]
 async fn auto_cut(parts: Vec<autocut::lines::PartWords>) -> Result<Vec<autocut::decide::Cut>, AppError> {
-    tauri::async_runtime::spawn_blocking(move || autocut::run(&claude::locate()?, &parts, "magic"))
+    tauri::async_runtime::spawn_blocking(move || autocut::run(&claude::locate()?, &parts, &rules::load(&rules::path())?, "magic"))
         .await
         .map_err(|e| AppError::ClaudeFailed(e.to_string()))?
+}
+
+/// The user's own editing rules, as saved.
+#[tauri::command]
+fn get_rules() -> Result<Vec<String>, AppError> {
+    rules::load(&rules::path())
+}
+
+/// Saves the rules and returns them cleaned (trimmed, no empties, no repeats), as stored.
+#[tauri::command]
+fn save_rules(rules: Vec<String>) -> Result<Vec<String>, AppError> {
+    let stored = rules::save(&rules::path(), rules)?;
+    log::info("rules", "rules", format!("saved {} rules", stored.len()));
+    Ok(stored)
 }
 
 #[tauri::command]
@@ -104,7 +120,8 @@ fn print_and_exit<T: Serialize>(result: Result<T, AppError>) -> ! {
 /// Magic on one file, as one part: transcribe, then propose cuts.
 fn auto_cut_file(file: &Path) -> Result<Vec<autocut::decide::Cut>, AppError> {
     let t = transcribe::transcribe_file(&parakeet::model_dir(), &audio::bundled_ffmpeg(), file, "cli", |_, _| {})?;
-    autocut::run(&claude::locate()?, &[autocut::lines::PartWords { id: 1, words: t.words }], "cli")
+    let parts = [autocut::lines::PartWords { id: 1, words: t.words }];
+    autocut::run(&claude::locate()?, &parts, &rules::load(&rules::path())?, "cli")
 }
 
 fn main() {
@@ -128,7 +145,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Shared::default())
-        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, add_video, remove_part, transcribe_part])
+        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, get_rules, save_rules, add_video, remove_part, transcribe_part])
         .run(tauri::generate_context!())
         .expect("error while running Magic Cut");
 }

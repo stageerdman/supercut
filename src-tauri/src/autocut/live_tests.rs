@@ -63,7 +63,7 @@ fn live_claude_cuts_the_earlier_takes_and_keeps_the_rest() {
     let Ok(bin) = locate() else { return println!("# skipped: Claude Code not installed") };
     let lines = lines_of(words);
     let t0 = std::time::Instant::now();
-    let cuts = super::run(&bin, &[PartWords { id: 1, words: words.clone() }], "live-autocut").unwrap();
+    let cuts = super::run(&bin, &[PartWords { id: 1, words: words.clone() }], &[], "live-autocut").unwrap();
     println!("# claude answered in {:.1} s: {}", t0.elapsed().as_secs_f64(), serde_json::to_string(&cuts).unwrap());
     let cut = |id: u32| {
         let l = &lines[id as usize - 1];

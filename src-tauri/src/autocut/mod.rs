@@ -24,7 +24,7 @@ pub use prompt::RULES;
 /// A long recording is a few hundred lines; Claude needs more than the self-test's 120 s.
 const LIMIT: Duration = Duration::from_secs(300);
 
-/// The engine without I/O. `custom_rules` is the hook for the user's own editing rules;
+/// The engine without I/O. `custom_rules` are the user's own editing rules (they win over the built-in ones);
 /// `ask_claude` gets the question and returns Claude's JSON answer.
 pub fn propose(
     parts: &[PartWords],
@@ -42,10 +42,10 @@ pub fn propose(
     Ok(decide::cuts(&lines, &picks.drop))
 }
 
-/// The real thing: this Mac's `claude` at `bin`. `trace` tags the log lines.
-pub fn run(bin: &Path, parts: &[PartWords], trace: &str) -> Result<Vec<Cut>, AppError> {
-    let cuts = propose(parts, &[], |q| ask::ask(bin, q, LIMIT, trace))?;
-    log::info("autocut", trace, format!("{} cuts proposed", cuts.len()));
+/// The real thing: this Mac's `claude` at `bin`, with the user's `custom_rules`. `trace` tags the log lines.
+pub fn run(bin: &Path, parts: &[PartWords], custom_rules: &[String], trace: &str) -> Result<Vec<Cut>, AppError> {
+    let cuts = propose(parts, custom_rules, |q| ask::ask(bin, q, LIMIT, trace))?;
+    log::info("autocut", trace, format!("{} cuts proposed, {} custom rules", cuts.len(), custom_rules.len()));
     Ok(cuts)
 }
 
@@ -108,7 +108,17 @@ mod tests {
             "autocut",
             r#"cat > /dev/null; echo '{"type":"result","is_error":false,"structured_output":{"keep":[1,3,4],"drop":[{"id":2,"reason":"earlier take"}]}}'"#,
         );
-        let cuts = run(&bin, &[part(5, RETAKES)], "test").unwrap();
+        let cuts = run(&bin, &[part(5, RETAKES)], &[], "test").unwrap();
         assert_eq!(cuts, [Cut { part: 5, from: 2, to: 7, s: 1.0, e: 3.4, reason: "earlier take".into() }]);
+    }
+
+    #[test]
+    fn the_real_call_carries_the_users_rules() {
+        // Answers only when the user's rule is in its arguments (the system prompt).
+        let bin = fake::claude(
+            "autocut-rules",
+            r#"cat > /dev/null; case "$*" in *"- Keep every joke."*) echo '{"type":"result","is_error":false,"structured_output":{"keep":[1],"drop":[]}}';; *) echo 'rule missing' >&2; exit 3;; esac"#,
+        );
+        assert_eq!(run(&bin, &[part(1, "Hi.")], &["Keep every joke.".into()], "test"), Ok(vec![]));
     }
 }
