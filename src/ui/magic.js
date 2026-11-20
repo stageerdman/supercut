@@ -10,7 +10,8 @@ export function magicView(state) {
   switch (state.kind) {
     case 'off': return { visible: false };
     case 'queued': return { visible: true, pill: true, label: 'Magic queued', cancel: 'Cancel Magic' };
-    case 'running': return { visible: true, pill: true, label: `${state.stage || 'Working'}…`, cancel: 'Cancel Magic' };
+    // What it's doing is said once, in the status line beside it (workText's magicStage); the pill only offers to stop.
+    case 'running': return { visible: true, pill: true, label: 'Magic', cancel: 'Cancel Magic' };
     default: return { visible: true, pill: false, label: '✦ Magic' };
   }
 }
@@ -53,7 +54,7 @@ export function createMagic(deps) {
       if (state.kind !== 'running') return; // cancelled meanwhile: drop the result
       deps.onResult(result.cuts);
       set({ kind: 'ready' });
-      deps.flash(result.summary, 6000); // "· ⌘Z to undo" joins once undo exists
+      deps.flash(result.summary, 6000);
     } catch (e) {
       if (state.kind !== 'running') return; // the cancel was the "error"
       set({ kind: 'ready' });

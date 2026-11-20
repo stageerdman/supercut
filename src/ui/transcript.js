@@ -3,9 +3,15 @@
 // so you can see what goes; select them and Backspace again to bring them back.
 // The panel only exists once there are words (no empty panels, ever).
 import { $, el, clock } from './dom.js';
-import { isCut } from './cuts.js';
+import { isCut, cutAt } from './cuts.js';
 
 export { isCut };
+
+/** Pure: a word's hover text. Magic's cuts say why. Tested in test/ui.test.mjs. */
+export function cutTitle(cut, s) {
+  if (!cut) return clock(s);
+  return `${cut.reason ? `Magic: ${cut.reason}` : `Cut · ${clock(s)}`} · Backspace brings it back`;
+}
 
 const CUT = ['text-text-secondary', 'line-through', 'decoration-accent', 'decoration-2'];
 
@@ -49,9 +55,9 @@ export function renderTranscript({ parts, cuts = [], onSeek }) {
 export function paintCuts(cuts) {
   for (const span of words()) {
     const w = { s: +span.dataset.s, e: +span.dataset.e };
-    const cut = isCut(w, cuts.filter((c) => c.part === +span.dataset.id));
-    CUT.forEach((c) => span.classList.toggle(c, cut));
-    span.title = cut ? `Cut · ${clock(w.s)} · Backspace brings it back` : clock(w.s);
+    const cut = cutAt(w, cuts.filter((c) => c.part === +span.dataset.id));
+    CUT.forEach((c) => span.classList.toggle(c, !!cut));
+    span.title = cutTitle(cut, w.s);
   }
 }
 

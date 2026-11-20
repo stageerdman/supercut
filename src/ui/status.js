@@ -6,10 +6,11 @@ import { eta } from './dom.js';
 /**
  * Pure: what the line says while work runs. Tested in test/ui.test.mjs.
  * @param {{progress?: {stage:string, done:number, total:number}|null, partNo?: number|null,
- *          secondsLeft?: number, waiting?: boolean, magicQueued?: boolean}} s
+ *          secondsLeft?: number, waiting?: boolean, magicQueued?: boolean, magicStage?: string|null}} s
+ *          magicStage: what Magic is doing while it runs ("Choosing the best takes")
  * @returns {{text: string, pct: number|null}} pct null = no bar
  */
-export function workText({ progress, partNo, secondsLeft, waiting, magicQueued }) {
+export function workText({ progress, partNo, secondsLeft, waiting, magicQueued, magicStage }) {
   const tail = magicQueued ? ' · Magic starts when the transcript is ready' : '';
   if (progress) {
     const pct = progress.total ? progress.done / progress.total : 0;
@@ -21,6 +22,7 @@ export function workText({ progress, partNo, secondsLeft, waiting, magicQueued }
     const part = partNo ? ` part ${partNo}` : '';
     return { text: `Transcribing${part}… ${Math.round(pct * 100)} %${time}${tail}`, pct };
   }
+  if (magicStage) return { text: `${magicStage}…`, pct: null };
   if (waiting) return { text: `Transcribing…${tail}`, pct: null };
   return { text: '', pct: null };
 }

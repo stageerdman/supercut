@@ -135,8 +135,8 @@ Your cuts are drawn in neutral grey hatch; AI cuts (Phase 5) in accent hatch. On
 ### 8. Magic queued / running / done (Phase 5, sketched)
 - **Queued:** pressing Magic during transcription turns the button into a pill "Magic queued ✕"; the status line reads "Transcribing… 12 % · Magic starts when the transcript is ready". ✕ (or ⌘↩ again) cancels the queue. When the transcript is done, Magic starts by itself — no second press, and only **one** notification at the very end ("38 cuts ready").
 - **First run ever:** a one-time inline notice in the status line for 8 s — "Only the text of your transcript is sent to Claude. Your video stays here." No dialog, no confirmation, it doesn't delay the run, and it never shows again.
-- **Running:** the Magic button becomes a progress pill with stages ("Choosing the best takes…") and a ✕ to cancel. Everything else stays usable but the timeline is read-only (cursor shows why on hover: "Wait for Magic to finish").
-- Done: status line "38 cuts · 24:10 → 14:52 · ⌘Z to undo" for 6 s.
+- **Running:** the status line (left of the button) says the stage: "Choosing the best takes…". The button becomes a quiet pill "Magic ✕" that only cancels. The stage is said once, in the one place that says what the app is doing. Everything else stays usable (play, arrows, manual cuts).
+- Done: status line "38 cuts · 24:10 → 14:52 · ⌘Z to undo" for 6 s. Magic's cuts look exactly like yours (struck through); hovering one says why ("Magic: earlier take · Backspace brings it back"). Your own cuts stay; running Magic again replaces only its previous cuts. One ⌘Z undoes the whole run.
 
 ### 9. Errors (one pattern for all)
 A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, one sentence + at most one action + ✕. It never blocks the screen. Examples:

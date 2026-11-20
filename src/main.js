@@ -6,7 +6,7 @@ import { showBanner, hideBanner } from './ui/banner.js';
 import { workText, makeEta, createStatusLine } from './ui/status.js';
 import { renderTimeline } from './ui/timeline.js';
 import { renderTranscript, paintCuts, selectedWords, highlightWord } from './ui/transcript.js';
-import { toggleCut, createHistory } from './ui/cuts.js';
+import { toggleCut, createHistory, withMagic } from './ui/cuts.js';
 import { bit } from './ui/bit.js';
 import { createMagic, claudeBanner } from './ui/magic.js';
 import { paintMagic } from './ui/magic-button.js';
@@ -23,7 +23,7 @@ const MAX_PARTS = 2;
 /** [{ id, name, path, duration, transcript, error }] in play order. */
 let parts = [];
 let progress = null; // { part, stage, done, total } while working
-const cuts = createHistory(); // cuts.now: [{ part: id, s, e }], yours and Magic's; ⌘Z / ⇧⌘Z walk it
+const cuts = createHistory(); // cuts.now: [{ part: id, s, e, reason? }], yours and Magic's; ⌘Z / ⇧⌘Z walk it
 const secondsLeft = makeEta();
 const transcribing = () => parts.some((p) => !p.transcript && !p.error);
 
@@ -41,6 +41,7 @@ const status = createStatusLine({ box: $('work'), text: $('status'), track: $('p
     secondsLeft: secondsLeft(progress),
     waiting: transcribing(),
     magicQueued: magic.state.kind === 'queued',
+    magicStage: magic.state.kind === 'running' ? magic.state.stage : null,
   }),
 );
 
@@ -58,7 +59,7 @@ const magic = createMagic({
   paint: (s) => { paintMagic(s); status.render(); },
   flash: (text, ms) => status.flash(text, ms),
   banner: showBanner,
-  onResult: (c) => { cuts.push(c); paintCuts(cuts.now); },
+  onResult: (c) => paintCuts(cuts.push(withMagic(cuts.now, c))), // one ⌘Z undoes the whole run
 });
 $('magic').onclick = () => magic.press();
 

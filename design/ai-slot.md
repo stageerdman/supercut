@@ -11,9 +11,9 @@ line about what's happening, and the result **in the transcript**, where they ca
 | What | Where | Built in |
 |---|---|---|
 | Start / cancel | **✦ Magic**, the one filled button, far right of the toolbar. Queued or running, it becomes a pill with ✕ | `src/ui/magic-button.js` |
-| What it's doing | The pill's label ("Choosing the best takes…"). Queued: the status line adds "· Magic starts when the transcript is ready" | `src/ui/magic.js`, `src/ui/status.js` |
+| What it's doing | The status line ("Choosing the best takes…"); the pill only says "Magic ✕". Queued: the status line adds "· Magic starts when the transcript is ready" | `src/ui/magic.js`, `src/ui/status.js` |
 | First run ever | Status line, 8 s, once: "Only the text of your transcript is sent to Claude. Your video stays here." | `src/ui/magic.js` |
-| Result | Cut words stay in the transcript, **struck through** (accent line). Summary in the status line for 6 s | `src/ui/transcript.js` |
+| Result | Cut words stay in the transcript, **struck through** (accent line), same as yours; hover says why ("Magic: earlier take · Backspace brings it back"). Summary in the status line for 6 s | `src/ui/transcript.js`, `src/ui/cuts.js` (`withMagic`) |
 | Problems | The banner: one sentence + **Try again**. Signed out → "Sign in to Claude…" + **Copy command** | `src/ui/magic.js` |
 
 Removed on purpose: an AI results panel, a chat box, a log view, a progress dialog, a "Magic done" modal.
@@ -57,12 +57,12 @@ Rules the UI already enforces (tested in `test/ui.test.mjs`):
 | No runner yet | **✦ Magic** (filled); press → "not connected yet" banner | — |
 | Ready | **✦ Magic** (filled) | transcription text or empty |
 | Queued | pill "Magic queued ✕" | "Transcribing… 12 % · about 2 min · Magic starts when the transcript is ready" |
-| Running | pill "Choosing the best takes… ✕" | privacy note the first time ever, else empty |
-| Done | **✦ Magic** (run again) | "38 cuts · 24:10 → 14:52" for 6 s |
+| Running | pill "Magic ✕" | privacy note the first time ever (8 s), then "Choosing the best takes…" |
+| Done | **✦ Magic** (run again) | "38 cuts · 24:10 → 14:52 · ⌘Z to undo" for 6 s |
 | Failed | **✦ Magic** | banner: the error + Try again |
 
 Keyboard: ⌘↩ presses Magic (and cancels when it's a pill).
 
 ## Not yet (later phases)
-AI cuts on the timeline (accent hatch), Review mode. ⌘Z now undoes a Magic run too (its cuts replace the list as one undo step);
-the summary can gain "· ⌘Z to undo" when the runner is connected.
+AI cuts on the timeline (accent hatch), Review mode. A Magic run joins your own cuts as one ⌘Z step
+(a second run replaces only the first run's cuts).

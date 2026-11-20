@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { clock, eta } from '../src/ui/dom.js';
 import { workText, makeEta, createStatusLine } from '../src/ui/status.js';
 import { magicView, createMagic, claudeBanner, NOT_CONNECTED } from '../src/ui/magic.js';
-import { isCut, toggleCut, createHistory } from '../src/ui/cuts.js';
+import { isCut, toggleCut, createHistory, withMagic } from '../src/ui/cuts.js';
+import { cutTitle } from '../src/ui/transcript.js';
 import { bit, setBit } from '../src/ui/bit.js';
 import { dropVerdict } from '../src/ui/dropzone.js';
 import { runner, summary } from '../src/ai.js';
@@ -26,6 +27,8 @@ test('status line says one thing at a time', () => {
   assert.equal(workText({ progress: p, magicQueued: true }).text, 'Transcribing… 12 % · Magic starts when the transcript is ready');
   const d = { part: 1, stage: 'download', done: 335e6, total: 670e6 };
   assert.equal(workText({ progress: d }).text, 'Downloading speech model · 670 MB · 50 %');
+  assert.deepEqual(workText({ magicStage: 'Choosing the best takes' }), { text: 'Choosing the best takes…', pct: null });
+  assert.equal(workText({ progress: p, magicStage: 'Choosing the best takes' }).text, 'Transcribing… 12 %', 'a new part transcribing wins');
 });
 
 test('toolbar status shows a labeled bar while transcribing, then goes away', () => {
@@ -83,6 +86,22 @@ test('restoring one word splits a long cut (e.g. from Magic)', () => {
   const back = toggleCut(magic, 1, [W[1]]);
   assert.deepEqual(back, [{ part: 1, s: 0, e: 0.5 }, { part: 1, s: 0.9, e: 2 }, { part: 2, s: 0, e: 2 }]);
   assert.deepEqual(W.map((w) => isCut(w, back.filter((c) => c.part === 1))), [true, false, true, true]);
+  const why = toggleCut([{ part: 1, s: 0, e: 2, reason: 'earlier take' }], 1, [W[1]]);
+  assert.deepEqual(why.map((c) => c.reason), ['earlier take', 'earlier take'], 'the pieces keep the reason');
+});
+
+test("Magic's cuts join yours; a second run replaces the first run's", () => {
+  const mine = { part: 1, s: 5, e: 6 };
+  const first = withMagic([mine], [{ part: 1, from: 0, to: 3, s: 0, e: 2, reason: 'earlier take' }]);
+  assert.deepEqual(first, [mine, { part: 1, s: 0, e: 2, reason: 'earlier take' }]);
+  assert.deepEqual(withMagic(first, [{ part: 1, s: 8, e: 9, reason: 'fumble' }]), [mine, { part: 1, s: 8, e: 9, reason: 'fumble' }]);
+  assert.deepEqual(withMagic(first, []), [mine], 'nothing found: only yours stay');
+});
+
+test('a cut word says why on hover', () => {
+  assert.equal(cutTitle(undefined, 75), '01:15');
+  assert.equal(cutTitle({ s: 70, e: 80 }, 75), 'Cut · 01:15 · Backspace brings it back');
+  assert.equal(cutTitle({ s: 70, e: 80, reason: 'earlier take' }, 75), 'Magic: earlier take · Backspace brings it back');
 });
 
 test('⌘Z / ⇧⌘Z walk the cuts; a removed part leaves history', () => {
@@ -117,7 +136,7 @@ test('magic button looks', () => {
   assert.equal(magicView({ kind: 'off' }).visible, false);
   assert.deepEqual(magicView({ kind: 'ready' }), { visible: true, pill: false, label: '✦ Magic' });
   assert.equal(magicView({ kind: 'queued' }).label, 'Magic queued');
-  assert.equal(magicView({ kind: 'running', stage: 'Choosing the best takes' }).label, 'Choosing the best takes…');
+  assert.equal(magicView({ kind: 'running', stage: 'Choosing the best takes' }).label, 'Magic', 'the stage is in the status line');
   assert.equal(claudeBanner({ state: 'signed-out' })[1].label, 'Copy command');
   assert.equal(claudeBanner({ state: 'missing' }).length, 1);
 });
@@ -242,8 +261,8 @@ test('cancel while running drops the late result', async () => {
 
 test('Magic summary: cuts and the length before → after, across parts', () => {
   const parts = [{ seconds: 30 }, { seconds: 12.5 }];
-  assert.equal(summary([{ s: 4, e: 8 }, { s: 18.2, e: 22.4 }, { s: 31.8, e: 33.8 }], parts), '3 cuts · 00:42 → 00:32');
-  assert.equal(summary([{ s: 0, e: 2 }], parts), '1 cut · 00:42 → 00:40');
+  assert.equal(summary([{ s: 4, e: 8 }, { s: 18.2, e: 22.4 }, { s: 31.8, e: 33.8 }], parts), '3 cuts · 00:42 → 00:32 · ⌘Z to undo');
+  assert.equal(summary([{ s: 0, e: 2 }], parts), '1 cut · 00:42 → 00:40 · ⌘Z to undo');
   assert.match(summary([], parts), /Nothing cut/);
 });
 
@@ -255,7 +274,7 @@ test('the runner asks Rust auto_cut with the parts and hands back its cuts', asy
   const parts = [{ id: 1, name: 'a.mov', seconds: 10, words: [] }];
   const result = await runner.run({ parts, onStage: (s) => stages.push(s) });
   assert.deepEqual(asked, [['auto_cut', { parts }]]);
-  assert.deepEqual(result, { summary: '1 cut · 00:10 → 00:09', cuts });
+  assert.deepEqual(result, { summary: '1 cut · 00:10 → 00:09 · ⌘Z to undo', cuts });
   assert.deepEqual(stages, ['Choosing the best takes']);
   delete globalThis.window;
 });

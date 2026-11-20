@@ -7,7 +7,7 @@ export function summary(cuts, parts) {
   if (!cuts.length) return 'No repeated takes or fumbles found. Nothing cut.';
   const total = parts.reduce((sum, p) => sum + p.seconds, 0);
   const cut = cuts.reduce((sum, c) => sum + (c.e - c.s), 0);
-  return `${cuts.length} cut${cuts.length === 1 ? '' : 's'} · ${clock(total)} → ${clock(total - cut)}`;
+  return `${cuts.length} cut${cuts.length === 1 ? '' : 's'} · ${clock(total)} → ${clock(total - cut)} · ⌘Z to undo`;
 }
 
 export const runner = {
