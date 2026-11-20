@@ -6,7 +6,7 @@
     <link rel="stylesheet" href="app.css" />
   </head>
   <body class="h-full overflow-hidden bg-bg font-sans text-[13px] text-text antialiased select-none">
-    <div class="flex h-full flex-col">
+    <div class="relative flex h-full flex-col">
       <!-- Toolbar -->
       <header class="flex h-[52px] shrink-0 items-center border-b border-hairline px-4">
         <h1 id="title" class="min-w-0 flex-1 truncate font-semibold"></h1>
@@ -18,9 +18,29 @@
             <div id="progress-bar" class="h-full rounded-full bg-accent transition-[width]" style="width: 0"></div>
           </div>
         </div>
+        <!-- Your rules: the gear opens the rules panel below (src/ui/rules.js, design/rules.md) -->
+        <button id="rules-gear" aria-label="Your rules" aria-expanded="false" aria-controls="rules-panel" title="Your editing rules (⌘,)"
+                class="mr-2 flex size-8 shrink-0 items-center justify-center rounded-md text-text-secondary hover:text-text focus-visible:outline-2 focus-visible:outline-accent">
+          <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        </button>
         <!-- The AI spot: the one primary action, far right (src/ui/magic.js, design/ai-slot.md) -->
         <button id="magic" class="hidden"></button>
       </header>
+
+      <!-- Your rules: one per line, saved as you type; floats under the gear -->
+      <section id="rules-panel" role="dialog" aria-labelledby="rules-title"
+               class="absolute top-[56px] right-4 z-10 hidden w-[360px] space-y-3 rounded-[10px] border border-hairline bg-surface p-4">
+        <div>
+          <h2 id="rules-title" class="font-semibold">Your rules</h2>
+          <p id="rules-hint" class="text-text-secondary">Magic Cut follows these the next time it runs. One rule per line, in plain words.</p>
+        </div>
+        <textarea id="rules-box" rows="8" spellcheck="true" aria-labelledby="rules-title" aria-describedby="rules-hint"
+                  placeholder="Keep my jokes&#10;Cut every um and uh"
+                  class="block w-full resize-none rounded-md border border-hairline bg-bg p-3 text-[15px] leading-normal text-text select-text placeholder:text-text-secondary focus-visible:outline-2 focus-visible:outline-accent"></textarea>
+      </section>
 
       <!-- Banner: one sentence, at most one action, ✕ -->
       <div id="banner" role="alert" class="hidden h-11 shrink-0 items-center gap-3 border-b border-hairline bg-raised px-4">

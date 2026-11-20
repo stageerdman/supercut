@@ -31,7 +31,12 @@ built-in rules. Where they differ, the user's rules win (feature f-custom-ai-edi
 - Phase 2 ✅ `get_rules` / `save_rules` registered; `auto_cut` and `--auto-cut` read the saved rules each run;
   `autocut::run` takes them. Test: a fake `claude` that only answers when the rule is in its system prompt.
 - `npm test`: 24 UI + 79 Rust passed, 0 failed.
-- Phases 3–4: next. The UI calls `invoke("get_rules")` → `string[]` and `invoke("save_rules", { rules })` → the
+- Phase 3 ✅ (Jony) Gear in the toolbar (⌘,) opens "Your rules": one text box, one rule per line, saved as you
+  type and on close; pressing Magic Cut closes the panel and saves before the run. Spec `design/rules.md`,
+  code `src/ui/rules.js`. Tests: store (load once, debounced save, cleaning like Rust, failed save retries),
+  panel (open/Esc/⌘,/click outside, unreadable file stays read-only), commands match `generate_handler!`.
+  `npm test`: 31 UI + 79 Rust passed. App rebuilt and opened; nobody has clicked through the panel in the window yet.
+- Phase 4: next. The UI calls `invoke("get_rules")` → `string[]` and `invoke("save_rules", { rules })` → the
   cleaned `string[]`; errors arrive as one plain sentence.
 
 ## Decisions

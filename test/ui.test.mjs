@@ -9,6 +9,7 @@ import { cutTitle } from '../src/ui/transcript.js';
 import { bit, setBit } from '../src/ui/bit.js';
 import { dropVerdict } from '../src/ui/dropzone.js';
 import { runner, summary } from '../src/ai.js';
+import { parseRules, rulesText, createRulesStore, mountRules } from '../src/ui/rules.js';
 
 test('clock and eta read plainly', () => {
   assert.equal(clock(75), '01:15');
@@ -277,6 +278,125 @@ test('the runner asks Rust auto_cut with the parts and hands back its cuts', asy
   assert.deepEqual(result, { summary: '1 cut · 00:10 → 00:09 · ⌘Z to undo', cuts });
   assert.deepEqual(stages, ['Choosing the best takes']);
   delete globalThis.window;
+});
+
+// ---------- Your rules (src/ui/rules.js) ----------
+
+function fakeRulesDisk(start = [], { failSave = false } = {}) {
+  const calls = [];
+  let disk = start;
+  const invoke = async (cmd, args) => {
+    calls.push([cmd, args]);
+    if (cmd === 'get_rules') return disk;
+    if (failSave) throw "Your rules couldn't be saved."; // Rust rejects with a plain string
+    return (disk = args.rules);
+  };
+  let fire = null;
+  const store = createRulesStore(invoke, { timer: (f) => (fire = f), clear: () => (fire = null) });
+  return { store, calls, disk: () => disk, tick: () => fire?.() };
+}
+
+test('a rule is a trimmed, non-empty line', () => {
+  assert.deepEqual(parseRules('  Keep my jokes \n\n Cut every um\nKeep my jokes'), ['Keep my jokes', 'Cut every um'], 'like Rust: no repeats');
+  assert.deepEqual(parseRules(''), []);
+  assert.equal(rulesText(['a', 'b']), 'a\nb');
+});
+
+test('rules: load shows what is saved; typing saves after a pause, cleaned', async () => {
+  const r = fakeRulesDisk(['Keep my jokes']);
+  assert.equal(r.store.loaded, false);
+  assert.equal(await r.store.load(), 'Keep my jokes');
+  r.store.edit('Keep my jokes\n  Cut every um  \n');
+  assert.equal(r.calls.length, 1, 'nothing saved before the pause');
+  r.tick();
+  await r.store.flush();
+  assert.deepEqual(r.disk(), ['Keep my jokes', 'Cut every um']);
+  assert.equal(await r.store.load(), 'Keep my jokes\n  Cut every um  \n', 'reopening keeps the box as typed');
+  assert.equal(r.calls.filter(([c]) => c === 'get_rules').length, 1, 'loaded once');
+});
+
+test('rules: deleting every line saves an empty list; no change, no save', async () => {
+  const r = fakeRulesDisk(['Cut every um']);
+  await r.store.load();
+  r.store.edit('Cut every um\n');
+  await r.store.flush();
+  assert.equal(r.calls.length, 1, 'same rules → not saved again');
+  r.store.edit('');
+  await r.store.flush();
+  assert.deepEqual(r.disk(), []);
+});
+
+test('rules: a failed save rejects with the message and tries again next time', async () => {
+  const r = fakeRulesDisk([], { failSave: true });
+  await r.store.load();
+  r.store.edit('Keep my jokes');
+  await assert.rejects(r.store.flush(), /couldn't be saved/);
+  await assert.rejects(r.store.flush(), /couldn't be saved/);
+  assert.equal(r.calls.filter(([c]) => c === 'save_rules').length, 2);
+});
+
+test('rules panel: gear opens it filled, typing + Esc saves, ⌘, toggles, click outside closes', async () => {
+  const node = (hidden) => {
+    const cls = new Set(hidden ? ['hidden'] : []);
+    return { cls, attrs: {}, value: '', readOnly: false, focused: 0, listeners: {},
+      classList: { add: (c) => cls.add(c), remove: (c) => cls.delete(c), contains: (c) => cls.has(c) },
+      setAttribute(k, v) { this.attrs[k] = v; }, focus() { this.focused++; }, setSelectionRange() {},
+      contains(t) { return t === this; }, addEventListener(k, f) { this.listeners[k] = f; } };
+  };
+  const docListeners = {};
+  globalThis.document = { addEventListener: (k, f) => (docListeners[k] = f) };
+  const gear = node(), panel = node(true), box = node();
+  const r = fakeRulesDisk(['Keep my jokes']);
+  const errors = [];
+  const ui = mountRules({ gear, panel, box }, r.store, { onError: (e) => errors.push(e) });
+  const settle = () => new Promise((ok) => setTimeout(ok));
+  const key = (k, metaKey = false) => docListeners.keydown({ key: k, metaKey, preventDefault() {} });
+
+  await gear.onclick();
+  assert.equal(panel.cls.has('hidden'), false);
+  assert.equal(gear.attrs['aria-expanded'], 'true');
+  assert.equal(box.value, 'Keep my jokes');
+  assert.equal(box.readOnly, false);
+
+  box.value = 'Keep my jokes\nCut every um';
+  box.listeners.input();
+  key('Escape');
+  await settle();
+  assert.equal(panel.cls.has('hidden'), true);
+  assert.equal(gear.focused, 1, 'focus back on the gear');
+  assert.deepEqual(r.disk(), ['Keep my jokes', 'Cut every um'], 'closing saves at once');
+
+  key(',', true);
+  await settle();
+  assert.equal(panel.cls.has('hidden'), false, '⌘, opens');
+  docListeners.mousedown({ target: {} });
+  assert.equal(panel.cls.has('hidden'), true, 'a click outside closes');
+  assert.equal(await ui.close(), true, 'close when closed still reports saved (Magic Cut waits on it)');
+  assert.deepEqual(errors, []);
+  delete globalThis.document;
+});
+
+test('rules panel: a file it cannot read stays read-only and says why', async () => {
+  globalThis.document = { addEventListener() {} };
+  const box = { value: '', readOnly: false, focus() {}, setSelectionRange() {}, addEventListener() {} };
+  const el = () => ({ classList: { add() {}, remove() {}, contains: () => true }, setAttribute() {}, focus() {} });
+  const errors = [];
+  const store = createRulesStore(async () => { throw "Couldn't read or save your editing rules."; });
+  const gear = el();
+  mountRules({ gear, panel: el(), box }, store, { onError: (e) => errors.push(e) });
+  await gear.onclick();
+  assert.equal(box.readOnly, true);
+  assert.deepEqual(errors, ["Couldn't read or save your editing rules."]);
+  delete globalThis.document;
+});
+
+test('rules: the panel only calls commands Rust registers', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const root = new URL('../', import.meta.url);
+  const handlers = (await readFile(new URL('src-tauri/src/main.rs', root), 'utf8')).match(/generate_handler!\[([^\]]*)\]/)[1];
+  const used = [...(await readFile(new URL('src/ui/rules.js', root), 'utf8')).matchAll(/invoke\('(\w+)'/g)].map((m) => m[1]);
+  assert.deepEqual(used.sort(), ['get_rules', 'save_rules']);
+  for (const cmd of used) assert.match(handlers, new RegExp(`\\b${cmd}\\b`), cmd);
 });
 
 test('no "SuperCut" reaches the screen: UI, banners, Rust error text', async () => {

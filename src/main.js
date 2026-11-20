@@ -11,6 +11,7 @@ import { bit } from './ui/bit.js';
 import { createMagic, claudeBanner } from './ui/magic.js';
 import { paintMagic } from './ui/magic-button.js';
 import { createPlayer } from './ui/player.js';
+import { createRulesStore, mountRules } from './ui/rules.js';
 import { runner } from './ai.js';
 
 const { invoke } = window.__TAURI__.core;
@@ -61,7 +62,10 @@ const magic = createMagic({
   banner: showBanner,
   onResult: (c) => paintCuts(cuts.push(withMagic(cuts.now, c))), // one ⌘Z undoes the whole run
 });
-$('magic').onclick = () => magic.press();
+// Your rules (gear, ⌘,). Pressing Magic Cut closes the panel and saves first, so a rule typed a second ago is used.
+const rules = mountRules({ gear: $('rules-gear'), panel: $('rules-panel'), box: $('rules-box') }, createRulesStore(invoke), { onError: showBanner });
+const pressMagic = () => rules.close().then((saved) => saved && magic.press());
+$('magic').onclick = pressMagic;
 
 // ---------- Drop + choose ----------
 
@@ -149,7 +153,7 @@ listen('progress', ({ payload }) => {
 document.addEventListener('keydown', (e) => {
   const typing = e.target.closest('input, textarea, [contenteditable]');
   if (e.metaKey && e.key === 'o') { e.preventDefault(); choose(); return; }
-  if (e.metaKey && e.key === 'Enter') { e.preventDefault(); magic.press(); return; }
+  if (e.metaKey && e.key === 'Enter') { e.preventDefault(); pressMagic(); return; }
   if (typing) return;
   if (e.metaKey && e.key.toLowerCase() === 'z') { e.preventDefault(); paintCuts(e.shiftKey ? cuts.redo() : cuts.undo()); return; }
   if (e.metaKey || e.ctrlKey || e.altKey || !parts.length) return;

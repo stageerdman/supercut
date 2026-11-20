@@ -17,7 +17,7 @@ Checked against: `design/user-model.md`. Visual tokens: `design/visual-system.md
 | Tool palette (razor, select, hand…) | One mode. Drag edges to trim, drag across to select, `S` to split. |
 | Inspector panel, effects, text, music, stickers | Not a goal. CapCut's look, not its toolbox. |
 | Separate "add second video" screen | A slot at the end of the timeline, and drop-anywhere. |
-| Settings window | Every choice has a default (export, model). Rules come in Phase 7 as one text box. |
+| Settings window | Every choice has a default (export, model). The only setting, your rules, is one text box under a gear in the toolbar: `design/rules.md`. |
 | Save button | Autosave. |
 | Export options dialog | One default (same size, HEVC MP4, next to the original). |
 | Magic options before running | Magic works with no setup; rules come later, after the first result. |
@@ -164,6 +164,7 @@ A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, o
 | ⌘ + / ⌘ − | Zoom timeline |
 | ⌘↩ | Magic (⌘M is taken by macOS Minimize) |
 | ⌘E | Export |
+| ⌘, | Your rules (open / close the panel) |
 | ⌘T | Toggle transcript (narrow windows) |
 
 ## Accessibility
