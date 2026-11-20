@@ -7,6 +7,7 @@ import { magicView, createMagic, claudeBanner, NOT_CONNECTED } from '../src/ui/m
 import { isCut, toggleCut, createHistory } from '../src/ui/cuts.js';
 import { bit, setBit } from '../src/ui/bit.js';
 import { dropVerdict } from '../src/ui/dropzone.js';
+import { runner, summary } from '../src/ai.js';
 
 test('clock and eta read plainly', () => {
   assert.equal(clock(75), '01:15');
@@ -126,7 +127,7 @@ test('magic button looks', () => {
 function rig({ runner, claudeState = 'ready', transcribing = false } = {}) {
   const log = { states: [], flashes: [], banners: [], results: [] };
   const project = {
-    parts: [{ id: 1, name: 'a.mov', transcript: { words: [{ w: 'hi', s: 0, e: 0.4 }] } }],
+    parts: [{ id: 1, name: 'a.mov', transcript: { seconds: 2, words: [{ w: 'hi', s: 0, e: 0.4 }] } }],
     transcribing,
   };
   const store = new Map();
@@ -171,7 +172,7 @@ test('Magic runs, sends only text, hands on the cuts, says privacy once', async 
   const { m, log } = rig({ runner: r });
   m.update();
   await m.press();
-  assert.deepEqual(r.sent, [{ id: 1, name: 'a.mov', words: [{ w: 'hi', s: 0, e: 0.4 }] }]);
+  assert.deepEqual(r.sent, [{ id: 1, name: 'a.mov', seconds: 2, words: [{ w: 'hi', s: 0, e: 0.4 }] }]);
   assert.deepEqual(log.states, ['ready', 'running', 'running', 'ready']);
   assert.deepEqual(log.results, [[{ part: 1, s: 0, e: 0.4 }]]);
   assert.match(log.flashes[0], /Only the text/);
@@ -235,4 +236,26 @@ test('cancel while running drops the late result', async () => {
   assert.equal(r.cancelled, 1);
   assert.deepEqual(log.results, []);
   assert.equal(m.state.kind, 'ready');
+});
+
+// ---------- The connected runner (src/ai.js) ----------
+
+test('Magic summary: cuts and the length before → after, across parts', () => {
+  const parts = [{ seconds: 30 }, { seconds: 12.5 }];
+  assert.equal(summary([{ s: 4, e: 8 }, { s: 18.2, e: 22.4 }, { s: 31.8, e: 33.8 }], parts), '3 cuts · 00:42 → 00:32');
+  assert.equal(summary([{ s: 0, e: 2 }], parts), '1 cut · 00:42 → 00:40');
+  assert.match(summary([], parts), /Nothing cut/);
+});
+
+test('the runner asks Rust auto_cut with the parts and hands back its cuts', async () => {
+  const cuts = [{ part: 1, from: 0, to: 2, s: 0, e: 1, reason: 'earlier take' }];
+  const asked = [];
+  globalThis.window = { __TAURI__: { core: { invoke: async (cmd, args) => (asked.push([cmd, args]), cuts) } } };
+  const stages = [];
+  const parts = [{ id: 1, name: 'a.mov', seconds: 10, words: [] }];
+  const result = await runner.run({ parts, onStage: (s) => stages.push(s) });
+  assert.deepEqual(asked, [['auto_cut', { parts }]]);
+  assert.deepEqual(result, { summary: '1 cut · 00:10 → 00:09', cuts });
+  assert.deepEqual(stages, ['Choosing the best takes']);
+  delete globalThis.window;
 });

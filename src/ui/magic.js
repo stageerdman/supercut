@@ -22,7 +22,7 @@ export const NOT_CONNECTED = "Magic isn't connected yet. Soon it will pick your 
 /**
  * The controller. Every dependency is passed in so it runs (and is tested) without a window.
  * @param {{
- *   runner: null | { run: (job: {parts: Array<{id:number,name:string,words:Array}>, onStage: (s:string)=>void}) => Promise<{summary:string, cuts:Array<{part:number,s:number,e:number}>}>, cancel: () => void },
+ *   runner: null | { run: (job: {parts: Array<{id:number,name:string,seconds:number,words:Array}>, onStage: (s:string)=>void}) => Promise<{summary:string, cuts:Array<{part:number,s:number,e:number}>}>, cancel: () => void },
  *   claude: () => Promise<{state:string, message:string}>,
  *   project: () => {parts: Array, transcribing: boolean},
  *   paint: (state) => void,
@@ -47,7 +47,7 @@ export function createMagic(deps) {
     set({ kind: 'running', stage: 'Reading your transcript' });
     try {
       const result = await deps.runner.run({
-        parts: parts.map((p) => ({ id: p.id, name: p.name, words: p.transcript.words })),
+        parts: parts.map((p) => ({ id: p.id, name: p.name, seconds: p.transcript.seconds, words: p.transcript.words })),
         onStage: (stage) => state.kind === 'running' && set({ kind: 'running', stage }),
       });
       if (state.kind !== 'running') return; // cancelled meanwhile: drop the result

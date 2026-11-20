@@ -100,6 +100,12 @@ pub fn transcribe_file(
 #[cfg(test)]
 pub mod fake {
     use super::*;
+    use std::path::PathBuf;
+
+    /// Tests run outside the .app: the dev copy of ffmpeg (`npm run prepare-bins`).
+    pub fn ffmpeg() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("binaries/ffmpeg-aarch64-apple-darwin")
+    }
 
     /// Hears one word per second. The samples carry their own second number as their value,
     /// so the word text says where in the file it came from: "w0", "w1", …
@@ -127,7 +133,7 @@ pub mod fake {
 
 #[cfg(test)]
 mod tests {
-    use super::fake::{speech, Broken, Counting};
+    use super::fake::{ffmpeg, speech, Broken, Counting};
     use super::*;
     use std::path::PathBuf;
     use std::process::Command;
@@ -194,10 +200,6 @@ mod tests {
     }
 
     // ---- Live tests: real ffmpeg + real Parakeet. Skipped until `npm run fetch-model`. ----
-
-    pub fn ffmpeg() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("binaries/ffmpeg-aarch64-apple-darwin")
-    }
 
     fn sample() -> Option<PathBuf> {
         let wav = Path::new(env!("CARGO_MANIFEST_DIR")).join("../models/en.wav");

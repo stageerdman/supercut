@@ -4,6 +4,8 @@
 
 pub mod decide;
 pub mod lines;
+#[cfg(test)]
+mod live_tests;
 mod prompt;
 mod similar;
 

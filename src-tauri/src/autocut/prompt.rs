@@ -3,7 +3,7 @@
 use super::lines::Line;
 
 pub const RULES: &str = "You edit spoken video transcripts. You get numbered lines. \
-Decide for every line whether to keep it or drop it, and give every drop a short reason (a few words, the user reads it). \
+Decide for every line whether to keep it or drop it, and give every drop a short reason (a few words the user reads next to the cut; the user never sees line numbers, so don't mention them). \
 Drop: earlier takes of a line that was said again (keep the last take), false starts, and obvious fumbles \
 (a line abandoned midway, a stumble that is said again right after). \
 Keep everything else, even casual speech: never drop something that isn't said again. \
