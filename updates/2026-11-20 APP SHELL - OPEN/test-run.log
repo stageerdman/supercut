@@ -1,0 +1,43 @@
+$ npm test   (2026-11-20)
+running 26 tests
+... all unit tests ok (claude, media, project, transcribe, parakeet, words, audio)
+# claude: Status { state: "ready", message: "Claude is ready." }
+# 3.8 s of audio (.mp4, H.264+AAC) -> 17 words: Ask not what your country can do for you, ask what you can do for your country.
+# first words: [{"w":"Ask","s":0.0,"e":0.4},{"w":"not","s":0.4,"e":0.64},{"w":"what","s":0.64,"e":0.8},{"w":"your","s":0.8,"e":0.96}]
+# 230.7 s of audio in 11.0 s (21x real time), 1020 words (3 chunks, 2 seams; expected 60 x 17 = 1020)
+test result: ok. 26 passed; 0 failed; 0 ignored
+
+$ npm run build
+Finished 1 bundle at: ~/.cargo-shared-target/release/bundle/macos/SuperCut.app (81.79 MiB), ad-hoc signed
+
+$ npm run smoke
+codesign --verify: ok
+supercut INFO  transcribe cli start /var/folders/.../supercut-smoke-take.mov
+supercut INFO  transcribe cli done: 680 words, 153.8 s
+transcribed supercut-smoke-take.mov: 153.8 s in 8.2 s, 680 words     (1280x720 H.264 + AAC .mov; expected 40 x 17 = 680)
+timed transcript (first 20 words):
+    0.08–0.48   Ask
+    0.48–0.64   not
+    0.64–0.80   what
+    0.80–0.96   your
+    0.96–1.28   country
+    1.28–1.44   can
+    1.44–1.60   do
+    1.60–1.76   for
+    1.76–2.08   you.
+    2.08–2.40   Ask
+    2.40–2.56   what
+    2.56–2.72   you
+    2.72–2.88   can
+    2.88–3.04   do
+    3.04–3.20   for
+    3.20–3.36   your
+    3.36–3.92   country.
+    3.92–4.24   Ask
+    4.24–4.48   not
+    4.48–4.64   what
+around the 105–120 s seam: what@110.08 you@110.24 can@110.32 do@110.48 for@110.72 your@110.8 country.@110.96 Ask@111.6 not@111.92 what@112.16 your@112.32 country@112.48 can@112.84 do@113 for@113.16 you.@113.24 Ask@113.56 what@113.88 you@114.04 can@114.2 do@114.36 for@114.52 your@114.68 country.@114.84
+smoke: ok
+
+$ npm run dev
+App window starts; no errors; the UI script runs to its last line (it ran `claude auth status`). Stopped after the check.

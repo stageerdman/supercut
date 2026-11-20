@@ -5,18 +5,59 @@
     <title>SuperCut</title>
     <link rel="stylesheet" href="app.css" />
   </head>
-  <body class="h-full bg-bg font-sans text-[13px] text-text antialiased select-none">
-    <main class="flex h-full flex-col gap-4 p-4">
-      <p id="claude" class="text-text-secondary" role="status">Checking Claude Code…</p>
-      <section
-        id="drop"
-        class="flex flex-1 flex-col items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-hairline"
-      >
-        <h1 class="text-xl font-semibold">Drop a video to start</h1>
-        <p id="status" class="text-text-secondary" role="status" aria-live="polite">It transcribes on this Mac.</p>
-      </section>
-      <p id="transcript" class="hidden max-h-60 overflow-auto text-[15px] leading-normal select-text"></p>
-    </main>
+  <body class="h-full overflow-hidden bg-bg font-sans text-[13px] text-text antialiased select-none">
+    <div class="flex h-full flex-col">
+      <!-- Toolbar -->
+      <header class="flex h-[52px] shrink-0 items-center border-b border-hairline px-4">
+        <h1 id="title" class="truncate font-semibold"></h1>
+      </header>
+
+      <!-- Banner: one sentence, at most one action, ✕ -->
+      <div id="banner" role="alert" class="hidden h-11 shrink-0 items-center gap-3 border-b border-hairline bg-raised px-4">
+        <p id="banner-text" class="flex-1 truncate"></p>
+        <button id="banner-action" class="hidden rounded-md px-2 py-1 text-accent hover:bg-surface"></button>
+        <button id="banner-close" aria-label="Dismiss" class="rounded-md px-2 py-1 text-text-secondary hover:bg-surface">✕</button>
+      </div>
+
+      <!-- Empty state: the whole window is the drop target -->
+      <main id="empty" class="flex flex-1 items-center justify-center p-8">
+        <section
+          id="dropzone"
+          aria-label="Drop a video, or choose one"
+          class="flex h-[280px] w-[520px] max-w-full flex-col items-center justify-center gap-4 rounded-2xl border-[1.5px] border-dashed border-hairline transition-colors duration-[120ms]"
+        >
+          <h2 id="drop-headline" class="text-xl font-semibold">Drop a video here</h2>
+          <button data-choose class="rounded-lg bg-accent px-4 py-2 font-semibold text-on-accent hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            Choose Video…
+          </button>
+          <p class="text-text-secondary">MP4 · MOV · M4V — up to 2 parts</p>
+        </section>
+      </main>
+
+      <!-- Editor -->
+      <main id="editor" class="hidden min-h-0 flex-1 flex-col">
+        <div class="flex min-h-0 flex-1">
+          <div class="flex min-w-0 flex-1 items-center justify-center bg-black">
+            <video id="player" tabindex="0" aria-label="Video player" class="max-h-full max-w-full outline-none"></video>
+          </div>
+          <aside id="transcript-panel" class="hidden w-[320px] shrink-0 flex-col border-l border-hairline bg-surface">
+            <h2 class="px-4 pt-3 pb-2 text-text-secondary">Transcript</h2>
+            <div id="transcript" class="flex-1 overflow-y-auto px-4 pb-4 text-[15px] leading-relaxed select-text"></div>
+          </aside>
+        </div>
+
+        <!-- Transport row: play, time, the one status line -->
+        <div class="relative flex h-10 shrink-0 items-center gap-3 border-t border-hairline px-4">
+          <div id="progress-bar" class="absolute top-0 left-0 h-0.5 bg-accent transition-[width]" style="width: 0"></div>
+          <button id="play" aria-label="Play" class="w-6 text-text hover:text-accent">▶</button>
+          <span id="time" class="tabular-nums text-text-secondary">00:00 / 00:00</span>
+          <span id="status" role="status" aria-live="polite" class="ml-auto truncate text-text-secondary"></span>
+        </div>
+
+        <!-- Timeline: parts in order, then the add-slot while fewer than two -->
+        <div id="timeline" class="flex h-[120px] shrink-0 items-stretch gap-2 border-t border-hairline p-4"></div>
+      </main>
+    </div>
     <script src="main.js"></script>
   </body>
 </html>

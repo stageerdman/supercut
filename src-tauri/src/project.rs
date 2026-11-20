@@ -24,6 +24,7 @@ pub struct Project {
 }
 
 impl Project {
+    #[cfg(test)]
     pub fn parts(&self) -> &[Part] {
         &self.parts
     }
