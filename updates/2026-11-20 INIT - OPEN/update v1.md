@@ -12,3 +12,4 @@ A Mac app that turns a raw recording into a clean, cut video. It transcribes loc
 
 ## Status
 - ✅ Project set up by the Project Setter (AI Studio).
+- ✅ User interaction research written: `user-interactions.md` (journey step by step, behavior scores, deep dives, edge cases, open questions). Basis for Jony's design.
