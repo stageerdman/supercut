@@ -1,5 +1,5 @@
 // DropZone: drag-over feedback. The whole window takes drops; this only paints the answer.
-// States: idle · drag-valid (solid accent, 8 % fill) · drag-invalid (solid hairline, "SuperCut opens video files").
+// States: idle · drag-valid (solid accent, 8 % fill) · drag-invalid (solid hairline, "Only video files open here").
 // With a project open, the timeline's add-slot answers instead ("Add as part 2").
 import { $, ext } from './dom.js';
 
@@ -15,7 +15,7 @@ export function paintDrag(paths, nextPart) {
   zone.classList.toggle('border-dashed', v === null);
   zone.classList.toggle('border-accent', v === true);
   zone.classList.toggle('bg-accent/8', v === true);
-  $('drop-headline').textContent = v === null ? 'Drop a video here' : v ? 'Drop to open' : 'SuperCut opens video files';
+  $('drop-headline').textContent = v === null ? 'Drop a video here' : v ? 'Drop to open' : 'Only video files open here';
   const slot = $('add-slot');
   if (slot) {
     slot.classList.toggle('border-accent', v === true);

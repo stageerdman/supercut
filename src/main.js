@@ -1,4 +1,4 @@
-// SuperCut's one screen: state + wiring to Rust (window.__TAURI__, see src-tauri/src/main.rs).
+// Magic Cut's one screen: state + wiring to Rust (window.__TAURI__, see src-tauri/src/main.rs).
 // Each region renders from `parts` through its own component in ./ui/.
 import { $ } from './ui/dom.js';
 import { VIDEO, paintDrag } from './ui/dropzone.js';
@@ -77,7 +77,7 @@ getCurrentWebview().onDragDropEvent(({ payload }) => {
 });
 
 async function choose() {
-  if (parts.length >= MAX_PARTS) return showBanner('SuperCut works with two parts. Remove one to add another.');
+  if (parts.length >= MAX_PARTS) return showBanner('Two parts at most. Remove one to add another.');
   const picked = await open({ multiple: parts.length === 0, filters: [{ name: 'Video', extensions: VIDEO }] });
   if (picked) addVideos([].concat(picked));
 }

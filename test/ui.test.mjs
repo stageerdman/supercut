@@ -278,3 +278,12 @@ test('the runner asks Rust auto_cut with the parts and hands back its cuts', asy
   assert.deepEqual(stages, ['Choosing the best takes']);
   delete globalThis.window;
 });
+
+test('no "SuperCut" reaches the screen: UI, banners, Rust error text', async () => {
+  const { readFile, readdir } = await import('node:fs/promises');
+  const root = new URL('../', import.meta.url);
+  const ui = (await readdir(new URL('src/ui/', root))).map((f) => `src/ui/${f}`);
+  for (const f of ['src/index.html', 'src/main.js', 'src/ai.js', 'src-tauri/src/error.rs', 'src-tauri/tauri.conf.json', ...ui]) {
+    assert.doesNotMatch(await readFile(new URL(f, root), 'utf8'), /Super ?Cut/, f);
+  }
+});

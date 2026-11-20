@@ -1,4 +1,6 @@
-# SuperCut — the one screen
+# Magic Cut — the one screen
+
+App-name rule: user-facing copy doesn't name the app. "Magic Cut" on screen always means the button, so errors about files and parts say what happened without a name.
 
 Author: Jony · 2026-11-20 · Status: **ready for build (Phase 1–2)**, later phases sketched so the layout won't have to move.
 Checked against: `design/user-model.md`. Visual tokens: `design/visual-system.md`.
@@ -93,7 +95,7 @@ Before Phase 6 ships, "Magic done" keeps Magic as primary and Export secondary.
 
 ### 2. Drag over
 - Any valid file over the window: the zone border turns solid accent, fill accent at 8 %, headline "Drop to open". 120 ms ease.
-- Invalid file over the window: border secondary, headline "SuperCut opens video files". Drop does nothing harmful.
+- Invalid file over the window: border secondary, headline "Only video files open here". Drop does nothing harmful.
 - Over a loaded project: the add-slot (or, with two parts, the whole timeline) highlights; headline in the slot "Add as part 2".
 
 ### 3. Opening
@@ -109,7 +111,7 @@ Before Phase 6 ships, "Magic done" keeps Magic as primary and Export secondary.
 - Clips in order, labelled "1" and "2" in a small badge (11 pt) top-left of each clip; the file name appears on hover.
 - Drag a clip left/right to swap order (the other clip slides aside, 180 ms).
 - Clip context menu (right-click): "Swap order", "Remove from project", "Show in Finder". Nothing else.
-- Add-slot disappears. Dropping a third file: banner "SuperCut works with two parts. Remove one to add another."
+- Add-slot disappears. Dropping a third file: banner "Two parts at most. Remove one to add another."
 
 ### 6. Manual pre-cuts (Phase 2)
 No tools to pick. Three gestures, all undoable:
@@ -142,10 +144,10 @@ Your cuts are drawn in neutral grey hatch; AI cuts (Phase 5) in accent hatch. On
 A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, one sentence + at most one action + ✕. It never blocks the screen. Examples:
 | Situation | Banner | Action |
 |---|---|---|
-| Unsupported file | "SuperCut can't open .mkv files yet. Try MP4 or MOV." | — |
+| Unsupported file | ".mkv files don't open yet. Try MP4 or MOV." | — |
 | Broken file | "This video can't be read. It may be damaged." | Show in Finder |
 | Audio-only file | "That's an audio file. Better audio comes in a later version." (Phase 8 replaces this) | — |
-| Third file | "SuperCut works with two parts. Remove one to add another." | — |
+| Third file | "Two parts at most. Remove one to add another." | — |
 | Source moved | "Can't find my-video.mov." | Locate… |
 | Claude missing or not signed in (checked when a video loads; shown during transcription, shown again if Magic is pressed while still signed out) | "Sign in to Claude to use Magic: open Terminal and run `claude`." | Copy command |
 
