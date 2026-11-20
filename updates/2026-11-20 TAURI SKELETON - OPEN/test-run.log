@@ -1,0 +1,60 @@
+Real command output, 2026-11-20, this Mac (Apple Silicon, macOS 26.6.1). Long compile lines trimmed.
+
+$ npx tauri info
+    ✔ Xcode Command Line Tools: installed
+    ✔ Xcode: 27.2
+    ✔ rustc: 1.97.1 (8bab26f4f 2026-07-14)
+    ✔ cargo: 1.97.1 (c980f4866 2026-06-30)
+    ✔ Rust toolchain: stable-aarch64-apple-darwin (default)
+    - @tauri-apps/cli: 2.12.6
+
+$ npm test        (= prepare-bins + cargo test)
+running 12 tests
+test claude::tests::missing_claude_says_so_in_plain_words ... ok
+test transcribe::tests::keep_windows_meet_without_gap_or_overlap ... ok
+test claude::tests::finds_the_first_candidate_that_exists ... ok
+test claude::tests::child_never_gets_an_api_key ... ok
+test transcribe::tests::chunks_overlap_by_15_s_and_cover_everything ... ok
+test transcribe::tests::short_audio_is_one_chunk ... ok
+test words::tests::empty_input_gives_no_words ... ok
+test words::tests::first_token_without_marker_still_starts_a_word ... ok
+test words::tests::joins_sub_words_and_punctuation ... ok
+# claude: Status { state: "ready", message: "Claude is ready." }
+test claude::tests::live_status_of_this_macs_claude ... ok
+# 3.8 s of audio in 1.1 s (4x real time), 17 words: Ask not what your country can do for you, ask what you can do for your country.
+# first words: [{"w":"Ask","s":0.0,"e":0.4},{"w":"not","s":0.4,"e":0.64},{"w":"what","s":0.64,"e":0.8},{"w":"your","s":0.8,"e":0.96}]
+# 3.9 s of audio in 1.1 s (3x real time), 17 words: Ask not what your country can do for you, ask what you can do for your country.
+test transcribe::tests::live_transcribes_a_video_file_with_word_times ... ok      (H.264 + AAC .mp4)
+# 230.7 s of audio in 9.1 s (25x real time), 1020 words: Ask not what your country can do for you. Ask what ...
+test transcribe::tests::live_long_recording_is_stitched_across_chunks ... ok     (3 chunks, 60 x 17 = 1020 words)
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.21s
+(An earlier run of the same long test: 230.7 s in 15.1 s = 15x, with the other live test running alongside.)
+
+$ npm run build   (= prepare-bins + tauri build --bundles app)
+     Running beforeBuildCommand `npm run css`
+≈ tailwindcss v4.3.5
+    Finished `release` profile [optimized] target(s) in 12.89s
+    Bundling SuperCut.app (/Users/stage/.cargo-shared-target/release/bundle/macos/SuperCut.app)
+     Signing with identity "-"
+Signing .../SuperCut.app/Contents/MacOS/ffmpeg
+Signing .../SuperCut.app/Contents/MacOS/supercut
+Signing .../SuperCut.app
+        Warn skipping app notarization, no APPLE_ID ... (expected: we ship unsigned)
+    Finished 1 bundle at:
+        /Users/stage/.cargo-shared-target/release/bundle/macos/SuperCut.app (79.27 MiB)
+(First release build from scratch: 56 s.)
+
+$ npm run smoke   (the built .app, its own ffmpeg + ONNX Runtime)
+app: /Users/stage/.cargo-shared-target/release/bundle/macos/SuperCut.app
+contents: ffmpeg, supercut
+codesign --verify: ok
+transcribed 3.8 s in 1.8 s: Ask not what your country can do for you, ask what you can do for your country.
+first words: [{"w":"Ask","s":0,"e":0.4},{"w":"not","s":0.4,"e":0.64},{"w":"what","s":0.64,"e":0.8}]
+smoke: ok
+
+$ npm run dev
+     Running BeforeDevCommand (`npm run css`)
+     Running DevCommand (`cargo  run --no-default-features --color always --`)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.43s
+     Running `/Users/stage/.cargo-shared-target/debug/supercut`
+(window process stayed up until stopped; not looked at by a human yet)

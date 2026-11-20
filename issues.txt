@@ -4,7 +4,11 @@ Running list. Newest at top. Move resolved items to the bottom with a strikethro
 
 OPEN
 ----
-(none yet)
+- First-run model download is not in the app yet. Today: `npm run fetch-model` (670 MB into ~/Library/Application Support/xyz.supercut.editor/models/). The app says "The speech model isn't downloaded yet" until then.
+- Nobody has looked at the Tauri window yet (agents can't see the screen). `npm run dev` starts it and it stays up; the drop → transcript path is only proven through tests and the packaged CLI mode.
+- Transcription can't be cancelled yet, and a second drop waits for the first (the model lock).
+- design/visual-system.md names SF Symbols; the web view can't use them directly. Pick an SVG icon set (e.g. Lucide) or export the few symbols we need.
+- ffmpeg-static is a GPL build. Fine for a free app; swap for an LGPL build before selling SuperCut.
 
 RESOLVED
 --------

@@ -2,42 +2,20 @@
   "name": "supercut",
   "version": "0.1.0",
   "private": true,
-  "description": "SuperCut: turn a raw recording into a clean, cut video (Electron + Tailwind spike).",
-  "main": "src/main.js",
+  "description": "SuperCut: turn a raw recording into a clean, cut video (Tauri + Tailwind).",
   "scripts": {
-    "css": "tailwindcss -i src/renderer/input.css -o src/renderer/app.css --minify",
-    "start": "npm run css && electron .",
-    "test": "node --test",
+    "css": "tailwindcss -i src/input.css -o src/app.css --minify",
+    "prepare-bins": "node scripts/prepare-bins.js",
     "fetch-model": "node scripts/fetch-model.js",
-    "smoke": "node scripts/smoke-packaged.js",
-    "build":"npm run css && electron-builder --mac dir --arm64 -c.mac.identity=-"
-  },
-  "build": {
-    "appId": "xyz.supercut.app",
-    "productName": "SuperCut",
-    "files": [
-      "src/**/*",
-      "package.json"
-    ],
-    "asarUnpack": [
-      "node_modules/sherpa-onnx-*/**",
-      "node_modules/ffmpeg-static/**",
-      "src/engine/parakeet-sidecar.js"
-    ],
-    "mac": {
-      "target": "dir",
-      "category": "public.app-category.video",
-      "hardenedRuntime": false
-    }
-  },
-  "dependencies": {
-    "ffmpeg-static": "^5.3.0",
-    "sherpa-onnx-node": "^2.0.2"
+    "dev": "npm run prepare-bins && tauri dev",
+    "test": "npm run prepare-bins && cargo test --manifest-path src-tauri/Cargo.toml -- --nocapture",
+    "build": "npm run prepare-bins && tauri build --bundles app",
+    "smoke": "node scripts/smoke.js"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.5",
-    "electron": "^45.4.1",
-    "electron-builder": "^26.18.0",
+    "@tauri-apps/cli": "^2.12.6",
+    "ffmpeg-static": "^5.3.0",
     "tailwindcss": "^4.3.5"
   }
 }

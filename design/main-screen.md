@@ -95,7 +95,7 @@ Before Phase 6 ships, "Magic done" keeps Magic as primary and Export secondary.
 - Over a loaded project: the add-slot (or, with two parts, the whole timeline) highlights; headline in the slot "Add as part 2".
 
 ### 3. Opening
-- The editor layout appears **at once** (no spinner screen). The player shows the first frame as soon as AVFoundation has it; the clip on the timeline fills in thumbnails left to right as they render (skeleton tiles at surface-raised until then).
+- The editor layout appears **at once** (no spinner screen). The player shows the first frame as soon as the video element has it; the clip on the timeline fills in thumbnails left to right as they render (skeleton tiles at surface-raised until then).
 - If opening takes > 1 s: status line "Opening my-video.mov…".
 
 ### 4. One video loaded
@@ -170,10 +170,10 @@ A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, o
 - Respect Reduce Motion (slides become fades) and Increase Contrast (hairlines 2×).
 
 ## Components (build once, reuse)
-Each in its own file, testable in isolation with SwiftUI previews of every state.
+Each in its own file (a small JS module + Tailwind classes from the `@theme` tokens in `src/input.css`), testable in isolation with every state.
 - `PrimaryButton`, `SecondaryButton` — toolbar actions.
 - `DropZone` — empty, drag-valid, drag-invalid.
-- `PlayerView` — AVPlayerLayer wrapper.
+- `PlayerView` — `<video>` wrapper.
 - `TransportBar` — play, time, `StatusLine`, zoom.
 - `StatusLine` — idle, progress (text + %), message (timed).
 - `Timeline` → `ClipView` (thumbnails + waveform, trim handles), `RemovedRangeView` (collapsed / open, yours / AI), `AddSlot`, `Playhead`, `SelectionChip`.

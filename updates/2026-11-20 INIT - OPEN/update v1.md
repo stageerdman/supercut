@@ -19,9 +19,11 @@ before anything goes into the main code (WORKFLOW.md).
 press Magic → review the cuts → export. One window, one screen that changes
 state: `design/main-screen.md`.
 
-**Stack (decided by research):** SwiftUI app, macOS 14+, Apple Silicon only ·
-AVFoundation for playback, cutting and export · FluidAudio + Parakeet TDT v3
-(CoreML) in-process · the user's own `claude` CLI in print mode via `Process`.
+**Stack (v2, decided 2026-11-20, see the tech stack wiki):** Tauri 2 (Rust) +
+Tailwind v4 web UI, Apple Silicon · `<video>` in the web view for preview, bundled
+ffmpeg for decoding and export · Parakeet TDT v3 (int8 ONNX) in-process via
+parakeet-rs, no Python · the user's own `claude` CLI in print mode, run from Rust.
+The skeleton builds and passes its tests: `updates/2026-11-20 TAURI SKELETON - OPEN/`.
 Distribution: a DMG with an **ad-hoc signed** `.app` (`codesign -s -`, free, no
 Apple Developer account). No Developer ID signing, no notarization.
 
@@ -33,20 +35,20 @@ only segment IDs.
 ### Phase 0 — Risk spikes (spike)
 Prove the three risky parts before building on them. Code lives in this update
 folder; findings go to `wiki.md`.
-- **A. Parakeet:** FluidAudio on a 5‑min and a 60‑min video. Word times within
-  ±50 ms? Speed, memory, the real Swift field names.
-- **B. Claude:** a tiny SwiftUI app runs `claude -p --output-format stream-json
-  --json-schema …` with `Process`: finds the binary without shell PATH, checks
-  `claude auth status`, strips `ANTHROPIC_API_KEY`, reads `structured_output`,
-  cancels with SIGINT.
-- **C. Playback:** `AVMutableComposition` rebuilt from a 200‑cut EDL; frame-
-  accurate seek; no audio clicks with short fades at cuts.
+- **A. Parakeet:** parakeet-rs on a 5‑min and a 60‑min real video. Word times
+  within ±50 ms? Speed, memory. (Done so far: 4‑min synthetic, 3 chunks, 15×.)
+- **B. Claude:** Rust runs `claude -p --output-format stream-json
+  --json-schema …`: reads `structured_output`, cancels with SIGINT. (Done
+  already: finds the binary without shell PATH, checks `claude auth status`,
+  strips `ANTHROPIC_API_KEY`.)
+- **C. Playback:** `<video>` in the web view plays a 200‑cut EDL by jumping over
+  cuts; seek latency, seam gaps, no audio clicks. Fallback: a proxy rendered with ffmpeg.
 - **Tests:** each spike has a script that passes or fails on a fixed sample
   clip, results written to `wiki.md`.
 
 ### Phase 1 — The app opens and plays a video
 The foundation the brief asks for.
-- Xcode project, one window, one target. Empty state from the screen design:
+- Tauri app (already set up: `src/` UI, `src-tauri/` Rust), one window. Empty state from the screen design:
   one drop zone, one "Choose Video…" button, ⌘O.
 - Drop or choose a video → it plays (Space), scrubs, shows on the timeline with
   thumbnails and a waveform.
@@ -175,7 +177,7 @@ Captions, multi-cam angle switching, FCPXML export, vertical exports, a
 - One window, one screen that changes state; no pages, no settings window in v1. (Jony)
 - The EDL is the single edit model for manual cuts, Magic, review, transcript and export. (Elon, Jony)
 - Two videos = two parts of one recording, played one after the other. (Pixel)
-- Stack: SwiftUI + AVFoundation + FluidAudio Parakeet + `claude -p`. (Elon)
+- ~~Stack: SwiftUI + AVFoundation + FluidAudio Parakeet + `claude -p`.~~ → Stack v2: Tauri + Tailwind, parakeet-rs (no Python), bundled ffmpeg, `claude -p`. Swift can't be built by agents, and the user rejected Electron as too heavy. (User via Pixel; Elon)
 - **No Developer ID** — no Apple Developer account. Ad-hoc signed app in a DMG + first-launch steps via Privacy & Security → Open Anyway; no notarization, no Sparkle. (User, via Pixel; ad-hoc signing and macOS 15 path from Eraser's review)
 - Magic can be pressed during transcription and queues. Claude sign-in is checked when a video loads. (Eraser's review)
 - User cuts outrank AI cuts; review covers AI cuts only. (Columbo's assumption, adopted)
@@ -185,4 +187,5 @@ Captions, multi-cam angle switching, FCPXML export, vertical exports, a
 - ✅ User interaction research written: `user-interactions.md` (journey step by step, behavior scores, deep dives, edge cases, open questions). Basis for Jony's design.
 - ✅ Roadmap written (Jony).
 - ✅ First screen designed: `design/main-screen.md`, user model in `design/user-model.md` (Jony).
+- ✅ Tauri + Tailwind skeleton builds, tests green, packaged app transcribes (Elon).
 - ⏭ Next: Phase 0 spikes, then Phase 1 build from `design/main-screen.md`.

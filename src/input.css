@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+/* Tokens from design/visual-system.md. Use these, not ad-hoc values. */
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --color-bg: #0e0f11;
+  --color-surface: #17181b;
+  --color-raised: #212328;
+  --color-hairline: rgb(255 255 255 / 0.08);
+  --color-text: #f2f2f3;
+  --color-text-secondary: #9ea1a8;
+  --color-accent: #ff6a3d;
+  --color-on-accent: #0e0f11;
+  --color-danger: #ff5a5f;
+}

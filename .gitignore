@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 node_modules/
-dist/
 models/
-src/renderer/app.css
+src/app.css
+src-tauri/binaries/
+src-tauri/gen/

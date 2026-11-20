@@ -1,20 +1,21 @@
 # SuperCut tech stack (research, 2026-11-20)
 
 Author: Elon Engineer (Research). The team builds from this document.
-Status: Pensieve has not yet confirmed its Parakeet setup (mail sent 2026-11-20). If their answer differs, update section 3.
+
+> **Stack v2 (2026-11-20, later the same day): Tauri 2 (Rust) + Tailwind v4 web UI, shipped unsigned (ad-hoc).** The user rejected Electron as too heavy and wants the stack of their Pensieve and Master's Circle apps. Swift isn't an option because agents can't run `swift` here. Tauri *can* be built: the Tauri CLI and `npm` scripts drive `cargo`. Sections 1, 2, 3, 8, 9 and 10 below have been rewritten for v2. Sections 0 and 4–7 still hold; read "Swift/Accelerate" there as "Rust" (`rustfft` for cross-correlation). Proof that it builds: `updates/2026-11-20 TAURI SKELETON - OPEN/`.
 
 ## 0. The core idea (first principles)
 
 SuperCut is really **one data object and four workers around it**:
 
 ```
-Project (JSON, Codable)
+Project (JSON, serde in Rust)
  ├─ sources[]      video files (bookmarks), each with its own audio
  ├─ externalAudio? better-mic file + measured offset (and drift)
  ├─ transcript     words[] {text, start, end, confidence, sourceId}
  ├─ segments[]     sentences/takes built from words, stable IDs
  └─ edl[]          kept ranges {sourceId, start, end} in timeline order
-Workers: Transcriber (Parakeet) · Syncer (audio match) · Picker (Claude) · Exporter (AVFoundation)
+Workers: Transcriber (Parakeet) · Syncer (audio match) · Picker (Claude) · Exporter (ffmpeg)
 ```
 
 Rules that fall out of this:
@@ -24,39 +25,40 @@ Rules that fall out of this:
 
 ## 1. App framework
 
-| Option | Good | Bad |
-|---|---|---|
-| **SwiftUI + AppKit where needed, Swift 6** | Native AVFoundation (hardware decode, frame-accurate seek, export), Parakeet runtime (FluidAudio) is Swift, small app, fast | Timeline must be custom-built |
-| Tauri / Electron + web UI (how OpenCut works) | Many web timeline libraries | Video goes through ffmpeg/WebCodecs, Parakeet needs a sidecar, two languages, bigger app |
-
-**Recommendation: SwiftUI app (macOS 14+, Apple Silicon only), AppKit `NSViewRepresentable` only where SwiftUI is weak (player view, timeline scrolling).** One language, one process, no sidecar.
+**v2 decision: Tauri 2 + a Tailwind v4 web UI. Rust does the work, the web view draws.** Same stack as the user's Pensieve and Master's Circle apps. The app is ~79 MB, and ffmpeg is most of that. Electron was rejected as too heavy. Swift was rejected because agents can't build it here.
+- Layout: `src/` = the web UI (plain HTML/JS + Tailwind, no bundler, `withGlobalTauri`), `src-tauri/` = Rust, one module per worker (`audio`, `transcribe`, `words`, `claude`, `keep_awake`).
+- The UI calls Rust with `invoke('command', …)`. Long jobs run in `spawn_blocking` and report progress with events (`transcribe-progress`).
+- Build output goes to the shared Cargo target `~/.cargo-shared-target` (see CLAUDE.md). The app ends up at `~/.cargo-shared-target/release/bundle/macos/SuperCut.app`.
+- Commands: `npm run dev` (window with hot reload), `npm test` (cargo test, including live Parakeet), `npm run build` (ad-hoc signed `.app`), `npm run smoke` (the built app transcribes on its own), `npm run fetch-model`.
 
 ## 2. Video playback, frame-accurate cutting, timeline
 
-- **Playback:** `AVPlayer` + `AVPlayerLayer` playing an `AVMutableComposition` built from the EDL. Rebuild the composition when the EDL changes (cheap, milliseconds). Preview = export, so what you see is what you get.
-- **Frame accuracy:** seek with `seek(to:toleranceBefore: .zero, toleranceAfter: .zero)`. Keep all times as `CMTime` with the source's timescale (e.g. 600 or the track's `naturalTimeScale`). Snap cut points to frame boundaries (`frameDuration = 1/nominalFrameRate`). Never store `Double` seconds in the EDL for video; convert at the edge.
-- **Timeline (CapCut style):** a custom SwiftUI view: horizontal scroll, zoom, one video track with thumbnails, one audio track with a waveform, plus a word strip from the transcript.
-  - Thumbnails: `AVAssetImageGenerator` (async `images(for:)`), cached by time.
-  - Waveform: `AVAssetReader` → downsample to peaks with Accelerate (`vDSP`), draw with `Canvas`. Compute once per source and cache to disk.
-  - Draw with `Canvas` (not thousands of SwiftUI views) so long videos stay fast.
-- **Rejected:** ffmpeg for preview (slow, no hardware path in-process), web timelines (needs a web stack).
+- **Playback:** an HTML `<video>` in the web view (WKWebView, so H.264/HEVC are decoded in hardware by the system). Load local files through Tauri's asset protocol (`convertFileSrc`, with `assetProtocol` enabled and scoped). Preview the EDL by playing kept ranges and jumping over cuts with `requestVideoFrameCallback`. Preview isn't byte-identical to export, but it is close enough to judge cuts.
+- **Frame accuracy lives in export** (ffmpeg, section 8). Keep EDL times as seconds in Rust and snap cut points to the source frame rate (from `ffprobe`-style metadata via ffmpeg) at the edge.
+- **Timeline (CapCut style):** draw it in a `<canvas>`, not thousands of DOM nodes. Thumbnails: ffmpeg grabs one frame every N seconds into a cache folder. Waveform: peaks computed in Rust from the same 16 kHz samples we already decode for Parakeet, cached per source.
+- **Risk to spike early:** seek latency and seam gaps in `<video>` with ~200 cuts. If preview at the seams is bad, render a low-res proxy of the cut with ffmpeg in the background and play that.
 
 ## 3. Local transcription: Parakeet with word timings
 
-| Option | Runtime | Word times | Packaging | Speed (Apple Silicon) |
+| Option | Runtime | Python? | First-run setup for the user | Measured / reported speed |
 |---|---|---|---|---|
-| **FluidAudio + `parakeet-tdt-0.6b-v3-coreml`** | CoreML / Neural Engine, Swift package | Yes: `ASRResult.tokenTimings` (token, start, end, confidence) → merge to words | SwiftPM dependency, model downloaded on first run (~465 MB) | ~120–190× real time (M4 Pro); 1 h audio ≈ 20–30 s |
-| parakeet-mlx (Python) | MLX | Yes (sentences → tokens with start/end) | Python sidecar to bundle | fast, but extra runtime |
-| sherpa-onnx / parakeet-rs | ONNX | Yes | C/Rust lib to bridge | slower than ANE |
-| WhisperKit (Swift) | CoreML | Yes (word timestamps) | SwiftPM | slower than Parakeet; good fallback |
+| **parakeet-rs 0.4 (Rust, in-process) + `parakeet-tdt-0.6b-v3` int8 ONNX** | ONNX Runtime (CPU), linked statically into the app | No | One 670 MB model download | **Measured here: 15–25× real time** (230 s in 9–15 s, warm), plus ~2 s to load the model once |
+| parakeet-mlx in a Python subprocess (Pensieve) | MLX (GPU) | Yes (a venv we can't bundle) | Install Python + a venv + the model | Pensieve, M3: ~17× (3.5 s per 60 s clip), a 75-min tape in 2–3 min |
+| FluidAudio (Swift, Neural Engine) | CoreML | No | Model download | ~100× reported, but Swift can't be built here |
 
-**Recommendation: FluidAudio (Apache-2.0) with Parakeet TDT v3, in-process.** It is the runtime that the shipping Mac app MacParakeet uses (word timestamps, ~81–93× real time steady, ~130 MB RAM, notarized DMG). Likely what Pensieve uses too; not yet confirmed.
-- Use `.v3` by default (multilingual). Make `.v2` (English-only, slightly better on rare English words) a later setting, not a v1 option.
-- Pipeline: extract audio with `AVAssetReader` → `AudioConverter` (FluidAudio) to 16 kHz mono Float32 → `AsrManager.transcribe` → merge sub-word tokens into words (a token starting with a space or `▁` begins a new word; word start = first token start, end = last token end, confidence = min of token confidences).
-- Long files: the model works on ~15 s windows inside the library. Test a 60+ min file early. If memory or the edges of windows are a problem, chunk on silences ourselves (VAD from FluidAudio) and shift the times.
-- Model: first-run download with a progress bar, cached by FluidAudio (Application Support). Don't bundle it in the app (keeps the DMG small).
-- **Verify in the first spike:** the exact Swift field names (`tokenTimings`, `TokenTiming.startTime/endTime`); I took them from the wrapper docs, not the Swift source.
-- **Fallback:** WhisperKit (Swift, word timestamps, same packaging story). Not a Python sidecar.
+**v2 decision: parakeet-rs in-process. No Python.** It's about as fast as Pensieve's MLX (15–25× vs ~17×), and it deletes the part that caused most of Pensieve's bugs: the Python subprocess. How each of Pensieve's fixes maps over:
+- *Finder's minimal PATH* → nothing is looked up on PATH. ffmpeg is bundled inside the app (`bundle.externalBin`) and called by absolute path. `claude` is found at its known install paths, and the child gets a full PATH.
+- *Multi-byte stderr breaking the pipe* → `Command::output()` drains stdout and stderr together, and stderr is read as bytes (`from_utf8_lossy`). Samples come back on stdout as raw `f32le`, so there's no text to parse.
+- *An external venv we can't bundle* → there is no venv. ONNX Runtime is linked into the binary; the `.app` holds just `supercut` + `ffmpeg`.
+- *caffeinate during long jobs* → kept: `/usr/bin/caffeinate -i -w <our pid>` runs while a transcription is going, and quits by itself if we crash.
+- *Decode every container first to 16 kHz mono* → kept, but straight to memory (`-f f32le -`). No temp WAV.
+- *120 s chunks, 15 s overlap* → kept. The seam sits in the middle of each overlap, so each word comes from exactly one chunk. Tested on 3.9 min (3 chunks): 1020 of 1020 words, none lost or doubled.
+- *Words `{ w, s, e }`* → the same shape. Sub-word tokens are merged in Rust (`words.rs`): a token starting with `▁`/space starts a word, anything else, punctuation included, joins the word before it. Times are rounded to ms.
+
+**How users get the model on first run:** the app downloads three files (`encoder-model.int8.onnx` 652 MB, `decoder_joint-model.int8.onnx` 18 MB, `vocab.txt`) from Hugging Face (`istupakov/parakeet-tdt-0.6b-v3-onnx`). They go into `~/Library/Application Support/xyz.supercut.editor/models/parakeet-tdt-0.6b-v3-int8/`, with a progress bar, and they're kept there. `SUPERCUT_MODEL_DIR` overrides the folder. Today `npm run fetch-model` does this download for development; the in-app download is the next build step. The model isn't bundled, which keeps the app small.
+- The model loads once per app run and stays loaded. ONNX Runtime allows only one environment per process, and a reload would cost ~2 s per file.
+- **Speed-ups if needed later, in order:** parakeet-rs `coreml` feature (ONNX Runtime CoreML provider), then its `metal` burn backend (needs the fp32 model, 2.4 GB). Measure before switching.
+- **Still to test:** a real 60+ min recording (memory: 75 min of samples is ~290 MB in RAM, fine), and accuracy of the word times against a hand-checked clip.
 
 ## 4. Claude Code CLI in the background (user's own subscription)
 
@@ -110,25 +112,25 @@ Two stages. Cheap local work first, judgment second:
 
 ## 8. Export
 
-- **Recommendation:** `AVAssetExportSession` on the same `AVMutableComposition` (+ `AVAudioMix`). Presets: **HEVC highest quality** (default, `AVAssetExportPresetHEVCHighestQuality`), **H.264** for compatibility, **ProRes 422** for editors. MP4/MOV output. Keep source resolution and frame rate.
-- Use `AVAssetWriter` only if we need custom bitrate control later.
-- Passthrough (no re-encode) is fast but cuts snap to keyframes or depend on edit lists that some players ignore. So the default is re-encode for frame-accurate cuts. A "fast export" option can come later.
+- **v2: the bundled ffmpeg renders the EDL.** One `filter_complex` with `trim`/`atrim` per kept range, then `concat`, re-encoded so every cut lands on the exact frame. Encoders: **`hevc_videotoolbox`** (default, hardware), **`h264_videotoolbox`** for compatibility, **`prores_videotoolbox`** for editors. Audio is AAC. Keep the source resolution and frame rate.
+- The better-mic audio is one more input to the same filter graph (`adelay`/`atempo` for offset and drift), with the camera audio dropped.
+- Progress comes from `-progress pipe:1`, read line by line. Same stderr rule as section 3: read it as bytes.
 - Also export an **FCPXML / EDL** later so pros can finish in Final Cut / Resolve. Cheap because the EDL already exists.
+- Check the ffmpeg build: `ffmpeg-static` ships a GPL build with libx264 and VideoToolbox. That's fine for a free app the user shares. Swap in an LGPL build before selling it.
 
 ## 9. Packaging, sandboxing, distribution
 
 - **No App Sandbox, no Mac App Store.** A sandboxed app's child processes inherit the sandbox. They cannot read `~/.claude` / the keychain login or run a binary from `~/.local/bin`. That kills the Claude integration.
-- **Developer ID signing + hardened runtime + notarization, shipped as a DMG; Sparkle 2 for updates.** Same path as MacParakeet. Hardened runtime allows launching the `claude` child process. It needs no extra entitlements beyond the network (for the model download).
-- macOS 14+, Apple Silicon only (CoreML/ANE Parakeet; Intel is not worth the support cost).
-- Build: Xcode project (or SwiftPM + a small bundling script). Uncle Bob's call, but one target, one app.
-- Needs from the user: an Apple Developer ID for signing/notarizing before sharing with anyone else. Unsigned local builds are fine for development.
+- **v2: unsigned (ad-hoc signed), no Developer ID, no notarization.** `bundle.macOS.signingIdentity: "-"` makes `tauri build` ad-hoc sign the app and the ffmpeg sidecar; `codesign --verify --deep --strict` passes. Without ad-hoc signing, Apple Silicon calls a downloaded app "damaged". First launch on another Mac: System Settings → Privacy & Security → Open Anyway (see the roadmap, Phase 10).
+- Bundle identifier `xyz.supercut.editor` (Tauri warns against ids ending in `.app`). Minimum macOS 13, Apple Silicon (`aarch64-apple-darwin`).
+- Updates: none in v1 (Sparkle needs signing). The Tauri updater plugin can come later.
 
 ## 10. What to spike first (riskiest first)
 
-1. FluidAudio on a 60-minute video: word times correct to ±50 ms? Speed? Memory? (Also confirms field names.)
-2. `claude -p` from a SwiftUI app with `Process`: PATH lookup, `auth status`, `--json-schema` result, cancel. (No API key in env.)
-3. Audio cross-correlation offset on a real camera + lav recording, with drift check.
-4. Composition rebuild + frame-accurate seek on a 200-cut EDL.
+1. Parakeet on a real 60-minute recording: are the word times right to ±50 ms? Speed and memory. (The 4-min synthetic test passes at 15×.)
+2. `<video>` preview of a 200-cut EDL in the web view: seek latency and gaps at the seams.
+3. `claude -p` from Rust: the JSON-schema answer, streaming, cancel. (Finding it, the login check and the API-key strip already work.)
+4. Audio cross-correlation offset on a real camera + lav recording, with a drift check.
 
 ## Sources
 - Claude Code headless docs: https://code.claude.com/docs/en/headless

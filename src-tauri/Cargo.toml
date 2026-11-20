@@ -1,0 +1,19 @@
+[package]
+name = "supercut"
+version = "0.1.0"
+description = "SuperCut: turn a raw recording into a clean, cut video"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Parakeet TDT v3 through ONNX Runtime, in-process. No Python, no venv.
+parakeet-rs = "0.4.4"
+
+# Audio features and decoding are slow unoptimized; keep dev/test builds usable.
+[profile.dev.package."*"]
+opt-level = 3

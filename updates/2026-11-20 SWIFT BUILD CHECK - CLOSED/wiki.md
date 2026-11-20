@@ -1,7 +1,7 @@
 # Lessons: what agents here can build
 
 - **The blocker is the agent shell, not the Mac's toolchain.** Only `git ls cat pwd mkdir npm npx node` are allowed. `swift`, `xcrun`, `xcode-select` are refused before they run, and file tools can't look outside the repo (so we couldn't even see whether Xcode is installed). No setting inside the repo fixes that. Only the studio (HQ) can change the allowlist.
-- **Pick a stack whose whole build and test loop runs through `npm`/`node`.** Electron + Tailwind does. Tauri doesn't (needs `cargo`).
+- **Pick a stack whose whole build and test loop runs through `npm`/`node`.** ~~Tauri doesn't (needs `cargo`).~~ **Wrong, corrected later the same day:** Rust is installed, and `npx tauri build` / `npx tauri info` and `npm` scripts run `cargo` for us. Tauri works, and it replaced Electron (see `updates/2026-11-20 TAURI SKELETON - OPEN/`). Lesson: test the claim ("can agents run X through the allowed tools?") before ruling a stack out.
 - **sherpa-onnx-node in Electron:** call `readWave(path, false)`. Electron's V8 memory cage throws "External buffers are not allowed" otherwise. Plain Node doesn't catch it; only the packaged smoke test did. Same flag exists on other sherpa APIs (`enableExternalBuffer`).
 - **Native modules and binaries go in `asarUnpack`** (`sherpa-onnx-*`, `ffmpeg-static`, the sidecar script). Paths at runtime: replace `app.asar` with `app.asar.unpacked`.
 - **The sidecar is `child_process.fork`.** Inside Electron it runs as Node with the app's own binary. No separate runtime to ship.
