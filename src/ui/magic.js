@@ -9,16 +9,16 @@
 export function magicView(state) {
   switch (state.kind) {
     case 'off': return { visible: false };
-    case 'queued': return { visible: true, pill: true, label: 'Magic queued', cancel: 'Cancel Magic' };
+    case 'queued': return { visible: true, pill: true, label: 'Magic Cut queued', cancel: 'Cancel Magic Cut' };
     // What it's doing is said once, in the status line beside it (workText's magicStage); the pill only offers to stop.
-    case 'running': return { visible: true, pill: true, label: 'Magic', cancel: 'Cancel Magic' };
-    default: return { visible: true, pill: false, label: '✦ Magic' };
+    case 'running': return { visible: true, pill: true, label: 'Magic Cut', cancel: 'Cancel Magic Cut' };
+    default: return { visible: true, pill: false, label: '✦ Magic Cut' };
   }
 }
 
 const PRIVACY_KEY = 'supercut.magic.privacyShown';
 const PRIVACY = 'Only the text of your transcript is sent to Claude. Your video stays here.';
-export const NOT_CONNECTED = "Magic isn't connected yet. Soon it will pick your best takes; for now, cut words in the transcript.";
+export const NOT_CONNECTED = "Magic Cut isn't connected yet. Soon it will pick your best takes; for now, cut words in the transcript.";
 
 /**
  * The controller. Every dependency is passed in so it runs (and is tested) without a window.
@@ -40,7 +40,7 @@ export function createMagic(deps) {
 
   async function run() {
     const parts = deps.project().parts.filter((p) => p.transcript);
-    if (!parts.length) return deps.banner('Magic needs a transcript. Wait for it to finish, then try again.');
+    if (!parts.length) return deps.banner('Magic Cut needs a transcript. Wait for it to finish, then try again.');
     if (!store.getItem(PRIVACY_KEY)) {
       store.setItem(PRIVACY_KEY, '1');
       deps.flash(PRIVACY, 8000);
@@ -97,9 +97,9 @@ export function createMagic(deps) {
 
 /** Pure: the banner for a Claude that isn't ready. One sentence, one action. */
 export function claudeBanner(status) {
-  if (status.state === 'missing') return ['Magic needs Claude Code. Install it and sign in, then try again.'];
+  if (status.state === 'missing') return ['Magic Cut needs Claude Code. Install it and sign in, then try again.'];
   return [
-    'Sign in to Claude to use Magic: open Terminal and run `claude`.',
+    'Sign in to Claude to use Magic Cut: open Terminal and run `claude`.',
     { label: 'Copy command', run: () => navigator.clipboard?.writeText('claude') },
   ];
 }

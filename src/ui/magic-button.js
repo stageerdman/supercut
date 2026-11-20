@@ -20,6 +20,6 @@ export function paintMagic(state) {
     x.textContent = '✕';
     btn.append(x);
   }
-  btn.setAttribute('aria-label', v.pill ? `${v.label} ${v.cancel}` : 'Magic (⌘↩)');
+  btn.setAttribute('aria-label', v.pill ? `${v.label} ${v.cancel}` : 'Magic Cut (⌘↩)');
   btn.title = v.pill ? v.cancel : 'Cut the video with AI (⌘↩)';
 }

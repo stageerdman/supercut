@@ -11,7 +11,7 @@ import { eta } from './dom.js';
  * @returns {{text: string, pct: number|null}} pct null = no bar
  */
 export function workText({ progress, partNo, secondsLeft, waiting, magicQueued, magicStage }) {
-  const tail = magicQueued ? ' · Magic starts when the transcript is ready' : '';
+  const tail = magicQueued ? ' · Magic Cut starts when the transcript is ready' : '';
   if (progress) {
     const pct = progress.total ? progress.done / progress.total : 0;
     const left = eta(secondsLeft);

@@ -24,7 +24,7 @@ test('status line says one thing at a time', () => {
   const p = { part: 1, stage: 'transcribe', done: 12, total: 100 };
   assert.deepEqual(workText({ progress: p }), { text: 'Transcribing… 12 %', pct: 0.12 });
   assert.equal(workText({ progress: p, partNo: 2, secondsLeft: 185 }).text, 'Transcribing part 2… 12 % · about 3 min');
-  assert.equal(workText({ progress: p, magicQueued: true }).text, 'Transcribing… 12 % · Magic starts when the transcript is ready');
+  assert.equal(workText({ progress: p, magicQueued: true }).text, 'Transcribing… 12 % · Magic Cut starts when the transcript is ready');
   const d = { part: 1, stage: 'download', done: 335e6, total: 670e6 };
   assert.equal(workText({ progress: d }).text, 'Downloading speech model · 670 MB · 50 %');
   assert.deepEqual(workText({ magicStage: 'Choosing the best takes' }), { text: 'Choosing the best takes…', pct: null });
@@ -101,7 +101,7 @@ test("Magic's cuts join yours; a second run replaces the first run's", () => {
 test('a cut word says why on hover', () => {
   assert.equal(cutTitle(undefined, 75), '01:15');
   assert.equal(cutTitle({ s: 70, e: 80 }, 75), 'Cut · 01:15 · Backspace brings it back');
-  assert.equal(cutTitle({ s: 70, e: 80, reason: 'earlier take' }, 75), 'Magic: earlier take · Backspace brings it back');
+  assert.equal(cutTitle({ s: 70, e: 80, reason: 'earlier take' }, 75), 'Magic Cut: earlier take · Backspace brings it back');
 });
 
 test('⌘Z / ⇧⌘Z walk the cuts; a removed part leaves history', () => {
@@ -134,9 +134,9 @@ test('drop verdict', () => {
 
 test('magic button looks', () => {
   assert.equal(magicView({ kind: 'off' }).visible, false);
-  assert.deepEqual(magicView({ kind: 'ready' }), { visible: true, pill: false, label: '✦ Magic' });
-  assert.equal(magicView({ kind: 'queued' }).label, 'Magic queued');
-  assert.equal(magicView({ kind: 'running', stage: 'Choosing the best takes' }).label, 'Magic', 'the stage is in the status line');
+  assert.deepEqual(magicView({ kind: 'ready' }), { visible: true, pill: false, label: '✦ Magic Cut' });
+  assert.equal(magicView({ kind: 'queued' }).label, 'Magic Cut queued');
+  assert.equal(magicView({ kind: 'running', stage: 'Choosing the best takes' }).label, 'Magic Cut', 'the stage is in the status line');
   assert.equal(claudeBanner({ state: 'signed-out' })[1].label, 'Copy command');
   assert.equal(claudeBanner({ state: 'missing' }).length, 1);
 });
@@ -228,7 +228,7 @@ test('signed out: banner with the command, nothing runs', async () => {
   m.update();
   await m.press();
   assert.equal(r.calls, 0);
-  assert.deepEqual(log.banners, [['Sign in to Claude to use Magic: open Terminal and run `claude`.', 'Copy command']]);
+  assert.deepEqual(log.banners, [['Sign in to Claude to use Magic Cut: open Terminal and run `claude`.', 'Copy command']]);
 });
 
 test('a failed run leaves the project untouched and offers Try again', async () => {

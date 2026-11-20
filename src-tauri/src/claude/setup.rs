@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn missing_claude_says_so_in_plain_words() {
         let s = status(None);
-        assert_eq!((s.state, s.message.as_str()), ("missing", "Install Claude Code to use Magic."));
+        assert_eq!((s.state, s.message.as_str()), ("missing", "Install Claude Code to use Magic Cut."));
     }
 
     #[test]

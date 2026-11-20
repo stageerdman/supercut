@@ -38,7 +38,7 @@ impl fmt::Display for AppError {
             Self::FfmpegStart { ffmpeg, why } => write!(f, "Couldn't start ffmpeg ({ffmpeg}): {why}"),
             Self::Unreadable { file, why } => write!(f, "This video can't be read. It may be damaged. ({file}: {why})"),
             Self::Recognize(why) => write!(f, "Transcription failed: {why}"),
-            Self::ClaudeMissing => write!(f, "Install Claude Code to use Magic."),
+            Self::ClaudeMissing => write!(f, "Install Claude Code to use Magic Cut."),
             Self::ClaudeSignedOut => write!(f, "Open Terminal and run `claude`, then sign in."),
             Self::ClaudeBusy => write!(f, "Claude is busy or your usage limit is reached. Try again in a few minutes."),
             Self::ClaudeFailed(why) => write!(f, "Claude couldn't answer: {why}"),

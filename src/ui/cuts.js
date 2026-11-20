@@ -16,7 +16,7 @@ export const isCut = (word, cuts) => !!cutAt(word, cuts);
  * @param {Array<{part:number,s:number,e:number,reason:string}>} magic  the new run's cuts
  */
 export function withMagic(cuts, magic) {
-  return [...cuts.filter((c) => !c.reason), ...magic.map(({ part, s, e, reason }) => ({ part, s, e, reason: reason || 'Magic' }))];
+  return [...cuts.filter((c) => !c.reason), ...magic.map(({ part, s, e, reason }) => ({ part, s, e, reason: reason || 'Magic Cut' }))];
 }
 
 /**

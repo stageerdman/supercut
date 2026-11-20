@@ -10,7 +10,7 @@ export { isCut };
 /** Pure: a word's hover text. Magic's cuts say why. Tested in test/ui.test.mjs. */
 export function cutTitle(cut, s) {
   if (!cut) return clock(s);
-  return `${cut.reason ? `Magic: ${cut.reason}` : `Cut · ${clock(s)}`} · Backspace brings it back`;
+  return `${cut.reason ? `Magic Cut: ${cut.reason}` : `Cut · ${clock(s)}`} · Backspace brings it back`;
 }
 
 const CUT = ['text-text-secondary', 'line-through', 'decoration-accent', 'decoration-2'];
