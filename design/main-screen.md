@@ -11,7 +11,7 @@ Checked against: `design/user-model.md`. Visual tokens: `design/visual-system.md
 |---|---|
 | Welcome / onboarding screens | The empty screen *is* the onboarding: one drop target. |
 | New Project dialog, project naming | The project is named after the first video and autosaved. |
-| Media library / bin panel | At most two clips. The timeline is the library. |
+| Media library / bin panel | At most two parts. The timeline is the library. |
 | Tool palette (razor, select, hand…) | One mode. Drag edges to trim, drag across to select, `S` to split. |
 | Inspector panel, effects, text, music, stickers | Not a goal. CapCut's look, not its toolbox. |
 | Separate "add second video" screen | A slot at the end of the timeline, and drop-anywhere. |
@@ -37,7 +37,7 @@ One window, three zones. Nothing else.
 ├───────────────────────────────────────────────────┴───────────────────────┤
 │  ▶  01:12 / 24:10                       Transcribing… 12 % · 3 min   ─◯─  │ ← transport row (40)
 │ ┌────────────────────────────┐▒▒▒┌───────────────────────┐ ┌ ─ ─ ─ ─ ┐    │
-│ │▌ clip 1 thumbnails       ▐│▒▒▒│▌ clip 2             ▐│   + Add      │
+│ │▌ part 1 thumbnails       ▐│▒▒▒│▌ part 2             ▐│   + Add      │
 │ │▌ ∿∿∿∿∿ waveform ∿∿∿∿∿∿∿∿ ▐│▒▒▒│▌ ∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿ ▐│ │ second  │    │ ← timeline (~160)
 │ └────────────────────────────┘▒▒▒└───────────────────────┘ └ ─ ─ ─ ─ ┘    │
 │        ▲ playhead                ▒ removed range (hatched)                │
@@ -58,7 +58,8 @@ Exactly one filled button at any time.
 | State | Primary (filled) | Secondary (plain) |
 |---|---|---|
 | Empty | **Choose Video…** (in the drop zone) | — (toolbar empty) |
-| Video loaded, transcribing | **✦ Magic** (disabled, label "Magic", hint "Ready when the transcript is done") | Export |
+| Video loaded, transcribing | **✦ Magic** (enabled; pressing it queues — see state 8) | Export |
+| Magic queued | **Magic queued ✕** (pill; ✕ cancels) | Export |
 | Ready | **✦ Magic** | Export |
 | Magic done | **Review cuts** (Phase 6) | Export, ✦ Magic (again) |
 | All reviewed | **Export** | ✦ Magic |
@@ -91,7 +92,7 @@ Before Phase 6 ships, "Magic done" keeps Magic as primary and Export secondary.
 ### 2. Drag over
 - Any valid file over the window: the zone border turns solid accent, fill accent at 8 %, headline "Drop to open". 120 ms ease.
 - Invalid file over the window: border secondary, headline "SuperCut opens video files". Drop does nothing harmful.
-- Over a loaded project: the add-slot (or, with two clips, the whole timeline) highlights; headline in the slot "Add as part 2".
+- Over a loaded project: the add-slot (or, with two parts, the whole timeline) highlights; headline in the slot "Add as part 2".
 
 ### 3. Opening
 - The editor layout appears **at once** (no spinner screen). The player shows the first frame as soon as AVFoundation has it; the clip on the timeline fills in thumbnails left to right as they render (skeleton tiles at surface-raised until then).
@@ -110,24 +111,29 @@ Before Phase 6 ships, "Magic done" keeps Magic as primary and Export secondary.
 
 ### 6. Manual pre-cuts (Phase 2)
 No tools to pick. Three gestures, all undoable:
-- **Trim edges:** hover a clip edge → 6 pt handle appears (accent), cursor ↔. Drag inward; the trimmed part becomes a removed range. Drag back out to restore.
+- **Trim edges:** hover a clip edge → 6 pt handle appears (accent), cursor ↔. Drag inward; the trimmed part becomes a removed range.
 - **Remove a middle part:** drag across the timeline (not on an edge) → selection (accent 20 % fill, 1 pt accent border). A small chip floats above it: **Remove ⌫**. Press ⌫ or click the chip.
 - **Split:** `S` splits at the playhead (for those who think in razor cuts). Not shown as a button; listed in the Help menu and the shortcut sheet.
 
 Removed ranges stay visible: **collapsed to a 12 pt hatched sliver** between kept parts (so the timeline shows the edited length), with a ↔ icon on hover; click → it opens back to full width with a **Restore** chip. Playback skips them.
+
+**One restore gesture:** click the sliver → **Restore** (or ⌘Z for the last edit). It works the same for trimmed ends and removed middles. Dragging a handle never restores — handles only trim inward — so there is never a second, hidden way.
 
 Time readout shows the **edited** length: "01:12 / 23:40", and while hovering the readout: "Original 24:10".
 
 Your cuts are drawn in neutral grey hatch; AI cuts (Phase 5) in accent hatch. One glance tells you who cut what.
 
 ### 7. Transcribing (Phase 3)
-- Status line: "Transcribing… 12 % · about 3 min" with a 2 pt progress bar under the transport row's top hairline. You can play and cut meanwhile.
+- Progress lives **only in the status line** (transport row): "Transcribing… 12 % · about 3 min" with a 2 pt progress bar under the transport row's top hairline. The transcript panel never shows progress. You can play and cut meanwhile.
 - First run: "Downloading speech model · 465 MB · about 2 min" first, same place.
 - The transcript panel slides in (200 ms) when the first words arrive and fills as they come.
-- Done: status line "Transcript ready" for 3 s, then clears. Magic enables (fade 150 ms). If the app is in the background: a Mac notification.
+- Claude self-test runs in parallel when the video loads (Phase 4). If Claude is missing or signed out, the sign-in banner (state 9) appears **now**, while there's time to fix it.
+- Done: status line "Transcript ready" for 3 s, then clears. If the app is in the background and Magic is **not** queued: a Mac notification "Transcript ready".
 
-### 8. Magic running / done (Phase 5, sketched)
-- Magic button becomes a progress pill with stages ("Choosing the best takes…") and a ✕ to cancel. Everything else stays usable but the timeline is read-only (cursor shows why on hover: "Wait for Magic to finish").
+### 8. Magic queued / running / done (Phase 5, sketched)
+- **Queued:** pressing Magic during transcription turns the button into a pill "Magic queued ✕"; the status line reads "Transcribing… 12 % · Magic starts when the transcript is ready". ✕ (or ⌘↩ again) cancels the queue. When the transcript is done, Magic starts by itself — no second press, and only **one** notification at the very end ("38 cuts ready").
+- **First run ever:** a one-time inline notice in the status line for 8 s — "Only the text of your transcript is sent to Claude. Your video stays here." No dialog, no confirmation, it doesn't delay the run, and it never shows again.
+- **Running:** the Magic button becomes a progress pill with stages ("Choosing the best takes…") and a ✕ to cancel. Everything else stays usable but the timeline is read-only (cursor shows why on hover: "Wait for Magic to finish").
 - Done: status line "38 cuts · 24:10 → 14:52 · ⌘Z to undo" for 6 s.
 
 ### 9. Errors (one pattern for all)
@@ -139,7 +145,7 @@ A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, o
 | Audio-only file | "That's an audio file. Better audio comes in a later version." (Phase 8 replaces this) | — |
 | Third file | "SuperCut works with two parts. Remove one to add another." | — |
 | Source moved | "Can't find my-video.mov." | Locate… |
-| Claude not signed in (only when Magic is pressed) | "Sign in to Claude to use Magic: open Terminal and run `claude`." | Copy command |
+| Claude missing or not signed in (checked when a video loads; shown during transcription, shown again if Magic is pressed while still signed out) | "Sign in to Claude to use Magic: open Terminal and run `claude`." | Copy command |
 
 ## Keyboard (works from the first second)
 | Key | Action |

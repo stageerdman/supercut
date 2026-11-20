@@ -22,8 +22,8 @@ state: `design/main-screen.md`.
 **Stack (decided by research):** SwiftUI app, macOS 14+, Apple Silicon only ·
 AVFoundation for playback, cutting and export · FluidAudio + Parakeet TDT v3
 (CoreML) in-process · the user's own `claude` CLI in print mode via `Process`.
-Distribution: **unsigned** `.app` in a DMG (no Apple Developer account, so no
-signing or notarization).
+Distribution: a DMG with an **ad-hoc signed** `.app` (`codesign -s -`, free, no
+Apple Developer account). No Developer ID signing, no notarization.
 
 **The one model:** a `Project` (JSON) with `sources[]`, `transcript`,
 `segments[]` and the **EDL** (kept ranges). Playback, timeline, transcript,
@@ -51,18 +51,20 @@ The foundation the brief asks for.
 - Drop or choose a video → it plays (Space), scrubs, shows on the timeline with
   thumbnails and a waveform.
 - A second video drops in **after** the first (two parts of one recording).
-  Swap order by dragging. A third file says "SuperCut works with two clips."
-- Unsupported file → one plain sentence. An audio-only file → kept for Phase 7
-  (for now: "Better audio is coming soon").
+  Swap order by dragging. A third file says "SuperCut works with two parts.
+  Remove one to add another."
+- Unsupported file → one plain sentence. An audio-only file → "That's an audio
+  file. Better audio comes in a later version." (Phase 8 replaces this.)
 - Project autosaves to Application Support; files stored as bookmarks.
 - **Tests:** unit — `Project` encode/decode, source loading (valid, broken,
-  audio-only, third file). UI smoke — launch → drop sample → plays. Two-clip
+  audio-only, third file). UI smoke — launch → drop sample → plays. Two-part
   project reopens identical.
 
 ### Phase 2 — Manual pre-cuts
 - Drag clip edges to trim start and end. Select a range on the timeline,
-  ⌫ removes it. Split at playhead (`S`). Removed parts show as gaps you can
-  drag back out; originals are never touched.
+  ⌫ removes it. Split at playhead (`S`). Removed parts show as thin hatched
+  slivers; click one → **Restore** (the one restore gesture, besides ⌘Z).
+  Originals are never touched.
 - ⌘Z / ⇧⌘Z for every edit. Works while transcription runs.
 - Each cut is marked as **yours** (Magic must never undo it).
 - **Tests:** EDL logic fully unit-tested (trim, split, delete, restore, undo/
@@ -71,7 +73,7 @@ The foundation the brief asks for.
 ### Phase 3 — Local transcription
 - Starts by itself on drop. First run downloads the model (~465 MB) with size,
   progress and time shown — the video is already playable meanwhile.
-- Progress on the transcript panel: "Transcribing… 12 % · about 3 min left".
+- Progress in the status line (transport row): "Transcribing… 12 % · about 3 min".
 - Words with times build the transcript panel: click a word → player jumps
   there; the playhead highlights the current word; pre-cut words show struck.
 - Cached in the project, runs once; resumes after quit or sleep.
@@ -85,7 +87,11 @@ The foundation the brief asks for.
 - Failure states mapped to three plain messages: "Sign in to Claude" (with the
   Terminal step), "Claude is busy, retrying…", "Something went wrong".
   Missing Claude never blocks loading, trimming or transcription.
-- Startup self-test so a future CLI change shows "Update SuperCut", not chaos.
+- **Self-test when a video loads** (`claude auth status` + a tiny `claude -p`),
+  running alongside transcription. If Claude is missing or signed out, the
+  sign-in banner shows **during transcription**, so it's fixed before Magic is
+  needed, not discovered at the button. A future CLI change shows "Update
+  SuperCut", not chaos.
 - **Tests:** take-finder unit tests on fixture transcripts; contract tests on
   recorded CLI output (success, not signed in, rate limit, bad JSON, timeout);
   a live smoke test behind a flag.
@@ -93,13 +99,18 @@ The foundation the brief asks for.
 ### Phase 5 — Magic
 - The one primary button on the screen. One press, no setup: removes retakes
   (keeps the last good take), false starts, long pauses, filler.
+- **Can be pressed during transcription:** it queues ("Magic starts when the
+  transcript is ready", ✕ to cancel) and runs by itself — one wait instead of
+  two, and one notification when the cuts are ready.
 - Stages while it works: "Reading… Choosing the best takes… Placing cuts".
 - Result in two seconds: "38 cuts · 24:10 → 14:52". Cuts show on the timeline
   and struck through in the transcript. One ⌘Z undoes the whole pass.
 - All or nothing: a failure leaves the project exactly as before.
 - Your cuts always win; pressing Magic again keeps them.
-- First press says once what leaves the Mac: "Only the text of your transcript
-  is sent to Claude. Your video stays here."
+- Privacy: on the first press ever, a **one-time inline notice** in the status
+  line — "Only the text of your transcript is sent to Claude. Your video stays
+  here." It does not ask for confirmation, does not block the run, and never
+  shows again.
 - **Tests:** fixture transcripts with known retakes → expected ranges removed;
   user cuts survive a re-run; bad replies never touch the EDL.
 
@@ -136,21 +147,25 @@ The foundation the brief asks for.
   notification when done; "Show in Finder".
 - Gentle note if cuts weren't reviewed: "12 cuts not checked yet" — never a block.
 - **Tests:** exported duration = sum of kept ranges; A/V in sync at every cut;
-  better audio present; two-clip export.
+  better audio present; two-part export.
 
-### Phase 10 — Polish and ship (unsigned)
+### Phase 10 — Polish and ship (no Developer ID)
 - Recent projects on the empty screen, missing-file relink, accessibility pass
   (VoiceOver labels, full keyboard use, contrast), keyboard shortcut sheet.
-- Build an **unsigned** `.app` packed in a DMG with a short "First launch"
-  note inside it and in the README:
-  1. Drag SuperCut to Applications.
-  2. Right-click SuperCut → **Open** → **Open** (only the first time).
-  3. Or: System Settings → Privacy & Security → "SuperCut was blocked" → **Open Anyway**.
-- No signing, no notarization, no auto-updates (Sparkle needs signing): new
-  versions are a new DMG.
+- **Ad-hoc sign** the `.app` (`codesign --force --deep -s - SuperCut.app`).
+  Required: on Apple Silicon a fully unsigned downloaded app is reported as
+  "damaged" and can't be opened at all. Ad-hoc signing is free and needs no
+  Apple account. No Developer ID, no notarization.
+- Pack it in a DMG with a short "First launch" note inside it and in the README
+  (macOS 15+ removed the right-click → Open bypass, so this is the main path):
+  1. Drag SuperCut to Applications and open it. macOS says it can't verify it → **Done**.
+  2. System Settings → **Privacy & Security** → scroll to "SuperCut was blocked" → **Open Anyway** → confirm with your password.
+  3. Only needed once; after that it opens normally.
+- No auto-updates (Sparkle needs a real signature): new versions are a new DMG.
 - **Tests:** end-to-end on a sample recording (load → pre-cut → transcribe →
-  Magic with recorded Claude reply → review → export); a clean-Mac check that
-  the DMG opens with the first-launch steps.
+  Magic with recorded Claude reply → review → export); `codesign -v` passes on
+  the built app; a clean-Mac check (macOS 15+, downloaded via browser so it is
+  quarantined) that the DMG opens with exactly the first-launch steps.
 
 ### Later (not planned yet)
 Captions, multi-cam angle switching, FCPXML export, vertical exports, a
@@ -161,7 +176,8 @@ Captions, multi-cam angle switching, FCPXML export, vertical exports, a
 - The EDL is the single edit model for manual cuts, Magic, review, transcript and export. (Elon, Jony)
 - Two videos = two parts of one recording, played one after the other. (Pixel)
 - Stack: SwiftUI + AVFoundation + FluidAudio Parakeet + `claude -p`. (Elon)
-- **Unsigned build only** — no Apple Developer account. DMG + first-launch steps; no notarization, no Sparkle. (User, via Pixel)
+- **No Developer ID** — no Apple Developer account. Ad-hoc signed app in a DMG + first-launch steps via Privacy & Security → Open Anyway; no notarization, no Sparkle. (User, via Pixel; ad-hoc signing and macOS 15 path from Eraser's review)
+- Magic can be pressed during transcription and queues. Claude sign-in is checked when a video loads. (Eraser's review)
 - User cuts outrank AI cuts; review covers AI cuts only. (Columbo's assumption, adopted)
 
 ## Status
