@@ -38,6 +38,10 @@ export const runner = {
 };
 ```
 
+**Connected (2026-11-20):** `src/ai.js` exports the runner. It calls the Rust command `auto_cut`
+(`src-tauri/src/autocut/`); each cut also carries `from`/`to` (word indices in its part) and a short `reason`.
+Magic sends each part's `seconds` too, for the summary.
+
 Rules the UI already enforces (tested in `test/ui.test.mjs`):
 - **Throw a plain sentence** (`throw new Error('Claude is busy. Try again in a minute.')`). It goes straight into the banner
   with Try again. Nothing in the project changes on failure: cuts are only taken after `run` resolves.

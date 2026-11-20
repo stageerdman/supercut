@@ -4,10 +4,13 @@ Running list. Newest at top. Move resolved items to the bottom with a strikethro
 
 OPEN
 ----
-- Magic is hidden until the Claude Code connection sets `runner` in src/ai.js (contract: design/ai-slot.md). Export isn't shown at all until export exists.
+- Export isn't shown at all until export exists.
+- Magic replaces the cut list with its own cuts (one ⌘Z step back): your own Backspace cuts made before pressing Magic are gone until you undo. Decide whether Magic should add to your cuts instead.
+- Magic cuts whole lines word-exact; the pause before a cut stays, and "um"s inside kept lines stay. Cut reasons aren't shown in the transcript yet.
+- `npm run smoke` now also runs Magic on models/retakes.wav when it exists (`npm run sample-retakes`).
 - Not built from the screen spec yet: ⌘T transcript toggle under 1100 pt, clip drag-to-swap and right-click menu, Mac notification "Transcript ready", Reduce Motion / Increase Contrast, SVG icons.
 - Nobody has looked at the window yet (agents can't see the screen). `npm run dev` starts it cleanly and the UI script runs to the end (it calls the Claude check); drop → transcript is proven through tests and the packaged app's CLI mode (`npm run smoke`). Someone please open it once and drop a video.
-- Claude calls can't be cancelled yet (only the 120 s timeout stops them). Retry events ("busy") are logged but not shown in the status line.
+- Claude calls can't be cancelled yet (only the timeout stops them: 120 s self-test, 300 s Magic; Magic's ✕ drops the late result). Retry events ("busy") are logged but not shown in the status line.
 - `npm run smoke` now needs Claude Code installed and signed in (it makes one small real call).
 - Transcription can't be cancelled yet. A second part waits for the first (one model, one job at a time); the status line shows the running part's %, not the queue.
 - The model download can't be cancelled or paused; a retry resumes per file (finished files are kept, a half file is restarted).

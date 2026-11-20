@@ -40,4 +40,14 @@ for (const w of t.words.slice(0, 20)) console.log(`  ${w.s.toFixed(2).padStart(6
 console.log('around the 105–120 s seam:', t.words.filter((w) => w.s > 110 && w.s < 115).map((w) => `${w.w}@${w.s}`).join(' '));
 if (t.words.length < 5) throw new Error('too few words');
 for (let i = 1; i < t.words.length; i++) if (t.words[i].s < t.words[i - 1].s) throw new Error(`time goes backwards at word ${i}`);
+
+// Magic end to end on a recording with three bad takes (`npm run sample-retakes`).
+const retakes = path.join(__dirname, '..', 'models', 'retakes.wav');
+if (fs.existsSync(retakes)) {
+  const m0 = Date.now();
+  const cuts = JSON.parse(execFileSync(bin, ['--auto-cut', retakes], { encoding: 'utf8' }));
+  console.log(`magic: ${cuts.length} cuts in ${((Date.now() - m0) / 1000).toFixed(1)} s`);
+  for (const c of cuts) console.log(`  ${c.s.toFixed(2).padStart(6)}–${c.e.toFixed(2).padEnd(6)} ${c.reason}`);
+  if (cuts.length !== 3) throw new Error('expected the three bad takes cut');
+} else console.log('magic: skipped (run npm run sample-retakes)');
 console.log('smoke: ok');

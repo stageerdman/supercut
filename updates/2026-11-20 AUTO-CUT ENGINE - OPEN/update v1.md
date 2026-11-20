@@ -33,13 +33,26 @@ Claude only ever sees line numbers and answers with numbers: times come from the
 6. **UI hook** — `src/ai.js` exports the runner (contract `design/ai-slot.md`): invokes `auto_cut`, builds the
    summary ("3 cuts · 1:02 → 0:44"). Tests in `test/ui.test.mjs`.
 
-## Status
-- Roadmap written. Building phase 1.
+## Status (2026-11-20) — all six phases ✅
+- `npm test`: 21 UI + 73 Rust passed, 0 failed (31 new: 26 engine, 2 live, 2 UI, +1 changed).
+- Real recording (`models/retakes.wav`, 42.6 s, 11 lines): groups `[[2,3],[5,6],[8,9]]`; Claude (sonnet, 5–9 s)
+  cut exactly lines 2, 5, 8 — "false start, abandoned", "earlier take", "stumble, abandoned".
+- `npm run build` + `npm run smoke`: the packaged app's `--auto-cut` gave the same 3 cuts in 8.4 s.
+- Magic is connected: `src/ai.js` exports the runner; the button runs the engine and the cuts land struck through.
 
 ## Decisions
 - One Claude call for the whole project (all parts): retakes can cross parts.
 - The last-take rule is code, not just prompt: Claude decides *how many* takes stay, the rule decides *which*.
 - Custom rules hook = a `&[String]` passed to `propose`, appended to the system prompt. The UI passes none yet.
+- Line = sentence mark or a 1.0 s pause. Group = ≥ 60 % of the shorter line's words in order (and ≥ 2 words),
+  within 6 lines back.
+- Cuts are whole lines, word-exact (first word start → last word end). The pause before a cut stays for now.
+- The self-test asks with Magic's own rules (`autocut::RULES`), so it proves what Magic will ask.
+- Reasons are shown to the user, so the rules forbid line numbers in them (Claude wrote "redone in 3" at first).
+- Time limit 300 s for Magic (self-test keeps 120 s).
 
 ## Next
-- (after v1) Trim the pause around a cut, filler words ("um") as word-level cuts, cancel a running Claude call.
+- Trim the pause around a cut; filler words ("um") inside kept lines as word-level cuts.
+- Cancel a running Claude call (the runner's `cancel` is a no-op; the late result is dropped by the UI).
+- Show each cut's reason in the transcript (the cuts already carry it).
+- Custom rules UI (feature f-custom-ai-editing-rules): pass the user's rules to `autocut::propose`.
