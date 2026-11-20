@@ -335,6 +335,24 @@ test('rules: a failed save rejects with the message and tries again next time', 
   assert.equal(r.calls.filter(([c]) => c === 'save_rules').length, 2);
 });
 
+test('rules: after a failed save, changing the text back to the saved rules saves nothing and does not fail', async () => {
+  let failing = true;
+  const calls = [];
+  const store = createRulesStore(async (cmd, args) => {
+    calls.push(cmd);
+    if (cmd === 'get_rules') return ['Keep my jokes'];
+    if (failing) throw "Your rules couldn't be saved.";
+    return args.rules;
+  }, { timer: () => null, clear: () => {} });
+  await store.load();
+  store.edit('Keep my jokes\nCut every um');
+  await assert.rejects(store.flush(), /couldn't be saved/);
+  failing = false;
+  store.edit('Keep my jokes');
+  await store.flush(); // resolves: no stale error, so Magic Cut isn't blocked
+  assert.deepEqual(calls, ['get_rules', 'save_rules'], 'nothing new to save');
+});
+
 test('rules panel: gear opens it filled, typing + Esc saves, ⌘, toggles, click outside closes', async () => {
   const node = (hidden) => {
     const cls = new Set(hidden ? ['hidden'] : []);

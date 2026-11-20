@@ -20,7 +20,8 @@ export function createRulesStore(invoke, { wait = 400, timer = setTimeout, clear
     clear(pause);
     pause = null;
     const rules = latest == null ? null : parseRules(latest);
-    if (!rules || rulesText(rules) === saved) return chain;
+    // Nothing new to save: wait for any save in flight, but never re-raise an old failure (the disk may work again).
+    if (!rules || rulesText(rules) === saved) return (chain = chain.catch(() => {}));
     chain = chain.catch(() => {}).then(async () => { saved = rulesText(await invoke('save_rules', { rules })); });
     return chain;
   }
