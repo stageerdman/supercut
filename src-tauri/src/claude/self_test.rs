@@ -15,10 +15,6 @@ pub const SENTENCES: [&str; 3] = [
     "It cuts the boring parts out of your video for you.",
 ];
 
-const RULES: &str = "You edit spoken video transcripts. You get numbered sentences. \
-Decide for every sentence whether to keep it or drop it. Drop false starts and repeated takes; \
-when a sentence is said twice, keep the last complete, fluent take. Answer with sentence numbers only.";
-
 const LIMIT: Duration = Duration::from_secs(120);
 
 pub fn prompt(sentences: &[&str]) -> String {
@@ -28,7 +24,8 @@ pub fn prompt(sentences: &[&str]) -> String {
 pub fn run(bin: &Path, trace: &str) -> Result<Picks, AppError> {
     let schema = picks::schema();
     let prompt = prompt(&SENTENCES);
-    let answer = ask(bin, &Ask { prompt: &prompt, system: RULES, schema: &schema }, LIMIT, trace)?;
+    // Magic's own rules, so the self-test proves what Magic will ask.
+    let answer = ask(bin, &Ask { prompt: &prompt, system: crate::autocut::RULES, schema: &schema }, LIMIT, trace)?;
     picks::parse(answer, SENTENCES.len() as u32)
 }
 

@@ -3,6 +3,7 @@
 //! and transcript text sent to Claude through the user's own Claude Code CLI.
 
 mod audio;
+mod autocut;
 mod claude;
 mod error;
 mod keep_awake;
@@ -43,6 +44,14 @@ async fn claude_status() -> claude::Status {
 #[tauri::command]
 async fn claude_self_test() -> Result<claude::picks::Picks, AppError> {
     tauri::async_runtime::spawn_blocking(|| claude::self_test::run(&claude::locate()?, "self-test"))
+        .await
+        .map_err(|e| AppError::ClaudeFailed(e.to_string()))?
+}
+
+/// Magic: the parts' transcripts (play order) → proposed cuts, chosen by the user's Claude.
+#[tauri::command]
+async fn auto_cut(parts: Vec<autocut::lines::PartWords>) -> Result<Vec<autocut::decide::Cut>, AppError> {
+    tauri::async_runtime::spawn_blocking(move || autocut::run(&claude::locate()?, &parts, "magic"))
         .await
         .map_err(|e| AppError::ClaudeFailed(e.to_string()))?
 }
@@ -92,9 +101,16 @@ fn print_and_exit<T: Serialize>(result: Result<T, AppError>) -> ! {
     std::process::exit(0)
 }
 
+/// Magic on one file, as one part: transcribe, then propose cuts.
+fn auto_cut_file(file: &Path) -> Result<Vec<autocut::decide::Cut>, AppError> {
+    let t = transcribe::transcribe_file(&parakeet::model_dir(), &audio::bundled_ffmpeg(), file, "cli", |_, _| {})?;
+    autocut::run(&claude::locate()?, &[autocut::lines::PartWords { id: 1, words: t.words }], "cli")
+}
+
 fn main() {
     // CLI modes let `npm run smoke` prove the packaged app really works:
-    // `--transcribe <file>` (bundled ffmpeg + ONNX Runtime) and `--claude-test` (the user's Claude Code).
+    // `--transcribe <file>` (bundled ffmpeg + ONNX Runtime), `--claude-test` (the user's Claude Code)
+    // and `--auto-cut <file>` (both, through Magic's engine).
     let args: Vec<String> = std::env::args().collect();
     match args.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
         [_, "--transcribe", file] => print_and_exit(transcribe::transcribe_file(
@@ -105,13 +121,14 @@ fn main() {
             |_, _| {},
         )),
         [_, "--claude-test"] => print_and_exit(claude::locate().and_then(|bin| claude::self_test::run(&bin, "cli"))),
+        [_, "--auto-cut", file] => print_and_exit(auto_cut_file(Path::new(file))),
         _ => {}
     }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Shared::default())
-        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, add_video, remove_part, transcribe_part])
+        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, add_video, remove_part, transcribe_part])
         .run(tauri::generate_context!())
         .expect("error while running SuperCut");
 }

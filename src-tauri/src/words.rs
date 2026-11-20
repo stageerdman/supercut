@@ -3,10 +3,10 @@
 //! (rest of a word, punctuation) joins the word before it.
 
 use crate::recognizer::Token;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// One spoken word with start and end time in seconds (same shape as Pensieve).
-#[derive(Serialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Word {
     pub w: String,
     pub s: f64,

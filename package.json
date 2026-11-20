@@ -9,7 +9,8 @@
     "fetch-model": "node scripts/fetch-model.js",
     "dev": "npm run prepare-bins && tauri dev",
     "test:ui": "node --test test/ui.test.mjs",
-    "test": "npm run test:ui && npm run prepare-bins && cargo test --manifest-path src-tauri/Cargo.toml -- --nocapture",
+    "test:rust": "npm run prepare-bins && cargo test --manifest-path src-tauri/Cargo.toml",
+    "test": "npm run test:ui && npm run test:rust -- -- --nocapture",
     "build": "npm run prepare-bins && tauri build --bundles app",
     "app": "node scripts/app.js",
     "smoke": "node scripts/smoke.js"
