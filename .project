@@ -7,3 +7,4 @@ modules:
   - WORKFLOW
 secrets: []
 claude_md_generated: 2026-11-20
+run: npm start

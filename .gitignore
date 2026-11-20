@@ -2,3 +2,7 @@
 .env
 .env.*
 !.env.example
+node_modules/
+dist/
+models/
+src/renderer/app.css

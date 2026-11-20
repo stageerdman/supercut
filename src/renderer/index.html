@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'" />
+  <title>SuperCut</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body class="h-full bg-zinc-950 text-zinc-100 font-sans antialiased">
+  <main class="flex h-full flex-col gap-4 p-6">
+    <header class="flex items-center justify-between">
+      <h1 class="text-lg font-semibold">SuperCut</h1>
+      <p id="claude" class="text-sm text-zinc-400" role="status">Checking Claude…</p>
+    </header>
+    <button id="open" class="self-start rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium hover:bg-violet-500 focus-visible:outline-2 focus-visible:outline-violet-300">
+      Open a recording
+    </button>
+    <section id="words" class="flex-1 overflow-auto rounded-lg bg-zinc-900 p-4 text-sm leading-7" aria-live="polite"></section>
+  </main>
+  <script src="renderer.js"></script>
+</body>
+</html>
