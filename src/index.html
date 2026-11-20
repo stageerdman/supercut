@@ -9,7 +9,9 @@
     <div class="flex h-full flex-col">
       <!-- Toolbar -->
       <header class="flex h-[52px] shrink-0 items-center border-b border-hairline px-4">
-        <h1 id="title" class="truncate font-semibold"></h1>
+        <h1 id="title" class="min-w-0 flex-1 truncate font-semibold"></h1>
+        <!-- The AI spot: the one primary action, far right (src/ui/magic.js, design/ai-slot.md) -->
+        <button id="magic" class="hidden"></button>
       </header>
 
       <!-- Banner: one sentence, at most one action, ✕ -->
@@ -58,6 +60,6 @@
         <div id="timeline" class="flex h-[120px] shrink-0 items-stretch gap-2 border-t border-hairline p-4"></div>
       </main>
     </div>
-    <script src="main.js"></script>
+    <script type="module" src="main.js"></script>
   </body>
 </html>

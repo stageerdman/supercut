@@ -4,6 +4,8 @@ Running list. Newest at top. Move resolved items to the bottom with a strikethro
 
 OPEN
 ----
+- Magic is hidden until the Claude Code connection sets `runner` in src/ai.js (contract: design/ai-slot.md). Export isn't shown at all until export exists.
+- Not built from the screen spec yet: ⌘T transcript toggle under 1100 pt, clip drag-to-swap and right-click menu, Mac notification "Transcript ready", Reduce Motion / Increase Contrast, SVG icons.
 - Nobody has looked at the window yet (agents can't see the screen). `npm run dev` starts it cleanly and the UI script runs to the end (it calls the Claude check); drop → transcript is proven through tests and the packaged app's CLI mode (`npm run smoke`). Someone please open it once and drop a video.
 - Transcription can't be cancelled yet. A second part waits for the first (one model, one job at a time); the status line shows the running part's %, not the queue.
 - The model download can't be cancelled or paused; a retry resumes per file (finished files are kept, a half file is restarted).
