@@ -2,7 +2,7 @@
   "name": "supercut",
   "version": "0.1.0",
   "private": true,
-  "description": "SuperCut: turn a raw recording into a clean, cut video (Tauri + Tailwind).",
+  "description": "Magic Cut: turn a raw recording into a clean, cut video (Tauri + Tailwind).",
   "scripts": {
     "css": "tailwindcss -i src/input.css -o src/app.css --minify",
     "prepare-bins": "node scripts/prepare-bins.js",

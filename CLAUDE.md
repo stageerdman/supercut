@@ -1,4 +1,6 @@
-# SuperCut
+# Magic Cut
+
+(The repo, the studio project and the code modules are still called SuperCut; the app users see is Magic Cut.)
 
 A Mac app that turns a raw recording into a clean, cut video. It transcribes locally, uses AI to pick the best takes, swaps in better audio, and lets you review every cut before exporting. It looks like CapCut or OpenCut.
 
@@ -113,4 +115,4 @@ Inside each update folder:
 
 ## Project-specific rules
 
-- *(none yet — add this project's own rules here)*
+- **Name:** users see **Magic Cut** (`productName` in `src-tauri/tauri.conf.json`; scripts read it from there). Internal names stay `supercut`: the Cargo crate and binary, the npm package, and the bundle id `xyz.supercut.editor`. Keep that id: the speech model folder and the app's saved settings live under it.

@@ -1,4 +1,4 @@
-//! SuperCut: the Tauri shell. The web UI in ../src calls the commands below.
+//! Magic Cut: the Tauri shell. The web UI in ../src calls the commands below.
 //! Video and audio never leave the Mac. Network use: the one-time speech model download,
 //! and transcript text sent to Claude through the user's own Claude Code CLI.
 
@@ -130,5 +130,5 @@ fn main() {
         .manage(Shared::default())
         .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, add_video, remove_part, transcribe_part])
         .run(tauri::generate_context!())
-        .expect("error while running SuperCut");
+        .expect("error while running Magic Cut");
 }

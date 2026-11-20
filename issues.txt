@@ -1,4 +1,4 @@
-SuperCut — known issues & TODOs
+Magic Cut — known issues & TODOs
 ===============================
 Running list. Newest at top. Move resolved items to the bottom with a strikethrough note or delete once truly gone.
 
@@ -16,7 +16,7 @@ OPEN
 - The model download can't be cancelled or paused; a retry resumes per file (finished files are kept, a half file is restarted).
 - Timeline tiles show name + length only; thumbnails and waveform come with the timeline phase. Swapping part order is not built yet.
 - design/visual-system.md names SF Symbols; the web view can't use them directly. Pick an SVG icon set (e.g. Lucide) or export the few symbols we need. Today the UI uses plain ▶ ❚❚ ✕ glyphs.
-- ffmpeg-static is a GPL build. Fine for a free app; swap for an LGPL build before selling SuperCut.
+- ffmpeg-static is a GPL build. Fine for a free app; swap for an LGPL build before selling Magic Cut.
 
 RESOLVED
 --------

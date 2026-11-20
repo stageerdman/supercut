@@ -1,4 +1,4 @@
-# SuperCut tech stack (research, 2026-11-20)
+# Magic Cut tech stack (research, 2026-11-20)
 
 Author: Elon Engineer (Research). The team builds from this document.
 
@@ -6,7 +6,7 @@ Author: Elon Engineer (Research). The team builds from this document.
 
 ## 0. The core idea (first principles)
 
-SuperCut is really **one data object and four workers around it**:
+Magic Cut is really **one data object and four workers around it**:
 
 ```
 Project (JSON, serde in Rust)
@@ -28,7 +28,7 @@ Rules that fall out of this:
 **v2 decision: Tauri 2 + a Tailwind v4 web UI. Rust does the work, the web view draws.** Same stack as the user's Pensieve and Master's Circle apps. The app is ~79 MB, and ffmpeg is most of that. Electron was rejected as too heavy. Swift was rejected because agents can't build it here.
 - Layout: `src/` = the web UI (plain HTML/JS + Tailwind, no bundler, `withGlobalTauri`), `src-tauri/` = Rust, one module per worker (`audio`, `transcribe`, `words`, `claude`, `keep_awake`).
 - The UI calls Rust with `invoke('command', …)`. Long jobs run in `spawn_blocking` and report progress with events (`transcribe-progress`).
-- Build output goes to the shared Cargo target `~/.cargo-shared-target` (see CLAUDE.md). The app ends up at `~/.cargo-shared-target/release/bundle/macos/SuperCut.app`.
+- Build output goes to the shared Cargo target `~/.cargo-shared-target` (see CLAUDE.md). The app ends up at `~/.cargo-shared-target/release/bundle/macos/Magic Cut.app`.
 - Commands: `npm run dev` (window with hot reload), `npm test` (cargo test, including live Parakeet), `npm run build` (ad-hoc signed `.app`), `npm run smoke` (the built app transcribes on its own), `npm run fetch-model`.
 
 ## 2. Video playback, frame-accurate cutting, timeline
@@ -78,11 +78,11 @@ claude -p \
   --no-session-persistence \
   --max-turns 1 \
   --model sonnet \
-  --append-system-prompt "<SuperCut picker rules>"
+  --append-system-prompt "<Magic Cut picker rules>"
 ```
 - Prompt goes in on **stdin** (limit 10 MB; a transcript is far below that). Run with an **empty temp folder as working directory**, so no project `CLAUDE.md`, hooks or `.mcp.json` get picked up.
 - **Remove `ANTHROPIC_API_KEY` from the child environment.** If it is set, it wins over the subscription login and bills the API.
-- **Do not pass `--bare`.** Bare mode never reads the subscription login (keychain). Docs say `--bare` "will become the default for `-p` in a future release"; this is the biggest risk. Mitigate: pin the behaviour with a startup self-test (a tiny `claude -p` call). If it reports an auth failure while `auth status` says `claude.ai`, show an "update SuperCut" message.
+- **Do not pass `--bare`.** Bare mode never reads the subscription login (keychain). Docs say `--bare` "will become the default for `-p` in a future release"; this is the biggest risk. Mitigate: pin the behaviour with a startup self-test (a tiny `claude -p` call). If it reports an auth failure while `auth status` says `claude.ai`, show an "update Magic Cut" message.
 - **Output:** read stdout line by line. Each line is JSON. Show progress from `assistant`/`stream_event` lines. The last line is `type: "result"` with `result`, `is_error`, `session_id`, `total_cost_usd`, and `structured_output` (only present if the schema was met; check before use).
 - **Errors:** non-zero exit code; `is_error: true` in the result (for example, missing auth is printed as the result on stdout); `system/api_retry` events with `error` = `authentication_failed`, `rate_limit`, `overloaded`, `billing_error`… Map them to three user messages: "Sign in to Claude", "Claude is busy, retrying…", "Something went wrong (details)". Cancel with SIGINT (SIGTERM drops the turn, exit 143). Add a timeout (~2 min per call).
 - **Subscription policy (checked 2026-11-20):** Anthropic's help page says `claude -p` and the Agent SDK, signed in with a Claude plan, "still draw from your subscription limits" (updates of 15 Jun and 7 Oct 2026; earlier planned changes are paused, not cancelled). Fine for the user running their own CLI. Re-check before any commercial distribution: third-party products offering claude.ai login may need approval.

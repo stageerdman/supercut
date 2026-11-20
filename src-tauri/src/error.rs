@@ -25,10 +25,10 @@ pub enum AppError {
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Unsupported { ext } if ext.is_empty() => write!(f, "SuperCut opens video files. Try MP4 or MOV."),
-            Self::Unsupported { ext } => write!(f, "SuperCut can't open .{ext} files yet. Try MP4 or MOV."),
+            Self::Unsupported { ext } if ext.is_empty() => write!(f, "Magic Cut opens video files. Try MP4 or MOV."),
+            Self::Unsupported { ext } => write!(f, "Magic Cut can't open .{ext} files yet. Try MP4 or MOV."),
             Self::AudioOnly => write!(f, "That's an audio file. Better audio comes in a later version."),
-            Self::TooManyParts => write!(f, "SuperCut works with two parts. Remove one to add another."),
+            Self::TooManyParts => write!(f, "Magic Cut works with two parts. Remove one to add another."),
             Self::NoSuchPart(id) => write!(f, "Part {id} isn't in this project any more."),
             Self::ModelMissing { dir } => write!(f, "The speech model isn't downloaded yet ({dir})."),
             Self::ModelLoad(why) => write!(f, "Couldn't load the speech model: {why}"),

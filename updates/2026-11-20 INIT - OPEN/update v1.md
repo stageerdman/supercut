@@ -10,7 +10,7 @@ A Mac app that turns a raw recording into a clean, cut video. It transcribes loc
 
 Author: Jony · 2026-11-20 · Built on: stack research (`updates/2026-11-20 TECH STACK RESEARCH - CLOSED/wiki.md`) and interaction research (`user-interactions.md`).
 
-The whole of SuperCut, in phases. Each phase ships something you can use and
+The whole of Magic Cut, in phases. Each phase ships something you can use and
 ends with tests that lock it in, so later phases can't quietly break it.
 Phases marked **(spike)** start with a throwaway test in this update folder
 before anything goes into the main code (WORKFLOW.md).
@@ -53,7 +53,7 @@ The foundation the brief asks for.
 - Drop or choose a video → it plays (Space), scrubs, shows on the timeline with
   thumbnails and a waveform.
 - A second video drops in **after** the first (two parts of one recording).
-  Swap order by dragging. A third file says "SuperCut works with two parts.
+  Swap order by dragging. A third file says "Magic Cut works with two parts.
   Remove one to add another."
 - Unsupported file → one plain sentence. An audio-only file → "That's an audio
   file. Better audio comes in a later version." (Phase 8 replaces this.)
@@ -93,7 +93,7 @@ The foundation the brief asks for.
   running alongside transcription. If Claude is missing or signed out, the
   sign-in banner shows **during transcription**, so it's fixed before Magic is
   needed, not discovered at the button. A future CLI change shows "Update
-  SuperCut", not chaos.
+  Magic Cut", not chaos.
 - **Tests:** take-finder unit tests on fixture transcripts; contract tests on
   recorded CLI output (success, not signed in, rate limit, bad JSON, timeout);
   a live smoke test behind a flag.
@@ -144,7 +144,7 @@ The foundation the brief asks for.
 
 ### Phase 9 — Export
 - One "Export" button: same size and frame rate as the source, HEVC MP4,
-  saved next to the original as "name – SuperCut.mp4" (never overwrites).
+  saved next to the original as "name – Magic Cut.mp4" (never overwrites).
 - Disk space checked before starting. Progress and time left; a Mac
   notification when done; "Show in Finder".
 - Gentle note if cuts weren't reviewed: "12 cuts not checked yet" — never a block.
@@ -154,14 +154,14 @@ The foundation the brief asks for.
 ### Phase 10 — Polish and ship (no Developer ID)
 - Recent projects on the empty screen, missing-file relink, accessibility pass
   (VoiceOver labels, full keyboard use, contrast), keyboard shortcut sheet.
-- **Ad-hoc sign** the `.app` (`codesign --force --deep -s - SuperCut.app`).
+- **Ad-hoc sign** the `.app` (`codesign --force --deep -s - "Magic Cut.app"`).
   Required: on Apple Silicon a fully unsigned downloaded app is reported as
   "damaged" and can't be opened at all. Ad-hoc signing is free and needs no
   Apple account. No Developer ID, no notarization.
 - Pack it in a DMG with a short "First launch" note inside it and in the README
   (macOS 15+ removed the right-click → Open bypass, so this is the main path):
-  1. Drag SuperCut to Applications and open it. macOS says it can't verify it → **Done**.
-  2. System Settings → **Privacy & Security** → scroll to "SuperCut was blocked" → **Open Anyway** → confirm with your password.
+  1. Drag Magic Cut to Applications and open it. macOS says it can't verify it → **Done**.
+  2. System Settings → **Privacy & Security** → scroll to "Magic Cut was blocked" → **Open Anyway** → confirm with your password.
   3. Only needed once; after that it opens normally.
 - No auto-updates (Sparkle needs a real signature): new versions are a new DMG.
 - **Tests:** end-to-end on a sample recording (load → pre-cut → transcribe →

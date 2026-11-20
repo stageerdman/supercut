@@ -6,9 +6,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-// Cargo's shared target dir (~/.cargo/config.toml); CARGO_TARGET_DIR if set.
-const target = process.env.CARGO_TARGET_DIR || path.join(os.homedir(), '.cargo-shared-target');
-const app = path.join(target, 'release/bundle/macos/SuperCut.app');
+const { appPath } = require('./bundle');
+
+const app = appPath();
 const bin = path.join(app, 'Contents/MacOS/supercut');
 const wav = path.join(__dirname, '..', 'models', 'en.wav');
 
@@ -25,7 +25,7 @@ if (!picks.keep.includes(2) || !picks.keep.includes(3)) throw new Error('claude 
 
 // A real 720p H.264 + AAC .mov, like a camera take: the speech clip looped to ~2.5 min
 // (two chunks, one seam), made with the app's own bundled ffmpeg.
-const mov = path.join(os.tmpdir(), 'supercut-smoke-take.mov');
+const mov = path.join(os.tmpdir(), 'magic-cut-smoke-take.mov');
 execFileSync(path.join(app, 'Contents/MacOS/ffmpeg'), [
   '-hide_banner', '-loglevel', 'error', '-y',
   '-f', 'lavfi', '-i', 'testsrc2=s=1280x720:r=30', '-stream_loop', '39', '-i', wav,

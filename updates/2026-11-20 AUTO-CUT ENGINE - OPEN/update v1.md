@@ -25,7 +25,7 @@ Claude only ever sees line numbers and answers with numbers: times come from the
 3. **Decide** — prompt + system rules (custom rules appended when given), answer parsed by `picks::parse`, then the
    last-take guard: in a group where Claude keeps a take but not the last one, the keep moves to the last take.
    Dropped lines become cuts `{part, from, to, s, e, reason}`. Tests with canned answers.
-4. **Entry points** — Tauri command `auto_cut` and CLI mode `SuperCut --auto-cut <file>` (transcribe + propose).
+4. **Entry points** — Tauri command `auto_cut` and CLI mode `supercut --auto-cut <file>` (transcribe + propose).
    Test: fake `claude` end to end through `propose`.
 5. **Real sample with re-takes** — `npm run sample-retakes` speaks a script with a false start and two re-recorded
    lines (macOS `say`) into `models/retakes.wav`. Live tests: Parakeet → lines → the three groups are found;

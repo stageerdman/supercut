@@ -1,7 +1,7 @@
 [package]
 name = "supercut"
 version = "0.1.0"
-description = "SuperCut: turn a raw recording into a clean, cut video"
+description = "Magic Cut: turn a raw recording into a clean, cut video"
 edition = "2021"
 
 [build-dependencies]
