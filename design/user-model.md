@@ -22,6 +22,13 @@ Living file. Every screen is checked against it. Source: `updates/2026-11-20 INI
 - Ignore: settings, export options, anything that isn't on the straight line.
 - Drop-offs (risk): unannounced model download, technical Claude error, first cut they hear is wrong.
 
+## Observed (the user's first real test, 2026-11-20)
+- A thin bar near the video reads as **the video's own progress**. Background work needs a label and its own place.
+- Editor shortcuts that aren't explained (J/K/L) feel **random**. Space + arrows are what they reach for; arrows = the smallest step.
+- A primary action that's hidden "until it works" reads as **missing**. Show it; say plainly when it isn't ready.
+- With a transcript on screen, the first thing they try is **cutting words** (select + Backspace), Descript-style.
+- CapCut is the reference for clips / timeline; the two fixed slots feel off (parked until the timeline update).
+
 ## Assumptions (guesses — check them)
 | # | Assumption | Quick check |
 |---|---|---|

@@ -26,7 +26,7 @@ One window, three zones. Nothing else.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
-│ ● ● ●   my-video                              [ Export ]  [ ✦ Magic ]     │ ← toolbar (52)
+│ ● ● ●   my-video        Transcribing… 42 % ▬▬▬──  [ Export ]  [ ✦ Magic ] │ ← toolbar (52)
 ├───────────────────────────────────────────────────┬───────────────────────┤
 │                                                   │ Transcript (Phase 3)  │
 │                                                   │                       │
@@ -35,7 +35,7 @@ One window, three zones. Nothing else.
 │                                                   │                       │
 │                                                   │                       │
 ├───────────────────────────────────────────────────┴───────────────────────┤
-│  ▶  01:12 / 24:10                       Transcribing… 12 % · 3 min   ─◯─  │ ← transport row (40)
+│  ▶  01:12 / 24:10                                                    ─◯─  │ ← transport row (40)
 │ ┌────────────────────────────┐▒▒▒┌───────────────────────┐ ┌ ─ ─ ─ ─ ┐    │
 │ │▌ part 1 thumbnails       ▐│▒▒▒│▌ part 2             ▐│   + Add      │
 │ │▌ ∿∿∿∿∿ waveform ∿∿∿∿∿∿∿∿ ▐│▒▒▒│▌ ∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿ ▐│ │ second  │    │ ← timeline (~160)
@@ -45,9 +45,11 @@ One window, three zones. Nothing else.
 ```
 
 - **Toolbar** (unified title bar, 52 pt): project name left (click to rename, optional), actions right. The **primary action sits far right**, where the eye ends.
+  The **status line** sits left of the actions: a label ("Transcribing… 42 % · about 3 min") and its own 96 pt bar on a track. It's gone when there's nothing to say.
+  (It used to be a bare 2 pt bar on the transport row; the user read it as the video's own progress.)
 - **Player:** fills the space, video letterboxed on pure black. No controls on the video itself — the transport row is the only one.
 - **Transcript panel** (Phase 3 on): 320 pt, right of the player. Before Phase 3, or before a video loads, **it does not exist** — the player takes the full width. No empty panels, ever.
-- **Transport row:** play/pause, time (current / edited length), the one status line (centre-right), zoom slider (far right).
+- **Transport row:** play/pause, time (current / edited length), zoom slider (far right). Nothing here that isn't about the video's own time.
 - **Timeline:** one video track (thumbnails + waveform in the same clip, like CapCut). Clips sit in order with an 8 pt gap. The add-slot sits after the last clip while there are fewer than two.
 
 Window: min 960 × 600. Below 1100 pt wide the transcript panel becomes a toggle (`⌘T`) overlaying the right of the player.
@@ -124,7 +126,7 @@ Time readout shows the **edited** length: "01:12 / 23:40", and while hovering th
 Your cuts are drawn in neutral grey hatch; AI cuts (Phase 5) in accent hatch. One glance tells you who cut what.
 
 ### 7. Transcribing (Phase 3)
-- Progress lives **only in the status line** (transport row): "Transcribing… 12 % · about 3 min" with a 2 pt progress bar under the transport row's top hairline. The transcript panel never shows progress. You can play and cut meanwhile.
+- Progress lives **only in the status line** (toolbar): "Transcribing… 12 % · about 3 min" with its own small bar. The transcript panel never shows progress. You can play and cut meanwhile.
 - First run: "Downloading speech model · 465 MB · about 2 min" first, same place.
 - The transcript panel slides in (200 ms) when the first words arrive and fills as they come.
 - Claude self-test runs in parallel when the video loads (Phase 4). If Claude is missing or signed out, the sign-in banner (state 9) appears **now**, while there's time to fix it.
@@ -151,10 +153,10 @@ A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, o
 | Key | Action |
 |---|---|
 | Space | Play / pause |
-| ← → | One frame (⇧ = 1 s) |
-| J K L | Back / pause / forward (editors' habit) |
+| ← → | One "bit" back / forward: the smallest step at the timeline's zoom (one frame until the timeline exists; set in `src/ui/bit.js`) |
 | S | Split at playhead |
-| ⌫ | Remove selection |
+| ⌫ | Cut the selection (timeline range, or words in the transcript). On words that are all cut already: bring them back |
+| Click / ⇧-click / drag a word | Seek there and select it / extend / select many |
 | ⌘Z / ⇧⌘Z | Undo / redo |
 | ⌘O | Choose video |
 | ⌘ + / ⌘ − | Zoom timeline |

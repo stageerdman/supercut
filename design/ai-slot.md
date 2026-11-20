@@ -20,7 +20,8 @@ Removed on purpose: an AI results panel, a chat box, a log view, a progress dial
 The transcript already shows the result better than any panel could.
 
 ## The contract (UI side: one file, `src/ai.js`)
-While `runner` is `null`, Magic doesn't appear and no Claude banner is shown. To connect, export:
+While `runner` is `null`, Magic still shows (the user couldn't find it when it was hidden), but pressing it only opens the banner
+"Magic isn't connected yet. Soon it will pick your best takes; for now, cut words in the transcript." No Claude sign-in banner is shown. To connect, export:
 
 ```js
 export const runner = {
@@ -48,7 +49,8 @@ Rules the UI already enforces (tested in `test/ui.test.mjs`):
 ## States (button · status line)
 | State | Button | Status line |
 |---|---|---|
-| No runner, or no video | hidden | — |
+| No video | hidden | — |
+| No runner yet | **✦ Magic** (filled); press → "not connected yet" banner | — |
 | Ready | **✦ Magic** (filled) | transcription text or empty |
 | Queued | pill "Magic queued ✕" | "Transcribing… 12 % · about 2 min · Magic starts when the transcript is ready" |
 | Running | pill "Choosing the best takes… ✕" | privacy note the first time ever, else empty |
@@ -58,4 +60,5 @@ Rules the UI already enforces (tested in `test/ui.test.mjs`):
 Keyboard: ⌘↩ presses Magic (and cancels when it's a pill).
 
 ## Not yet (later phases)
-AI cuts on the timeline (accent hatch), Review mode, ⌘Z for a Magic run. The summary will gain "· ⌘Z to undo" once undo exists. Until then, never promise it.
+AI cuts on the timeline (accent hatch), Review mode. ⌘Z now undoes a Magic run too (its cuts replace the list as one undo step);
+the summary can gain "· ⌘Z to undo" when the runner is connected.
