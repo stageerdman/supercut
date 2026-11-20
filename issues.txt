@@ -1,0 +1,11 @@
+SuperCut — known issues & TODOs
+===============================
+Running list. Newest at top. Move resolved items to the bottom with a strikethrough note or delete once truly gone.
+
+OPEN
+----
+(none yet)
+
+RESOLVED
+--------
+(none yet)

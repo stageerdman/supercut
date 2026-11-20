@@ -1,0 +1,9 @@
+name: SuperCut
+created: 2026-11-20
+modules:
+  - STRUCTURE
+  - CODING
+  - UX
+  - WORKFLOW
+secrets: []
+claude_md_generated: 2026-11-20
