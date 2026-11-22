@@ -116,3 +116,4 @@ Inside each update folder:
 ## Project-specific rules
 
 - **Name:** users see **Magic Cut** (`productName` in `src-tauri/tauri.conf.json`; scripts read it from there). Internal names stay `supercut`: the Cargo crate and binary, the npm package, and the bundle id `xyz.supercut.editor`. Keep that id: the speech model folder and the app's saved settings live under it.
+- **Install:** `npm ci && npm run install-app` builds a release, replaces `/Applications/Magic Cut.app` (and any old `SuperCut.app`), indexes it for Spotlight and opens it (`-- --no-build` installs the last build). `npm run build`/`npm run app` alone leave the app in the hidden shared Cargo target, which Spotlight never lists.
