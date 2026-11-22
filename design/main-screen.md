@@ -158,6 +158,7 @@ A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, o
 | ⌘Z / ⇧⌘Z | Undo / redo (every edit: cuts, edges, fixes, a Magic run). The status line says what it undid |
 | M | Add a note at the playhead or over the selection (`design/notes.md`). Never inside a text field |
 | ⌥← ⌥→ | Previous / next open note |
+| ⌘Return | While a note card is open (focused or not): Done on that note. Otherwise Magic |
 | ⌘O | Choose video |
 | ⌘F | Search the transcript (↩ / ⇧↩ step, Esc clears) |
 | ⌘ + / ⌘ − / ⌘0 | Zoom timeline / fit |

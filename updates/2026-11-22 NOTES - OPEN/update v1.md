@@ -94,7 +94,10 @@ Tests (`test/note-layout.test.mjs` with the fake `measure`, `test/note-lane.test
 `M`, the ⚑ button, right-click "Add note here", the card with every key, the first-note line.
 Tests (`test/note-card.test.mjs`, `test/ui.test.mjs`):
 - `M` while playing → one note, playback still playing, no card, status "Note added · ⌘Z undoes". `M` while paused
-  → the card opens and the text field has focus. `M` twice within 0.5 s → still one note.
+  → the card opens and the text field has focus. `M` twice within 0.5 s (playing or paused) → still one note; paused,
+  the second `M` opens that note's card.
+- Paused `M`, then Space with the field empty → the card closes, playback starts, one empty note stays. Paused `M`,
+  type "a", Space → the field reads "a " and nothing plays.
 - `M` is ignored in the fix field, rules box, search and the card's own field. In the panel with words selected it
   makes a section note and **doesn't** open the fix field. Another letter there still does.
 - The first note ever shows the "only for you, never in your video" line once, and the second note shows the short
@@ -113,6 +116,8 @@ Tests:
   and the done note is never visited.
 - After a jump, the playhead is at `preRoll`, an off-screen note is centred, its ring is on, and its card is open
   **without focus** (Space still toggles playback, ← → still step). Play/pause is unchanged.
+- ⌥→, then ⌘Return **without clicking into the card** → that note is Done and Magic doesn't run. With no card open,
+  ⌘Return runs Magic as today. Right-click a note in the lane → "Done" does the same as the card's button.
 - The chip shows "3 notes" only while some are open, says "1 note" for one, and clicking it equals ⌥→. After the last
   Done it's gone and the status says "All notes done".
 
@@ -134,7 +139,7 @@ Tests:
 - The prompt test (as for the existing prompt) states the rule, the caps and the "zero is normal" line.
 - JS: a Magic result with notes → one history step that holds both cuts and notes. ⌘Z removes both. A re-run keeps
   your notes and a recoloured Magic note, doesn't recreate a deleted one, and replaces the untouched ones. The done
-  line says "· 2 notes to check" only when there are some.
+  line says "· 2 notes to check · ⌥→" only when there are some.
 - Live (`live_tests.rs`, run by hand, needs Claude): on the fixture talk, at most 5 notes, none of them repeating a
   cut's reason. Record what it flagged in `wiki.md` (Q3).
 
@@ -166,7 +171,12 @@ up-to-date main.
 - Step review (Eraser, `step-review.md`): **RETURNED, small rework**. Must change: Space after a paused `M` must
   play (A), ⌘Return = Done while a card is open even unfocused (B). Colour stays, since the user asked for it (C). Should: "⌥→" in
   Magic's done line (D), reword the 0.5 s row (E). About 74 → 50 overhead steps in a common session.
-- No code yet. Next: Jony revises per the step review, then Phase 1.
+- **Revised (Jony), final.** All five review points folded into `design/notes.md` and the phase tests:
+  A, Space on a just-made empty note closes the card and plays (`M`, Space = 2 keys); B, ⌘Return = Done while any card
+  is open, plus right-click → Done as the mouse path (loop overhead 5 → 3 per note); C, colour kept as designed; D,
+  done line "· 2 notes to check · ⌥→"; E, the 0.5 s row reworded (no twin, playing or paused; paused opens it).
+  Common session ≈ 50 overhead steps.
+- No code yet. Next: Phase 1.
 
 ## Decisions
 - **`M` beats type-to-fix in the panel.** Notes are frequent (L8 F8) and fixes rare (A10), so the common action keeps
@@ -176,6 +186,9 @@ up-to-date main.
 - **The lane is always there** once a part is loaded, so the layout never jumps mid-playback.
 - **The card floats over the player, not over the timeline**, so it stays open and readable while you fix underneath.
 - **Done never auto-advances.** The playhead moves only when you ask it to.
+- **⌘Return means Done while a note card is open**, focused or not; Magic again once it's closed. Done undoes, so a
+  wrong guess is one ⌘Z.
+- **Space keeps its meaning.** On a just-made empty note, Space closes the card and plays; with text, it's a space.
 - **Four colours, yellow by default. Magic doesn't choose colours, it gets a ✦.**
 - **A touched Magic note becomes yours**, the same as a moved Magic cut.
 - **No drag, no list, no pass-by popups** in v1. Add one back only if a real user misses it.
