@@ -6,7 +6,9 @@ import { showBanner, hideBanner } from './ui/banner.js';
 import { workText, makeEta, createStatusLine } from './ui/status.js';
 import { renderTimeline } from './ui/timeline.js';
 import { renderTranscript, paintCuts, selectedWords, highlightWord } from './ui/transcript.js';
-import { toggleCut, createHistory, withMagic } from './ui/cuts.js';
+import { toggleWords, withMagic } from './ui/cuts.js';
+import { withWords, withoutPart } from './ui/edit.js';
+import { createHistory } from './ui/history.js';
 import { bit } from './ui/bit.js';
 import { createMagic, claudeBanner } from './ui/magic.js';
 import { paintMagic } from './ui/magic-button.js';
@@ -24,9 +26,18 @@ const MAX_PARTS = 2;
 /** [{ id, name, path, duration, transcript, error }] in play order. */
 let parts = [];
 let progress = null; // { part, stage, done, total } while working
-const cuts = createHistory(); // cuts.now: [{ part: id, s, e, reason? }], yours and Magic's; ⌘Z / ⇧⌘Z walk it
+const history = createHistory(); // history.edit: { cuts, words } (design/edit-model.md); ⌘Z / ⇧⌘Z walk it
 const secondsLeft = makeEta();
 const transcribing = () => parts.some((p) => !p.transcript && !p.error);
+/** Each part's length where known, so cuts stay inside it. */
+const lengths = () => Object.fromEntries(parts.map((p) => [p.id, p.transcript?.seconds || p.duration || undefined]));
+/** The parts as the views and Magic see them: with the edit's words (fixes included). */
+const edited = () => parts.map((p) => (p.transcript ? { ...p, transcript: { ...p.transcript, words: history.edit.words[p.id] ?? [] } } : p));
+
+/** Record one user gesture as one undo step and repaint the cuts. */
+function commit(edit, label, extra) {
+  if (history.push(edit, label, extra)) paintCuts(history.edit.cuts);
+}
 
 // ---------- Claude: checked once when the first video loads, so there's time to fix it ----------
 
@@ -56,11 +67,11 @@ const player = createPlayer($('player'), {
 const magic = createMagic({
   runner,
   claude: () => { claudeCheck = null; return claude(); }, // re-check on press: they may have signed in since
-  project: () => ({ parts, transcribing: transcribing() }),
+  project: () => ({ parts: edited(), transcribing: transcribing() }),
   paint: (s) => { paintMagic(s); status.render(); },
   flash: (text, ms) => status.flash(text, ms),
   banner: showBanner,
-  onResult: (c) => paintCuts(cuts.push(withMagic(cuts.now, c))), // one ⌘Z undoes the whole run
+  onResult: (c) => commit({ ...history.edit, cuts: withMagic(history.edit.cuts, c, lengths()) }, 'Magic Cut'), // one ⌘Z undoes the whole run
 });
 // Your rules (gear, ⌘,). Pressing Magic Cut closes the panel and saves first, so a rule typed a second ago is used.
 const rules = mountRules({ gear: $('rules-gear'), panel: $('rules-panel'), box: $('rules-box') }, createRulesStore(invoke), { onError: showBanner });
@@ -109,13 +120,48 @@ async function addVideos(paths) {
   }
 }
 
+/** The ✕ on a part: one undo step ("Removed part 2") that keeps the part's record, so ⌘Z can put it back. */
 async function removePart(id) {
   await invoke('remove_part', { id }).catch((e) => showBanner(String(e)));
   const i = parts.findIndex((p) => p.id === id);
-  parts = parts.filter((p) => p.id !== id);
-  cuts.forget(id);
+  const [part] = parts.splice(i, 1);
+  commit(withoutPart(history.edit, id), `Removed part ${i + 1}`, { removed: { part, index: i } });
   player.removed(i);
   render();
+}
+
+/** ⌘Z / ⇧⌘Z. A "Removed part" step also puts the file back (undo) or takes it out again (redo). */
+async function undoRedo(redo) {
+  const before = history.edit;
+  const step = redo ? history.redo() : history.undo();
+  if (!step) return;
+  if (step.removed) {
+    await (redo ? takeOutAgain(step.removed) : putBack(step.removed));
+    render();
+  } else if (before.words !== history.edit.words) paintTranscript();
+  else paintCuts(history.edit.cuts);
+}
+
+/** Undo of a removal: same file, new id (renamed through the history), same place. No re-transcribing. */
+async function putBack({ part, index }) {
+  try {
+    const { id } = await invoke('add_video', { path: part.path });
+    history.rename(part.id, id);
+    parts.splice(index, 0, { ...part, id });
+    player.added(index);
+    if (!part.transcript && !part.error) queue = queue.then(() => transcribe(id));
+  } catch (e) {
+    history.redo(); // the file is gone: the history stays as it was
+    showBanner(String(e));
+  }
+}
+
+async function takeOutAgain({ part }) {
+  await invoke('remove_part', { id: part.id }).catch((e) => showBanner(String(e)));
+  const i = parts.findIndex((p) => p.id === part.id);
+  if (i < 0) return;
+  parts.splice(i, 1);
+  player.removed(i);
 }
 
 async function transcribe(id) {
@@ -123,7 +169,10 @@ async function transcribe(id) {
   try {
     const t = await invoke('transcribe_part', { id });
     const part = parts.find((p) => p.id === id);
-    if (part) part.transcript = t;
+    if (part) {
+      part.transcript = t;
+      history.everywhere((e) => withWords(e, id, t.words)); // the words arrive; not an undo step
+    }
     progress = null;
     if (!transcribing()) status.flash('Transcript ready');
   } catch (e) {
@@ -155,7 +204,7 @@ document.addEventListener('keydown', (e) => {
   if (e.metaKey && e.key === 'o') { e.preventDefault(); choose(); return; }
   if (e.metaKey && e.key === 'Enter') { e.preventDefault(); pressMagic(); return; }
   if (typing) return;
-  if (e.metaKey && e.key.toLowerCase() === 'z') { e.preventDefault(); paintCuts(e.shiftKey ? cuts.redo() : cuts.undo()); return; }
+  if (e.metaKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undoRedo(e.shiftKey); return; }
   if (e.metaKey || e.ctrlKey || e.altKey || !parts.length) return;
   if (e.key === ' ' && !e.target.closest('button, [role=button]')) { e.preventDefault(); player.toggle(); }
   else if (e.key === 'ArrowLeft') { e.preventDefault(); player.step(-bit()); }
@@ -166,9 +215,11 @@ $('play').onclick = () => player.toggle();
 
 /** Backspace: cut the selected words, or bring them back if they're all cut already. */
 function cutSelection() {
-  const picked = selectedWords();
-  if (!picked.length) return;
-  paintCuts(cuts.push(picked.reduce((list, g) => toggleCut(list, g.part, g.words), cuts.now)));
+  const [picked] = selectedWords(); // a selection stays in the part it began in (design/edit-model.md)
+  if (!picked) return;
+  const { edit } = history;
+  const { cuts, label } = toggleWords(edit.cuts, picked.part, picked.words, edit.words[picked.part] ?? [], lengths());
+  commit({ ...edit, cuts }, label);
 }
 
 // ---------- Render ----------
@@ -202,7 +253,7 @@ function paintTimeline() {
 }
 
 function paintTranscript() {
-  renderTranscript({ parts, cuts: cuts.now, onSeek: (i, t) => player.show(i, t, true) });
+  renderTranscript({ parts: edited(), cuts: history.edit.cuts, onSeek: (i, t) => player.show(i, t, true) });
 }
 
 render();

@@ -9,7 +9,7 @@
     "fetch-model": "node scripts/fetch-model.js",
     "sample-retakes": "node scripts/sample-retakes.js",
     "dev": "npm run prepare-bins && tauri dev",
-    "test:ui": "node --test test/ui.test.mjs",
+    "test:ui": "node --test test/ui.test.mjs test/edit.test.mjs",
     "test:rust": "npm run prepare-bins && cargo test --manifest-path src-tauri/Cargo.toml",
     "test": "npm run test:ui && npm run test:rust -- -- --nocapture",
     "build": "npm run prepare-bins && tauri build --bundles app",

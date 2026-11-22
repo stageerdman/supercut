@@ -27,6 +27,8 @@ A frame is 1/30 s (`FRAME` in `bit.js`) until we read the real frame rate.
 ### normalize(cuts) — runs after every change
 Per part: sort by `s`; merge cuts that overlap or leave less than a frame between them; drop cuts shorter than a frame;
 clamp to `[0, duration]`. A merge is `by: 'you'` if any piece was yours (the user touched it).
+Exception: a yours and a Magic cut that only touch (no overlap) stay two cuts, the sliver gap closed. Otherwise
+`withMagic`'s subtraction would merge every Magic remnant into your cut, and the next run couldn't take it back.
 
 ### Cutting words — cutWords(cuts, part, picked, allWords)
 A cut made from words runs from the **middle of the pause before** the first word to the **middle of the pause after**

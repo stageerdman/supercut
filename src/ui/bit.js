@@ -1,6 +1,6 @@
 // A "bit": how far ← / → move the playhead. It's the smallest step at the cutting timeline's
 // current zoom. Until that timeline exists it's one frame. The timeline's zoom sets it here — the only place.
-const FRAME = 1 / 30;
+export const FRAME = 1 / 30;
 
 let seconds = FRAME;
 

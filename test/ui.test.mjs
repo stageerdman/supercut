@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { clock, eta } from '../src/ui/dom.js';
 import { workText, makeEta, createStatusLine } from '../src/ui/status.js';
 import { magicView, createMagic, claudeBanner, NOT_CONNECTED } from '../src/ui/magic.js';
-import { isCut, toggleCut, createHistory, withMagic } from '../src/ui/cuts.js';
+import { isCut } from '../src/ui/cuts.js';
 import { cutTitle } from '../src/ui/transcript.js';
 import { bit, setBit } from '../src/ui/bit.js';
 import { dropVerdict } from '../src/ui/dropzone.js';
@@ -70,53 +70,11 @@ test('a word is cut when its middle is', () => {
   assert.equal(isCut({ s: 2, e: 2.3 }, cuts), false);
 });
 
-const W = [{ s: 0, e: 0.4 }, { s: 0.5, e: 0.9 }, { s: 1, e: 1.4 }, { s: 1.5, e: 2 }];
-
-test('Backspace cuts the selected words; again brings them back', () => {
-  const cut = toggleCut([], 1, W.slice(1, 3));
-  assert.deepEqual(cut, [{ part: 1, s: 0.5, e: 1.4 }]);
-  assert.deepEqual(W.map((w) => isCut(w, cut)), [false, true, true, false]);
-  assert.deepEqual(toggleCut(cut, 1, W.slice(1, 3)), [], 'all cut → restored');
-  const more = toggleCut(cut, 1, W.slice(2, 4));
-  assert.deepEqual(W.map((w) => isCut(w, more)), [false, true, true, true], 'partly cut → all cut');
-  assert.deepEqual(toggleCut(cut, 2, W.slice(1, 3)).length, 2, 'other part is separate');
-});
-
-test('restoring one word splits a long cut (e.g. from Magic)', () => {
-  const magic = [{ part: 1, s: 0, e: 2 }, { part: 2, s: 0, e: 2 }];
-  const back = toggleCut(magic, 1, [W[1]]);
-  assert.deepEqual(back, [{ part: 1, s: 0, e: 0.5 }, { part: 1, s: 0.9, e: 2 }, { part: 2, s: 0, e: 2 }]);
-  assert.deepEqual(W.map((w) => isCut(w, back.filter((c) => c.part === 1))), [true, false, true, true]);
-  const why = toggleCut([{ part: 1, s: 0, e: 2, reason: 'earlier take' }], 1, [W[1]]);
-  assert.deepEqual(why.map((c) => c.reason), ['earlier take', 'earlier take'], 'the pieces keep the reason');
-});
-
-test("Magic's cuts join yours; a second run replaces the first run's", () => {
-  const mine = { part: 1, s: 5, e: 6 };
-  const first = withMagic([mine], [{ part: 1, from: 0, to: 3, s: 0, e: 2, reason: 'earlier take' }]);
-  assert.deepEqual(first, [mine, { part: 1, s: 0, e: 2, reason: 'earlier take' }]);
-  assert.deepEqual(withMagic(first, [{ part: 1, s: 8, e: 9, reason: 'fumble' }]), [mine, { part: 1, s: 8, e: 9, reason: 'fumble' }]);
-  assert.deepEqual(withMagic(first, []), [mine], 'nothing found: only yours stay');
-});
-
 test('a cut word says why on hover', () => {
   assert.equal(cutTitle(undefined, 75), '01:15');
-  assert.equal(cutTitle({ s: 70, e: 80 }, 75), 'Cut · 01:15 · Backspace brings it back');
-  assert.equal(cutTitle({ s: 70, e: 80, reason: 'earlier take' }, 75), 'Magic Cut: earlier take · Backspace brings it back');
-});
-
-test('⌘Z / ⇧⌘Z walk the cuts; a removed part leaves history', () => {
-  const h = createHistory();
-  h.push([{ part: 1, s: 0, e: 1 }]);
-  h.push([{ part: 1, s: 0, e: 1 }, { part: 2, s: 0, e: 1 }]);
-  assert.equal(h.undo().length, 1);
-  assert.equal(h.undo().length, 0);
-  assert.equal(h.undo().length, 0, 'nothing left to undo');
-  assert.equal(h.redo().length, 1);
-  h.push([]);
-  assert.equal(h.redo().length, 0, 'a new cut clears redo');
-  h.undo();
-  assert.deepEqual(h.forget(1), []);
+  assert.equal(cutTitle({ s: 70, e: 80, by: 'you' }, 75), 'Cut · 01:15 · Backspace brings it back');
+  assert.equal(cutTitle({ s: 70, e: 80, by: 'magic', reason: 'earlier take' }, 75), 'Magic Cut: earlier take · Backspace brings it back');
+  assert.equal(cutTitle({ s: 70, e: 80, by: 'you', reason: 'earlier take' }, 75), 'Cut · 01:15 · Backspace brings it back', 'changed by you: yours');
 });
 
 test('← → step one bit: a frame until the timeline sets its zoom', () => {

@@ -74,6 +74,7 @@ fn save_rules(rules: Vec<String>) -> Result<Vec<String>, AppError> {
 
 #[tauri::command]
 fn add_video(project: State<Shared>, path: PathBuf) -> Result<Part, AppError> {
+    media::require_file(&path)?;
     let part = project.lock().unwrap().add(&path)?;
     log::info("project", &format!("part-{}", part.id), format!("added {}", part.path.display()));
     Ok(part)

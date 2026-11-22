@@ -119,7 +119,17 @@ Check in the window: one full edit of a real recording, keyboard only, then with
 ## Status (2026-11-22)
 - Roadmap and design written (Jony): this file, `design/edit-model.md`, `design/timeline.md`,
   `design/transcript-editing.md`; `design/main-screen.md` and `design/user-model.md` updated.
-- Next: Phase 0 (Uncle Bob). Phases 1 and 3 can run in parallel with it.
+- **Phase 1 done (Uncle Bob).** Pure JS, as designed (Pixel confirmed JS over the brief's first "Rust", and no
+  saving yet: the edit is plain JSON-safe data so saving can come later). Files: `src/ui/cuts.js` (normalize,
+  wordRange, toggleWords, toggleRange, cutRange/restoreRange, moveEdge, withMagic, cutAt/isCut), `src/ui/fix.js`
+  (fixWords), `src/ui/edit.js` (the `{ cuts, words }` state: withWords, withoutPart, renamePart),
+  `src/ui/history.js` (labelled steps, `everywhere`, `rename`, `changed`). `main.js` uses them: ⌫ makes a
+  labelled step, Magic's result is one "Magic Cut" step, the ✕ is one "Removed part N" step and ⌘Z re-adds the
+  file (Rust `add_video` now says "Can't find my-video.mov." when it's gone). `forget` and `toggleCut` are gone.
+  Tests: `test/edit.test.mjs` (23), `npm run test:ui` 51/51, `npm run test:rust` 80/80.
+  Not done here: `selection.js` (Jony, Phase 4; `main.js` takes the first part of a transcript selection until
+  then). Not checked in the window yet.
+- Next: Phase 0 (Uncle Bob). Phase 3 can run in parallel with it.
 
 ## Decisions
 - **One time base: source time.** Timeline, transcript and cuts all speak seconds in each part's own file. Only the
@@ -136,4 +146,7 @@ Check in the window: one full edit of a real recording, keyboard only, then with
 - **Removing a part is undoable, not confirmed.** One click on ✕ shouldn't cost an hour of hand edits, and a dialog
   would tax every intended removal. Undo re-adds the file and renames its id in the history.
 - **A selection stays in one part** (the one it began in), in both views.
+- **Yours and Magic's cuts that only touch stay two cuts** (overlaps still merge, as yours). Keeps Magic's
+  remnants replaceable by the next run after `withMagic` subtracts your cuts.
+- **The transcript arriving is not an undo step**: `history.everywhere` writes the words into past and future.
 - **Clicking a word no longer starts playback**; it moves the playhead and keeps play/pause as it was.

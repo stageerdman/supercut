@@ -64,6 +64,11 @@ export function createPlayer(video, on) {
     toggle: () => (video.paused ? video.play() : video.pause()),
     play: () => video.play(),
     pause: () => video.pause(),
+    /** A part was put back at index `i` (undo of a removal). */
+    added(i) {
+      if (on.parts().length === 1) show(0);
+      else if (i <= current) current++;
+    },
     /** The part at index `i` was removed from the list. */
     removed(i) {
       const parts = on.parts();

@@ -8,6 +8,7 @@ use std::fmt;
 pub enum AppError {
     Unsupported { ext: String },
     AudioOnly,
+    Missing { name: String },
     TooManyParts,
     NoSuchPart(u32),
     ModelMissing { dir: String },
@@ -29,6 +30,7 @@ impl fmt::Display for AppError {
             Self::Unsupported { ext } if ext.is_empty() => write!(f, "Only video files open here. Try MP4 or MOV."),
             Self::Unsupported { ext } => write!(f, ".{ext} files don't open yet. Try MP4 or MOV."),
             Self::AudioOnly => write!(f, "That's an audio file. Better audio comes in a later version."),
+            Self::Missing { name } => write!(f, "Can't find {name}."),
             Self::TooManyParts => write!(f, "Two parts at most. Remove one to add another."),
             Self::NoSuchPart(id) => write!(f, "Part {id} isn't in this project any more."),
             Self::ModelMissing { dir } => write!(f, "The speech model isn't downloaded yet ({dir})."),

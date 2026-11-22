@@ -22,9 +22,25 @@ pub fn require_video(path: &Path) -> Result<(), AppError> {
     }
 }
 
+/// Ok if the file is there. Undoing a removed part re-adds its file, which may have moved since.
+pub fn require_file(path: &Path) -> Result<(), AppError> {
+    if path.is_file() {
+        return Ok(());
+    }
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    Err(AppError::Missing { name })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_missing_file_is_named() {
+        let err = require_file(Path::new("/nowhere/my-video.mov")).unwrap_err();
+        assert_eq!(err.to_string(), "Can't find my-video.mov.");
+        assert_eq!(require_file(&Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml")), Ok(()));
+    }
 
     #[test]
     fn videos_pass_in_any_case() {
