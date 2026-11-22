@@ -70,7 +70,7 @@ inside it (highlighted here). ⌫ works on it from either place. One selection, 
 | Words arriving | Panel slides in, fills as they come; cutting already works on what's there |
 | No speech in a part | "No speech found." (today) |
 | Magic running | Everything works; results strike in when they land |
-| Two parts | "Part 1" / "Part 2" headings (today); a selection can't span both: ⌫ acts per part (today's grouping) |
+| Two parts | "Part 1" / "Part 2" headings (today). A selection stays in the part where it began: dragging or ⇧-clicking into the other part stops at the last word of the first (same clamp as the timeline, `selection.js`). This replaces today's per-part grouping in `selectedWords()` |
 
 ## Accessibility
 - Words are reachable with the keyboard: with focus in the panel, ← → move the selection one word (⇧ extends),

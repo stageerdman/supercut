@@ -48,10 +48,12 @@ Everything in `design/edit-model.md` except playback: cut list rules, word cuts 
 edges that move/merge/vanish, Magic cuts that become yours when you change them, word fixes, the labelled history
 over `{ cuts, words }`. `main.js` moves to the new history; the current Backspace/⌘Z behaviour keeps working.
 Tests (`test/edit.test.mjs`): normalize (sort, merge overlaps, drop < 1 frame, ownership on merge); `cutWords` gap
-midpoints, first word of a part → from 0, last → to the end; `toggleCut` restore splits; `moveEdge` clamp, merge into a neighbour,
+midpoints, first word of a part → from 0, last → to the end; **cut words, ⌫ again leaves no cuts** (restore uses the
+same `wordRange`); `toggleCut` restore splits; `moveEdge` clamp, merge into a neighbour,
 close to nothing, Magic → yours; `withMagic` keeps yours and edited ones, subtracts yours from Magic's; `fixWords`
 one → one, one → three (times by length), many → one, empty = no change; history push/undo/redo/labels, one step per
-call, redo cleared by a new edit, `forget(part)`; `changed(a, b)` gives the range that differs.
+call, redo cleared by a new edit; removing a part is one step and `rename(old, new)` swaps its id through past and
+future (replaces `forget`); a selection is clamped to the part it began in; `changed(a, b)` gives the range that differs.
 
 ### Phase 2 — Playback that skips cuts (Uncle Bob)
 `playback.js` + the player, using Phase 0's approach. Readout shows edited time (`01:12 / 23:40`, hover: original).
@@ -69,8 +71,11 @@ plain error; UI: the command name is registered (like the rules test).
 ### Phase 4 — The timeline view (Jony)
 Ruler, one track per part with waveform, cuts drawn yours/Magic, playhead, click to seek, drag to select a time range,
 ⌫ on a range or a selected cut, the shared selection, zoom (fit default, ⌘+ / ⌘−, pinch, slider) setting `bit`,
-following the playhead while playing. Replaces today's name tiles (badge, remove ✕ and add-slot stay).
-Tests: `timeline-geometry.js` (time ↔ x at several zooms, fit, zoom anchored on the playhead, `bit` = 4 pt, never
+following the playhead while playing. Replaces today's name tiles (badge, remove ✕ and add-slot stay). The ✕ becomes undoable: ⌘Z re-adds the file
+with `add_video` and renames the id in the history (`design/edit-model.md`, History); a missing file → today's
+"Can't find …" banner.
+Tests: remove a part with cuts and a fix, ⌘Z → it's back with all of them, ⇧⌘Z removes it again (fake `invoke`);
+`timeline-geometry.js` (time ↔ x at several zooms, fit, zoom anchored on the playhead, `bit` = 4 pt, never
 under a frame); `selection.js` (words → range → words, a range clamps to one part); range ⌫ uses the same rule as
 words (all cut → restore, else cut); render tests with a fake DOM like the rules panel's (cuts become elements with
 the right labels and colours, selected cut shows "Restore ⌫").
@@ -127,4 +132,8 @@ Check in the window: one full edit of a real recording, keyboard only, then with
 - **⌫ never deletes text.** Outside the fix field, ⌫ cuts (or restores). Inside it, ⌫ edits letters. One rule each.
 - **Fixing text never touches the video**, and cutting never changes text.
 - **A cut you touch is yours.** Dragging a Magic cut's edge makes it yours (grey), so the next Magic run won't take it.
+- **⌫ twice gets back exactly what was there.** Word cuts and word restores use the same pause-midpoint range.
+- **Removing a part is undoable, not confirmed.** One click on ✕ shouldn't cost an hour of hand edits, and a dialog
+  would tax every intended removal. Undo re-adds the file and renames its id in the history.
+- **A selection stays in one part** (the one it began in), in both views.
 - **Clicking a word no longer starts playback**; it moves the playhead and keeps play/pause as it was.

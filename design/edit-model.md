@@ -38,6 +38,11 @@ cut when its middle is inside a cut (as today).
 If everything selected is already cut → restore it (take the range out of every cut, splitting a cut that spans past
 it; the pieces keep their owner and reason). Otherwise → cut it, `by: 'you'`.
 
+**The range is the same both ways.** For words, the range to cut *and* to restore is the pause-midpoint range from
+`cutWords` (`wordRange(picked, allWords)`, one helper used by both), never the bare word starts/ends. Otherwise ⌫ then
+⌫ would restore only the words and leave sliver cuts in the pauses. For a time range from the timeline, it's the range
+as dragged. So ⌫ twice on the same selection always gets back exactly what was there.
+
 ### moveEdge(cuts, cut, side, t)
 - Clamped to the part. The edge may cross its own other edge: the cut gets shorter, and under a frame it's gone
   (restored).
@@ -59,8 +64,9 @@ Cuts don't move: a fixed word inside a cut is still cut. Magic gets the fixed wo
 ## Selection — selection.js
 One selection for the whole screen: `{ part, s, e }` in source time, or `null`. A selected cut is a selection that
 equals the cut (`{ part, s, e, cut: true }`).
-- From the transcript: the words' range (word starts and ends, not the gap midpoints).
-- From the timeline: the dragged range, clamped to the part where the drag began.
+- **A selection never spans two parts**: it's clamped to the part where it began, from either view.
+- From the transcript: shown as the words' range (word starts and ends); ⌫ acts on `wordRange` (pause midpoints, see toggle).
+- From the timeline: the dragged range.
 - `wordsIn(selection, words)`: words whose middle is inside, so both views highlight the same words.
 - Cleared by Esc, by a click on nothing, and after ⌫.
 
@@ -70,7 +76,14 @@ Undo/redo over the whole `edit` (cuts **and** words). Each entry: `{ edit, label
   leaves it), a fix commit, a Magic run.
 - Labels, short and plain: "Cut 3 words", "Cut 2.4 s", "Restored 2.4 s", "Changed a cut", "Fixed “gonna”", "Magic Cut".
 - `changed(a, b)` → `{ part, s, e }` that differs between two states, so undo can bring it into view.
-- `forget(part)` stays (removing a part wipes it from history; removing isn't undoable).
+- **Removing a part is one undo step** ("Removed part 2"), not a confirm dialog: the hover ✕ is one click, and a
+  click shouldn't be able to throw away an hour of hand edits. The step keeps the removed part's record (path, name,
+  duration, transcript) and its index; its cuts and words stay in the history like any others. Undo calls Rust
+  `add_video(path)` again, gets a new id, and `rename(oldId, newId)` swaps the id everywhere in the history (cuts,
+  words, past and future), then puts the part back at its index. No re-transcribing: the words are in the state.
+  Redo removes it again. Today's `forget(part)` goes away.
+- If the file is gone when you undo, the step is skipped and the banner says "Can't find my-video.mov." (today's
+  wording) — the history stays as it was.
 - A new edit clears redo. No limit needed at this size (a 30 min file is ~5 000 words; only the changed part's
   array is new per step).
 
