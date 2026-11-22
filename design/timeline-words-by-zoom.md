@@ -102,8 +102,9 @@ Each cut is one block, **above** the words and the pause blocks, from the strip'
 |---|---|
 | Click a cut block, anywhere in its height (strip row or track row) | Playhead to its start; the cut is selected |
 | Tab | Cuts and the remaining pause blocks, in time order, per part. Focus selects |
-| ⌫ / Delete on a selected cut | Restores the whole cut: one undo step, "Restored 2.4 s cut". The block fades out (120 ms) and the words fade back in. Focus goes to the part's group, so Tab carries on from there |
-| ⌘Z | The cut is back, selected |
+| ⌫ / Delete on a selected cut | Restores the whole cut: one undo step, "Restored 2.4 s cut". The block fades out (120 ms) and the words fade back in. **The same range stays selected** (the time selection fill, chip **Cut ⌫**) and keeps keyboard focus (on the part's group) |
+| ⌫ again | Cuts that range back, `by: 'you'`: one undo step, "Cut 2.4 s". The block is back, selected, chip **Restore ⌫**. So ⌫ toggles a spot until you click elsewhere or press Esc |
+| ⌘Z | Undoes the last toggle; the range stays selected |
 | Drag a block's edge | As today (`design/timeline.md`, Dragging an edge) |
 | Press on a block and drag ≥ 4 pt | A time selection, as on the track |
 

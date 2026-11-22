@@ -50,13 +50,14 @@ Tests (fake canvas context recording calls; a fake clock):
 ### Phase 3 — Cut blocks (`cut-view.js`, `timeline.js`)
 Cuts move from the track frame to a per-part layer from `STRIP.top` to the track's bottom, above pauses (z 3).
 Base + hatch + border, "2.4 s" label from 40 pt, 12 pt minimum hit area, pauses fully inside a cut not made (not
-drawn, not in Tab order). Restore by ⌫ fades the block out, focus to the part's group. Part badge and ✕ stay on top.
+drawn, not in Tab order). Restore by ⌫ fades the block out and leaves its range selected, so ⌫ again cuts it back. Part badge and ✕ stay on top.
 Tests (fake DOM, as `test/timeline.test.mjs`):
 - a cut element's top = `STRIP.top`, height = 96, its layer's z above the pause lane's.
 - the label shows at 40 pt, not at 39; the block is ≥ 2 pt wide; its hit area ≥ 12 pt.
 - a pause inside a cut makes no element; one half inside still does.
 - a click at strip height over a cut selects the cut (not a seek-only); ⌫ → one history step "Restored 2.4 s cut",
-  the cut is gone, focus is on the part group; ⌘Z → it's back, selected.
+  the cut is gone, **the same range is still selected** (chip "Cut ⌫"), focus is on the part group; ⌫ again → one
+  step "Cut 2.4 s", the cut is back (yours), selected; ⌘Z → undoes that toggle, range still selected.
 - existing edge-drag and Tab-order tests still pass.
 
 ### Phase 4 — Docs and check in the window
@@ -82,4 +83,6 @@ mid-letter or overlapping, no flicker at the two thresholds; a Magic run's cuts 
 - **One level for the whole timeline**, from the average over all parts: the strip reads the same everywhere.
 - **Whole or nothing.** A word or phrase that doesn't fit is skipped; labels never slide off their time to make room.
 - **Cuts cover their words.** The block is the one sign of a cut on the timeline; strikes and cut-pause hatching go.
+- **⌫ on a cut keeps its range selected.** Uncut, then ⌫ again cuts it back (yours): you can A/B a spot with one
+  key. The selection turns from "a cut" into "a time range" with the same ends.
 - **Thresholds 32 and 4 ppw, ±(28 / 5) hysteresis.** Reasoned from an 11 pt caption (~5.5 pt per letter); check A14.
