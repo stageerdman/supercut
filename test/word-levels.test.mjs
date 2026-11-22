@@ -184,7 +184,7 @@ function setup({ reduce = false } = {}) {
   const paint = (pps, cuts = CUTS) => {
     const g = fakeCanvas();
     const boxes = layout([{ id: 1, duration: LEN }], pps);
-    const fading = painter.draw(g, { boxes, scroll: 0, width: 100000, pps, words: () => WORDS, cuts, lengths: { 1: LEN } });
+    const fading = painter.draw(g, { boxes, scroll: 0, width: 100000, pps, words: () => WORDS, cuts, pauses: () => PAUSES });
     return { texts: g.calls.filter((c) => c.op === 'fillText'), clips: g.calls.filter((c) => c.op === 'clip'), fading, boxes };
   };
   return { painter, paint, tick: (ms) => { t += ms; } };

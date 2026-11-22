@@ -117,7 +117,7 @@ test('cut block: base, hatch and border in its owner colour; length label from 4
 const words = [];
 for (let t = 0.1; t < 20; t += 0.5) if (!(t > 6 && t < 8) && !(t > 12 && t < 13.5)) words.push({ w: 'word', s: t, e: t + 0.4 });
 
-async function rig(startCuts) {
+async function rig(startCuts, speech) {
   globalThis.document = makeDocument();
   const { createTimeline } = await import('../src/ui/timeline.js');
   const root = document.createElement('div');
@@ -126,7 +126,7 @@ async function rig(startCuts) {
   const lens = () => ({ 1: 20 });
   const timeline = createTimeline(root, {
     parts: () => [{ id: 1, name: 'take.mov', duration: 20 }], cuts: () => history.edit.cuts, words: (id) => history.edit.words[id] ?? [],
-    waveform: () => undefined, lengths: lens, playhead: () => ({ i: 0, t: 0 }), current: () => 0, max: 1,
+    speech: () => speech, waveform: () => undefined, lengths: lens, playhead: () => ({ i: 0, t: 0 }), current: () => 0, max: 1,
     onSeek: (i, t) => seeks.push([i, t]), onLive() {}, onCommit() {}, onToggle() {}, onRemove() {}, onDragStart() {},
   });
   timeline.zoomTo(1); // 300 pt a second: the 2.4 s cut is a wide block
@@ -185,6 +185,24 @@ test('timeline: a pause all inside a cut makes no element (no Tab stop); one hal
   const shown = t.lane().querySelectorAll('[data-pause]').map((n) => ps[+n.dataset.pause]);
   assert.ok(!shown.includes(big), 'covered: not made');
   assert.ok(shown.includes(other), 'half covered: still there, ⌫ cuts the rest');
+  done();
+});
+
+test('timeline: pauses come from the audio speech runs, so talking the transcript missed is never a pause', async () => {
+  // The audio hears talking all through 6…8 s (no words there) and is silent at 15…17 s (words there are made up).
+  const speech = [{ s: 0.1, e: 14.9 }, { s: 17, e: 19.9 }];
+  const t = await rig([], speech);
+  const shown = t.lane().querySelectorAll('[data-pause]').map((n) => +n.dataset.pause);
+  const ps = pauses(speech, 20);
+  assert.equal(shown.length, ps.length, 'one block per silence between speech runs');
+  assert.ok(!ps.some((p) => p.s < 8 && p.e > 6), 'no pause over the missed talking');
+  assert.ok(ps.some((p) => p.s <= 15.1 && p.e >= 16.8), 'a pause where the audio is silent');
+  done();
+});
+
+test('timeline: a transcript without speech runs (made before the detector) falls back to word gaps', async () => {
+  const t = await rig([]);
+  assert.equal(t.lane().querySelectorAll('[data-pause]').length, pauses(words, 20).length);
   done();
 });
 

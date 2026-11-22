@@ -88,6 +88,7 @@ const timeline = createTimeline($('timeline'), {
   parts: () => parts,
   cuts: cutsNow,
   words: (id) => history.edit.words[id] ?? [],
+  speech: (id) => parts.find((p) => p.id === id)?.transcript?.speech, // the audio's talking: pauses come from it
   waveform: (id) => waveforms.get(id),
   lengths,
   playhead: () => ({ i: player.current, t: player.time }),

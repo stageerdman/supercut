@@ -6,10 +6,10 @@ where the person is still talking. And the transcript misses fewer words in the 
 
 ## Status
 - [x] Phase 0 — research spike (this folder, `spike/`). Done 2026-11-22. Findings in `wiki.md`.
-- [ ] Phase 1 — `vad.rs`: Silero VAD v5 in Rust
-- [ ] Phase 2 — transcribe in silence-split pieces (root cause of missed words)
-- [ ] Phase 3 — pauses from speech runs, not words
-- [ ] Phase 4 — what's still unheard: mark it, re-recognize it on request
+- [x] Phase 1 — `vad.rs`: Silero VAD v5 in Rust. Done 2026-11-22 (`speech.rs`, `vad.rs`, `onnx.rs`).
+- [x] Phase 2 — transcribe in silence-split pieces (root cause of missed words). Done 2026-11-22 (`pieces.rs`).
+- [x] Phase 3 — pauses from speech runs, not words. Done 2026-11-22 (`timeline.js` `pausesFor`, strip uses the same).
+- [ ] Phase 4 — what's still unheard: mark it, re-recognize it on request (moved to MISSED WORDS)
 
 ## Build plan (Uncle Bob, 2026-11-22)
 Each phase ends with its tests green (`npm run test:ui`, `npm run test:rust`).

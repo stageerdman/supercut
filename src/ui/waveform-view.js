@@ -48,7 +48,7 @@ let fallback;
  * Paint the view. `canvas` is moved to `scroll` and sized to `width` by the caller. `strip` is the timeline's word
  * painter (stripPainter()). Returns true while the words are still fading: paint again next frame.
  */
-export function drawTimeline(canvas, { boxes, scroll, width, height, pps, waveforms, words, cuts, lengths, strip }) {
+export function drawTimeline(canvas, { boxes, scroll, width, height, pps, waveforms, words, cuts, pauses, strip }) {
   const dpr = globalThis.devicePixelRatio || 1;
   if (canvas.width !== Math.round(width * dpr)) canvas.width = Math.round(width * dpr);
   if (canvas.height !== Math.round(height * dpr)) canvas.height = Math.round(height * dpr);
@@ -81,5 +81,5 @@ export function drawTimeline(canvas, { boxes, scroll, width, height, pps, wavefo
       g.fillRect(x, mid - y, BAR - 1, y * 2);
     }
   }
-  return words ? (strip ?? (fallback ??= stripPainter())).draw(g, { boxes, scroll, width, pps, words, cuts, lengths }) : false;
+  return words ? (strip ?? (fallback ??= stripPainter())).draw(g, { boxes, scroll, width, pps, words, cuts, pauses }) : false;
 }
