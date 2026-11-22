@@ -113,19 +113,12 @@ Before Phase 6 ships, "Magic done" keeps Magic as primary and Export secondary.
 - Clip context menu (right-click): "Swap order", "Remove from project", "Show in Finder". Nothing else.
 - Add-slot disappears. Dropping a third file: banner "Two parts at most. Remove one to add another."
 
-### 6. Manual pre-cuts (Phase 2)
-No tools to pick. Three gestures, all undoable:
-- **Trim edges:** hover a clip edge → 6 pt handle appears (accent), cursor ↔. Drag inward; the trimmed part becomes a removed range.
-- **Remove a middle part:** drag across the timeline (not on an edge) → selection (accent 20 % fill, 1 pt accent border). A small chip floats above it: **Remove ⌫**. Press ⌫ or click the chip.
-- **Split:** `S` splits at the playhead (for those who think in razor cuts). Not shown as a button; listed in the Help menu and the shortcut sheet.
-
-Removed ranges stay visible: **collapsed to a 12 pt hatched sliver** between kept parts (so the timeline shows the edited length), with a ↔ icon on hover; click → it opens back to full width with a **Restore** chip. Playback skips them.
-
-**One restore gesture:** click the sliver → **Restore** (or ⌘Z for the last edit). It works the same for trimmed ends and removed middles. Dragging a handle never restores — handles only trim inward — so there is never a second, hidden way.
-
-Time readout shows the **edited** length: "01:12 / 23:40", and while hovering the readout: "Original 24:10".
-
-Your cuts are drawn in neutral grey hatch; AI cuts (Phase 5) in accent hatch. One glance tells you who cut what.
+### 6. Editing by hand
+**Replaced (2026-11-22)** by `design/timeline.md` (timeline, cut edges) and `design/transcript-editing.md` (cut and
+fix words), on the model in `design/edit-model.md`. In short: the timeline shows the whole recording with cuts
+hatched in place (no collapsed slivers, no `S` split); select words or a time range + ⌫ cuts it, ⌫ again brings it
+back; drag a cut's edges either way to change how much it removes; playback skips cuts; the readout shows the
+edited length. Your cuts are grey, Magic's coral, in both views.
 
 ### 7. Transcribing (Phase 3)
 - Progress lives **only in the status line** (toolbar): "Transcribing… 12 % · about 3 min" with its own small bar. The transcript panel never shows progress. You can play and cut meanwhile.
@@ -138,7 +131,7 @@ Your cuts are drawn in neutral grey hatch; AI cuts (Phase 5) in accent hatch. On
 - **Queued:** pressing Magic during transcription turns the button into a pill "Magic queued ✕"; the status line reads "Transcribing… 12 % · Magic starts when the transcript is ready". ✕ (or ⌘↩ again) cancels the queue. When the transcript is done, Magic starts by itself — no second press, and only **one** notification at the very end ("38 cuts ready").
 - **First run ever:** a one-time inline notice in the status line for 8 s — "Only the text of your transcript is sent to Claude. Your video stays here." No dialog, no confirmation, it doesn't delay the run, and it never shows again.
 - **Running:** the status line (left of the button) says the stage: "Choosing the best takes…". The button becomes a quiet pill "Magic ✕" that only cancels. The stage is said once, in the one place that says what the app is doing. Everything else stays usable (play, arrows, manual cuts).
-- Done: status line "38 cuts · 24:10 → 14:52 · ⌘Z to undo" for 6 s. Magic's cuts look exactly like yours (struck through); hovering one says why ("Magic: earlier take · Backspace brings it back"). Your own cuts stay; running Magic again replaces only its previous cuts. One ⌘Z undoes the whole run.
+- Done: status line "38 cuts · 24:10 → 14:52 · ⌘Z to undo" for 6 s. Magic's cuts are ordinary cuts (struck through, in coral where yours are grey; drag or restore them like yours); hovering one says why ("Magic: earlier take · Backspace brings it back"). Your own cuts stay; running Magic again replaces only its previous cuts. One ⌘Z undoes the whole run.
 
 ### 9. Errors (one pattern for all)
 A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, one sentence + at most one action + ✕. It never blocks the screen. Examples:
@@ -155,13 +148,16 @@ A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, o
 | Key | Action |
 |---|---|
 | Space | Play / pause |
-| ← → | One "bit" back / forward: the smallest step at the timeline's zoom (one frame until the timeline exists; set in `src/ui/bit.js`) |
-| S | Split at playhead |
-| ⌫ | Cut the selection (timeline range, or words in the transcript). On words that are all cut already: bring them back |
-| Click / ⇧-click / drag a word | Seek there and select it / extend / select many |
-| ⌘Z / ⇧⌘Z | Undo / redo |
+| ← → | One "bit" back / forward: the time under 4 pt at the timeline's zoom, never under a frame (`src/ui/bit.js`). On a focused cut edge: move that edge one bit |
+| ⇧← ⇧→ | Grow a time selection from the playhead, one bit at a time |
+| ⌫ | The one toggle: cut the selection (words, a time range, a selected cut), or bring it back if it's all cut already |
+| Click / ⇧-click / drag a word | Seek there (play/pause unchanged) and select it / extend / select many |
+| Type, double-click, Return on words | Fix their text (`design/transcript-editing.md`) |
+| ⌥ while dragging an edge | No snapping |
+| Esc | Clear the selection (in the fix field: cancel) |
+| ⌘Z / ⇧⌘Z | Undo / redo (every edit: cuts, edges, fixes, a Magic run). The status line says what it undid |
 | ⌘O | Choose video |
-| ⌘ + / ⌘ − | Zoom timeline |
+| ⌘ + / ⌘ − / ⌘0 | Zoom timeline / fit |
 | ⌘↩ | Magic (⌘M is taken by macOS Minimize) |
 | ⌘E | Export |
 | ⌘, | Your rules (open / close the panel) |
@@ -171,7 +167,7 @@ A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, o
 - Contrast: text primary 15:1, secondary 7:1 on background; accent button uses dark label (see visual system). All ≥ 4.5:1.
 - Every control ≥ 28 × 28 pt hit area (macOS standard); toolbar buttons 32 pt tall.
 - Full keyboard reach; standard focus rings (accent).
-- VoiceOver: player "Video player, 01:12 of 23:40"; each clip "Part 1, my-video.mov, 12 minutes"; removed range "Removed, 20 seconds, by you"; drop zone "Drop a video, or choose one".
+- VoiceOver: player "Video player, 01:12 of 23:40"; each clip "Part 1, my-video.mov, 12 minutes"; cut "Cut, 0:42 to 0:45, 2.4 seconds, by you" (`design/timeline.md`); drop zone "Drop a video, or choose one".
 - Respect Reduce Motion (slides become fades) and Increase Contrast (hairlines 2×).
 
 ## Components (build once, reuse)
@@ -181,7 +177,7 @@ Each in its own file (a small JS module + Tailwind classes from the `@theme` tok
 - `PlayerView` — `<video>` wrapper.
 - `TransportBar` — play, time, `StatusLine`, zoom.
 - `StatusLine` — idle, progress (text + %), message (timed).
-- `Timeline` → `ClipView` (thumbnails + waveform, trim handles), `RemovedRangeView` (collapsed / open, yours / AI), `AddSlot`, `Playhead`, `SelectionChip`.
+- `Timeline` → waveform view, cut view (hatch, edges, chip; yours / Magic), `AddSlot`, `Playhead`. Spec: `design/timeline.md`.
 - `Banner` — message + optional action.
 - `TranscriptPanel` (Phase 3).
 - `Magic` — the AI spot: toolbar button + states + results in the transcript. Contract: `design/ai-slot.md`.
@@ -191,5 +187,5 @@ Built so far (`src/ui/`): `dropzone.js`, `player.js`, `status.js`, `timeline.js`
 `src/main.js` only holds state and the Tauri wiring. Logic is tested without a window: `npm run test:ui`.
 
 ## Open questions (none block Phase 1)
-- Removed ranges collapsed by default vs full width hatched? I chose **collapsed** so the timeline matches what plays; check with 3 users (A3).
+- ~~Removed ranges collapsed vs full width hatched?~~ Decided 2026-11-22: **full width, in place**, so edges can be dragged and the timeline matches the transcript (`design/timeline.md`).
 - Light mode? Not in v1 — editors are dark; revisit with A5.

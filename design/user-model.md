@@ -38,3 +38,12 @@ Living file. Every screen is checked against it. Source: `updates/2026-11-20 INI
 | A4 | Users trim while transcription runs | Log edits before transcript is ready |
 | A5 | Dark UI fits (editor habit, video pops) | Ask 3 users after Phase 1 |
 | A6 | A window ≥ 1100 × 700 is typical (MacBook, often full screen) | Log window sizes in a test build |
+| A7 | After Magic, the most common hand edit is nudging a cut's edge (too tight / too loose), not new cuts | Count edge drags vs new cuts in a test build |
+| A8 | Nobody misses a razor / `S` split once select + ⌫ cuts a range | Watch 3 CapCut users make their first hand cut |
+| A9 | Struck-through text stays readable after a Magic run that cuts ~40 % (no folding needed) | Ask 3 users to read back the kept story |
+| A10 | Fixing words is rare (a few per video, names and jargon), so one gesture with no mode is enough | Count fixes per session |
+
+## Editing by hand (2026-11-22, reasoned)
+- Two views, one thing: cuts show in the transcript (struck) and on the timeline (hatched) at the same place, grey for
+  yours, coral for Magic's. Specs: `design/edit-model.md`, `design/timeline.md`, `design/transcript-editing.md`.
+- Expected path after Magic: play → hear a join that's too tight → drag that edge → Space to hear it again → ⌘Z if worse.
