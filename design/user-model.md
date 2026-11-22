@@ -46,11 +46,20 @@ Living file. Every screen is checked against it. Source: `updates/2026-11-20 INI
 | A10 | Fixing words is rare (a few per video, names and jargon), so one gesture with no mode is enough | Count fixes per session |
 | A14 | 32 / 4 points per word are the right lines for words / phrases / no text (`design/timeline-words-by-zoom.md`) | Pinch through a real 20-min talk; note where text first feels crowded or sparse |
 | A15 | Covering cut words with the block loses nothing: people read cut words in the panel, not on the strip | Ask 3 users after a Magic run where they look to see what was cut |
-
 | A16 | Most notes are made while playing and have no text (research Q1) | Count notes with / without text, made playing vs paused |
 | A17 | Most people never change a note's colour, so 4 colours are enough (Q4) | Count colour changes per session |
 | A18 | `M` lands ~0.5 s late, so going to a note 1 s early is right (Q8) | Log the gap between `M` and the nearest word start / cut edge |
 | A19 | CapCut users find the ⚑ button without knowing `M` (Q5) | Ask 3 first-time users to "mark this for later" |
+| A20 | Most speech the transcript misses is fillers and false starts, not real words (research Q1) | Tally every unheard bit on 3 real talks |
+| A21 | People cut unheard speech far more often than they write into it (Q2) | Count ⌫ vs writes on unheard bits |
+| A22 | People add a word by clicking a neighbour and retyping it with the new word (Q4) | Watch 3 users add a missed word |
+
+A10 still holds for *fixing text*; it doesn't hold for *dealing with unheard speech*, which we expect to be frequent.
+
+## Missed words (2026-11-22, reasoned)
+- Two jobs, in this order: **cut** the speech the transcript didn't write down (ums, false starts), then, rarely,
+  **write** a missed word that matters ("not"). Silence and unheard speech must never look alike: cutting "a pause"
+  that was really a sentence is the worst outcome. Spec: `design/missed-words.md`.
 
 ## Notes (2026-11-22, reasoned)
 - The job: **"Remember this spot so I can deal with it later, and don't let me forget."** A note is a to-do pinned

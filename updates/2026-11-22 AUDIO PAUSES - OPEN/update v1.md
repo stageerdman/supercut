@@ -54,6 +54,8 @@ them, so words veto real pauses: 6 % of true pause time found on the test clips)
 - Tests: a pause is never shown over a speech run; a missed word (speech run with no word) leaves no pause.
 
 ### Phase 4 — what's still unheard (feeds "fix words the transcript missed")
+**Moved** to `updates/2026-11-22 MISSED WORDS - OPEN/update v1.md` (Phases 1, 2 and 5 there); spec
+`design/missed-words.md`. Kept below for its numbers.
 - Speech runs with no word on them (≥ 0.3 s) are the transcript's holes. After Phase 2 there are few (8 in a 21-min
   take, mostly "mm-hmm" from the other person). Show them as an unlabelled bit in the transcript/timeline.
 - On request, re-recognize just that stretch (0.3 s either side): in the spike this recovered whole sentences.

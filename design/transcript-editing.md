@@ -2,6 +2,8 @@
 
 Author: Jony · 2026-11-22 · Status: built. The panel around the words (blocks, width, rail, search, following
 seeks) is `design/transcript-panel.md`. Model: `design/edit-model.md`. Panel layout: `design/main-screen.md` (320 pt, right of the player).
+Speech the transcript missed (the `…` pill), typing from the timeline, hearing a stretch again and the right-click
+menu: `design/missed-words.md`.
 Checked against `design/user-model.md`: the first thing people try with a transcript is select + Backspace (observed);
 Descript habit "text = video".
 
@@ -14,7 +16,7 @@ fixing is the occasional one. So cutting needs no mode, and fixing needs one ges
 |---|---|
 | A free-text editor (the whole panel `contenteditable`) | Then ⌫ means "delete letters" in one place and "cut video" in another. Here ⌫ always cuts; letters are only edited inside the fix field. |
 | An Edit / Correct mode switch | Typing over selected words *is* fixing. No mode to remember. |
-| Insert-a-word caret between words | Fix a neighbour and type the extra word ("gonna" → "going to"). Same field, no new gesture. |
+| Insert-a-word caret between words | Fix a neighbour and type the extra word ("working" → "not working"), or select the unheard `…` and type. Same field, no new gesture. Unchanged words keep their time, so the added word lands in the gap (`design/missed-words.md`). |
 | Marks on fixed words | Fixed text is just the text. |
 | Folding long cut runs ("⋯ 48 words cut") | Not until struck text proves hard to read (assumption A9). |
 | Click-to-play | Clicking a word moves the playhead and keeps play/pause as it was; selecting words to cut shouldn't start the sound. Space plays. |

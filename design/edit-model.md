@@ -66,6 +66,9 @@ Replace words `from..to` (inclusive) with the words in `text` (split on spaces).
 `[words[from].s, words[to].e]` in proportion to letter count. Each new word gets `fixed: true`. Empty `text` = no change.
 Cuts don't move: a fixed word inside a cut is still cut. Magic gets the fixed words next time (`ai.js` already sends
 `words` from the state).
+**Superseded by `writeWords`** (`design/missed-words.md`, "Where words go"): what the selection highlights is
+replaced, unchanged words keep their time, added words fill free time (narrowed to unheard speech). `fixWords` stays
+as its letter-count helper.
 
 ## Selection — selection.js
 One selection for the whole screen: `{ part, s, e }` in source time, or `null`. A selected cut is a selection that
