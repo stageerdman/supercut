@@ -129,7 +129,22 @@ Check in the window: one full edit of a real recording, keyboard only, then with
   Tests: `test/edit.test.mjs` (23), `npm run test:ui` 51/51, `npm run test:rust` 80/80.
   Not done here: `selection.js` (Jony, Phase 4; `main.js` takes the first part of a transcript selection until
   then). Not checked in the window yet.
-- Next: Phase 0 (Uncle Bob). Phase 3 can run in parallel with it.
+- **Phases 2, 3, 4 and 5 done (Jony, in one item).** Phase 0's spike was skipped: the player goes straight to
+  approach A (`requestVideoFrameCallback`, jump to the cut's end when the next frame is inside it).
+  Files: `src/ui/playback.js`, `src/ui/player.js` (skips cuts per frame, edited-time readout),
+  `src-tauri/src/waveform.rs` + command `waveform` (`audio::decode_at`), `src/ui/timeline-geometry.js`,
+  `src/ui/edge-drag.js`, `src/ui/cut-view.js`, `src/ui/waveform-view.js`, `src/ui/timeline.js` (`createTimeline`).
+  `main.js`: live cuts during a drag, one history step on release, ⌘+ / ⌘− / ⌘0 zoom, ⇧← / ⇧→ grow a selection,
+  Esc, ⌫ uses the timeline selection first (same `toggleRange` rule), undo scrolls `changed` into view.
+  `index.html`: zoom − slider + in the transport row, `#timeline` a 128 pt horizontal scroll box.
+  Tests: `test/timeline.test.mjs` (24), `npm run test:ui` 75/75, `npm run test:rust` 84/84.
+  **Not checked in the window** (agents can't see the screen): the joins, drag feel, zoom and scroll all need a person.
+  Not done here: `selection.js` (a timeline range highlighting transcript words, Phase 6), Reduce Motion fades,
+  Increase Contrast, the hatch fade while dragging an edge.
+  Known limits: a long file's waveform decodes the whole audio at 8 kHz (a few seconds before it shows); a part's
+  trim-end handle is hidden until its duration is known; refocusing an edge after a repaint during nudges relies
+  on a `painting` flag (WebKit's focus-on-removal behaviour untested).
+- Next: Phase 6 (transcript editing, Jony), then Phase 7.
 
 ## Decisions
 - **One time base: source time.** Timeline, transcript and cuts all speak seconds in each part's own file. Only the
