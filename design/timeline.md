@@ -62,7 +62,19 @@ Spec: `design/timeline-strip.md`.
   WebKit sends `gesturechange` (`scale`); Chromium sends ⌃-wheel (`deltaY` ≈ −100·ln scale); both map to the same
   factor. ⌘-scroll zooms the same way; one mouse-wheel notch is capped at ×1.65.
 - **On the pointer**: the moment under it stays under it. Applied once per frame (many events arrive per frame).
+- **The same everywhere on the timeline**: a zoom moves and resizes the existing parts, cuts and pauses in place
+  (`relayout`); it never replaces them. WebKit sends the rest of a gesture (and of a wheel run) to the element it began
+  on, and a removed element passes nothing on: that's why zoom over the tracks used to stall after one step while the
+  ruler (whose element never changes) was smooth. Edge handles and pause labels, which depend on width, catch up
+  250 ms after the zoom settles.
 - Code: `zoomScaled`, `pinchFactor`, `wheelFactor` in `src/ui/timeline-geometry.js`.
+
+### Playback over cuts
+- **No hitch at a cut**: seeking a playing `<video>` holds the old frame while it decodes from the last keyframe. So a
+  hidden second `<video>` (muted, out of the tab order) seeks to the far side of the next cut (or the next part's first
+  kept moment) up to 2 s ahead; at the cut the two swap: it plays on from a frame it already has, and the old one
+  pauses and becomes the spare. If the spare isn't ready (you sought right before a cut), it seeks as before.
+- Code: `src/ui/player.js` (`prepare`, `jump`, `swap`).
 
 ### Playhead
 - **Glides while playing**: moved every display frame (requestAnimationFrame) on a smooth clock (`src/ui/play-clock.js`),

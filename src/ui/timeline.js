@@ -6,7 +6,7 @@
 // `cuts()` and reports changes.
 import { el, clock } from './dom.js';
 import { layout, contentWidth, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap, snapTargets, zoomScaled, pinchFactor, wheelFactor, MAX_PPS, GAP } from './timeline-geometry.js';
-import { cutView, edgeHandle, secs } from './cut-view.js';
+import { cutView, edgeHandle, secs, MIN_W } from './cut-view.js';
 import { drawTimeline, RULER, STRIP, TRACK } from './waveform-view.js';
 import { pauses, pauseCut } from './pauses.js';
 import { pauseView } from './strip-view.js';
@@ -41,6 +41,8 @@ export function createTimeline(root, o) {
   let drag = null; // the pointer gesture in progress
   let nudge = null; // keyboard nudges on one edge: { i, d }; one undo step when focus leaves
   let painting = false;
+  let settleTimer = 0; // after a zoom: the full repaint of cuts and pauses
+  let pinch = null; // { z0 } while a WebKit pinch gesture is on
 
   const content = el('div', 'relative h-full');
   const canvas = el('canvas', 'pointer-events-none absolute top-0 z-[1]');
@@ -61,13 +63,19 @@ export function createTimeline(root, o) {
 
   const extra = () => (o.parts().length && o.parts().length < o.max ? SLOT + GAP : 0);
 
-  function render() {
+  function measure() {
     const parts = o.parts();
     fit = fitPps(parts, root.clientWidth || 800, extra());
     pps = fit >= MAX_PPS ? fit : fit * (MAX_PPS / fit) ** z;
     setBit(bitFor(pps));
     boxes = layout(parts, pps);
     content.style.width = `${contentWidth(boxes, extra())}px`;
+    return parts;
+  }
+
+  function render() {
+    clearTimeout(settleTimer);
+    const parts = measure();
     frames.forEach((f) => f.remove());
     lanes.forEach((l) => l.remove());
     frames = boxes.map((b, i) => frame(b, i, parts[i]));
@@ -77,6 +85,38 @@ export function createTimeline(root, o) {
     paintCuts();
     paintPlayhead(false);
   }
+
+  /**
+   * Zoom: the same elements, moved and resized in place. Nothing under the pointer is replaced while you pinch: WebKit
+   * sends the rest of a gesture (and of a wheel run) to the element it began on, and a removed element passes nothing
+   * on. Handles and pause labels (which depend on width) catch up once the zoom settles.
+   */
+  function relayout() {
+    const ids = o.parts().map((p) => p.id);
+    if (ids.length !== boxes.length || ids.some((id, i) => boxes[i].id !== id) || frames.length !== ids.length + (extra() ? 1 : 0)) return render();
+    measure();
+    const cuts = o.cuts();
+    const place = (n, s, e, min) => { n.style.left = `${s * pps}px`; n.style.width = `${Math.max(min, (e - s) * pps)}px`; };
+    boxes.forEach((box, i) => {
+      for (const n of [frames[i], lanes[i]]) { n.style.left = `${box.x}px`; n.style.width = `${box.w}px`; }
+      for (const n of frames[i].cutsBox.querySelectorAll('[data-cut]')) {
+        const c = cuts[+n.dataset.cut];
+        if (c) place(n, c.s, c.e, MIN_W);
+      }
+      const ps = pausesOf(i);
+      for (const n of lanes[i].querySelectorAll('[data-pause]')) {
+        const p = ps[+n.dataset.pause];
+        if (p) place(n, p.s, p.e, 2);
+      }
+    });
+    if (extra()) { const last = boxes.at(-1); frames.at(-1).style.left = `${last.x + last.w + GAP}px`; }
+    paintSelection();
+    draw();
+    paintPlayhead(false);
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(settle, 250);
+  }
+  const settle = () => (pinch ? (settleTimer = setTimeout(settle, 250)) : paintCuts());
 
   function frame(box, i, part) {
     const f = el('div', `group absolute rounded-[10px] bg-raised ring-1 ${i === o.current() ? 'ring-accent' : 'ring-hairline'}`);
@@ -343,7 +383,7 @@ export function createTimeline(root, o) {
     if (!boxes[anchor.i]) { z = nz; return render(); }
     const sx = screenX ?? xAt(boxes, anchor.i, anchor.t) - root.scrollLeft;
     z = nz;
-    render();
+    relayout();
     root.scrollLeft = anchoredScroll(sx, xAt(boxes, anchor.i, Math.min(anchor.t, boxes[anchor.i].len)));
     draw();
     o.onZoom?.(z);
@@ -369,7 +409,6 @@ export function createTimeline(root, o) {
   const zoomGoal = () => pending?.z ?? z;
 
   // WebKit (the app's window) reports a trackpad pinch as gesture events with a cumulative `scale`.
-  let pinch = null; // { z0 } while a gesture is on
   let pinchEnd = 0;
   root.addEventListener('gesturestart', (e) => { e.preventDefault(); pinch = { z0: zoomGoal() }; });
   root.addEventListener('gesturechange', (e) => {

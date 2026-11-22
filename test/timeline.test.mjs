@@ -358,28 +358,72 @@ test('pause view: grey block with its length, the cut hatch when cut, selectable
 
 // ---------- player.js against a fake <video> ----------
 
-function fakeVideo() {
+function fakeVideo({ twin = false } = {}) {
   const on = {};
+  const classes = new Set();
   return {
-    on, paused: true, currentTime: 0, duration: 10, readyState: 1, dataset: {}, src: '',
+    on, paused: true, currentTime: 0, duration: 10, readyState: 1, dataset: {}, src: '', muted: false, id: 'player',
+    classList: { add: (...c) => c.forEach((x) => classes.add(x)), remove: (...c) => c.forEach((x) => classes.delete(x)), contains: (c) => classes.has(c) },
     addEventListener(k, f) { (on[k] ??= []).push(f); },
     emit(k) { (on[k] ?? []).forEach((f) => f()); },
     play() { this.paused = false; this.emit('play'); },
     pause() { this.paused = true; this.emit('pause'); },
-    getAttribute: () => 'x', removeAttribute() {}, load() {},
+    getAttribute: () => 'x', setAttribute() {}, removeAttribute() {}, load() {}, after(n) { this.twin = n; },
     requestVideoFrameCallback() {},
+    ...(twin ? { cloneNode: () => fakeVideo() } : {}),
   };
 }
 
-async function rigPlayer(cuts) {
+async function rigPlayer(cuts, opts) {
   globalThis.window = { __TAURI__: { core: { convertFileSrc: (p) => p } } };
   globalThis.document = { getElementById: () => null };
   const { createPlayer } = await import('../src/ui/player.js');
-  const video = fakeVideo();
+  const video = fakeVideo(opts);
   const parts = [{ id: 1, path: 'a', duration: 10 }, { id: 2, path: 'b', duration: 5 }];
   const player = createPlayer(video, { parts: () => parts, cuts: () => cuts, onTime() {}, onPart() {}, onError() {} });
   return { video, player };
 }
+
+test('player: a hidden twin waits on the far side of the next cut; at the cut they swap, no seek', async () => {
+  const { video, player } = await rigPlayer([you(2, 3), you(8, 10)], { twin: true });
+  const spare = video.twin;
+  assert.ok(spare.classList.contains('opacity-0') && spare.muted, 'the twin is hidden and silent');
+  player.show(0, 4);
+  video.play();
+  player.tick();
+  assert.equal(spare.dataset.path, undefined, 'the next cut is over 2 s away: not yet');
+  player.show(0, 1);
+  player.tick();
+  assert.equal(spare.currentTime, 3, 'ready on the far side of the cut');
+  spare.emit('seeked');
+  video.currentTime = 1.99;
+  player.tick();
+  assert.equal(video.currentTime, 1.99, 'the old one never seeks (that is the hitch)');
+  assert.equal(player.element, spare);
+  assert.ok(!spare.paused && !spare.muted && !spare.classList.contains('opacity-0'), 'the twin plays, seen and heard');
+  assert.ok(video.paused && video.muted && video.classList.contains('opacity-0'), 'the old one is now the twin');
+  assert.equal(player.time, 3);
+  spare.currentTime = 6.5;
+  player.tick();
+  assert.equal(video.dataset.path, 'b', "the next part's file waits for the cut to the end");
+  assert.equal(video.currentTime, 0);
+  video.emit('seeked');
+  spare.currentTime = 7.99;
+  player.tick();
+  assert.equal(player.current, 1, 'on to part 2 by a swap');
+  assert.equal(player.element, video);
+});
+
+test('player: the twin not ready yet (a seek just before a cut): it seeks as before', async () => {
+  const { video, player } = await rigPlayer([you(2, 3)], { twin: true });
+  player.show(0, 1.9);
+  video.play();
+  player.tick(); // the twin starts seeking, no seeked yet
+  video.currentTime = 1.99;
+  player.tick();
+  assert.equal(player.element, video);
+  assert.equal(video.currentTime, 3);
+});
 
 test('player: playing skips each cut on the frame before it, and cuts that touch in one jump', async () => {
   const { video, player } = await rigPlayer([you(2, 3), magic(3, 4)]);
