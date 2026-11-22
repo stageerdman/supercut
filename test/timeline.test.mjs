@@ -257,16 +257,18 @@ function fakeDocument() {
 
 test('cut view: hatch in its owner colour, handles only with room, never invisible', () => {
   globalThis.document = fakeDocument();
+  const sliders = (n) => n.children.filter((h) => h.attrs.role === 'slider');
   const wide = cutView(magic(2, 4), { left: 20, width: 40, selected: true, index: 3 });
   assert.match(wide.style.cssText, /255 106 61/, 'Magic is coral');
   assert.match(wide.className, /ring-accent/, 'selected');
   assert.equal(wide.dataset.cut, 3);
-  assert.deepEqual(wide.children.map((h) => h.attrs.role), ['slider', 'slider']);
-  assert.equal(wide.children[0].attrs['aria-valuetext'], 'Start of cut, 0:02.0');
+  assert.equal(wide.attrs.role, 'button');
+  assert.equal(sliders(wide).length, 2);
+  assert.equal(sliders(wide)[0].attrs['aria-valuetext'], 'Start of cut, 0:02.0');
   const thin = cutView(you(2, 2.05), { left: 20, width: 0.5, selected: false, index: 0 });
   assert.match(thin.style.cssText, /158 161 168/, 'yours is grey');
   assert.match(thin.style.cssText, new RegExp(`width:${MIN_W}px`));
-  assert.equal(thin.children.length, 0, 'too small to drag: zoom in');
+  assert.equal(sliders(thin).length, 0, 'too small to drag: zoom in');
   delete globalThis.document;
 });
 
@@ -326,7 +328,7 @@ test('a pause half inside a word cut is not cut: ⌫ cuts the rest; touching cut
   assert.equal(pauseCut(p, 1, [you(1.3, 2.1, 2)]), undefined, 'other parts are not touched');
 });
 
-test('pause view: grey block with its length, the cut hatch when cut, selectable by Tab, says what ⌫ does', () => {
+test('pause view: grey block with its length, selectable by Tab, says what ⌫ does', () => {
   globalThis.document = fakeDocument();
   const p = { s: 42, e: 43.2 };
   const kept = pauseView(p, { left: 10, width: 120, selected: true, index: 2 });
@@ -336,10 +338,9 @@ test('pause view: grey block with its length, the cut hatch when cut, selectable
   assert.equal(kept.attrs.role, 'button');
   assert.match(kept.className, /ring-accent/, 'selected');
   assert.equal(kept.attrs['aria-label'], 'Pause, 1.2 seconds, at 0:42.0. Backspace cuts it.');
-  const cut = pauseView(p, { left: 10, width: 20, selected: false, index: 0, cut: magic(42, 44) });
-  assert.match(cut.style.cssText, /255 106 61/, 'cut by Magic: coral hatch');
-  assert.equal(cut.textContent, '', 'no label when cut or narrow');
-  assert.equal(pauseLabel(p, true), 'Pause, 1.2 seconds, at 0:42.0, cut. Backspace restores.');
+  const narrow = pauseView(p, { left: 10, width: 20, selected: false, index: 0 });
+  assert.equal(narrow.textContent, '', 'no label when narrow');
+  assert.equal(pauseLabel(p), 'Pause, 1.2 seconds, at 0:42.0. Backspace cuts it.');
   delete globalThis.document;
 });
 

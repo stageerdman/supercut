@@ -32,5 +32,20 @@ export function toggleSelection(cuts, sel, words, lengths = {}) {
     return toggleWords(cuts, sel.part, words.slice(hit.from, hit.to + 1), words, lengths);
   }
   const r = toggleRange(cuts, sel, lengths);
-  return sel.pause ? { ...r, label: `${r.label} pause` } : r; // "Cut 0.8 s pause"
+  const what = sel.pause ? ' pause' : sel.cut ? ' cut' : ''; // "Cut 0.8 s pause", "Restored 2.4 s cut"
+  return { ...r, label: `${r.label}${what}` };
+}
+
+const EPS = 1e-6;
+
+/**
+ * What stays selected after ⌫ (or an undo of that ⌫). A cut or a time range keeps its ends, so ⌫ again toggles the
+ * same spot back: a cut when one cut now spans exactly that range (⌫ restores it), else a time range (⌫ cuts it).
+ * Words and pauses: nothing (as before). Spec: design/timeline-words-by-zoom.md (Interactions).
+ */
+export function keptSelection(sel, cuts) {
+  if (!sel || sel.words || sel.pause) return null;
+  const { part, s, e } = sel;
+  const exact = cuts.some((c) => c.part === part && Math.abs(c.s - s) < EPS && Math.abs(c.e - e) < EPS);
+  return exact ? { part, s, e, cut: true } : { part, s, e };
 }

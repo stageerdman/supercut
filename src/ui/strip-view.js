@@ -3,7 +3,7 @@
 // select (a DOM element: click, Tab, ⌫). Spec: design/timeline-words-by-zoom.md (words), design/timeline-strip.md
 // (pauses). Which words go where: word-levels.js. Tested in test/word-levels.test.mjs and test/timeline.test.mjs.
 import { el } from './dom.js';
-import { cutStyle, at } from './cut-view.js';
+import { at } from './cut-view.js';
 import { pauses } from './pauses.js';
 import { secondsPerWord, levelFor, layoutLabels } from './word-levels.js';
 
@@ -95,22 +95,22 @@ export function stripPainter({
 const spoken = (p) => `${(p.e - p.s).toFixed(1)} seconds`;
 
 /** What VoiceOver reads for a pause. */
-export const pauseLabel = (p, cut) =>
-  `Pause, ${spoken(p)}, at ${at(p.s)}${cut ? ', cut. Backspace restores.' : '. Backspace cuts it.'}`;
+export const pauseLabel = (p) => `Pause, ${spoken(p)}, at ${at(p.s)}. Backspace cuts it.`;
 
 /**
- * One pause block in its part's strip lane. Kept: a quiet grey block; cut: the cut's hatch in its owner's colour.
+ * One pause block in its part's strip lane: a quiet grey block. A pause all inside a cut isn't made (the cut block
+ * covers it: `pauseCut`); one half inside is, and the block covers its cut half.
  * @param {{s:number,e:number}} p
- * @param {{left:number, width:number, selected:boolean, index:number, cut?:{by:string}}} o
+ * @param {{left:number, width:number, selected:boolean, index:number}} o
  */
-export function pauseView(p, { left, width, selected, index, cut }) {
+export function pauseView(p, { left, width, selected, index }) {
   const n = el('div', `absolute inset-y-0.5 z-[2] flex items-center justify-center overflow-hidden rounded-[3px] text-[11px] tabular-nums text-text-secondary outline-none focus-visible:ring-2 focus-visible:ring-accent ${selected ? 'ring-[1.5px] ring-accent' : ''}`,
-    !cut && width >= LABEL_W ? `${(p.e - p.s).toFixed(1)} s` : '');
-  n.style.cssText = `left:${left}px;width:${Math.max(2, width)}px;${cut ? cutStyle(cut.by) : `background:rgba(${GREY}, 0.14)`}`;
+    width >= LABEL_W ? `${(p.e - p.s).toFixed(1)} s` : '');
+  n.style.cssText = `left:${left}px;width:${Math.max(2, width)}px;background:rgba(${GREY}, 0.14)`;
   n.tabIndex = 0;
   n.dataset.pause = index;
   n.setAttribute('role', 'button');
-  n.setAttribute('aria-label', pauseLabel(p, cut));
+  n.setAttribute('aria-label', pauseLabel(p));
   n.title = `Pause · ${(p.e - p.s).toFixed(1)} s`;
   return n;
 }

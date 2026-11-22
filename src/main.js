@@ -10,7 +10,7 @@ import { mountSearch } from './ui/transcript-search.js';
 import { mountDivider } from './ui/divider.js';
 import { createRail } from './ui/rail.js';
 import { withMagic } from './ui/cuts.js';
-import { toggleSelection } from './ui/selection.js';
+import { toggleSelection, keptSelection } from './ui/selection.js';
 import { withWords, withoutPart, partsWithWords } from './ui/edit.js';
 import { createHistory, changed } from './ui/history.js';
 import { bit } from './ui/bit.js';
@@ -226,7 +226,8 @@ async function undoRedo(redo) {
   const before = history.edit;
   const step = redo ? history.redo() : history.undo();
   if (!step) return;
-  timeline.clearSelection();
+  if (step.removed) timeline.clearSelection();
+  else selectionAfterUndo();
   if (step.removed) {
     await (redo ? takeOutAgain(step.removed) : putBack(step.removed));
     return render();
@@ -326,16 +327,28 @@ function stepPlayhead(d) {
 
 /**
  * Backspace, the one toggle rule, on the one selection (words, a time range or a cut, from either view).
- * All of it cut already → restore it, else cut it.
+ * All of it cut already → restore it, else cut it. A cut or a time range stays selected (`keptSelection`), so ⌫
+ * again toggles the same spot back; ⌘Z keeps it too (`spot`).
  */
+let spot = null; // the range the last ⌫ toggled, while it is still the selection
 function cutSelection() {
   const sel = timeline.selection;
   if (live || !sel) return;
   const { edit } = history;
   const { cuts, label } = toggleSelection(edit.cuts, sel, edit.words[sel.part] ?? [], lengths());
   if (!label) return;
-  timeline.clearSelection();
+  const next = keptSelection(sel, cuts);
+  spot = next;
   commit({ ...edit, cuts }, label);
+  timeline.select(next); // after the commit: the cuts it reads are the new ones
+}
+
+/** After ⌘Z / ⇧⌘Z: the spot ⌫ toggled stays selected (as a cut or a range, whichever it is now); else nothing. */
+function selectionAfterUndo() {
+  const sel = timeline.selection;
+  const keep = spot && sel && !sel.words && !sel.pause && sel.part === spot.part
+    && Math.abs(sel.s - spot.s) < 1e-6 && Math.abs(sel.e - spot.e) < 1e-6;
+  timeline.select(keep ? keptSelection(sel, history.edit.cuts) : null);
 }
 
 // ---------- Render ----------

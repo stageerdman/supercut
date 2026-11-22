@@ -85,9 +85,18 @@ mid-letter or overlapping, no flicker at the two thresholds; a Magic run's cuts 
   beyond each side, so scrolling never fades in a label we already had.
 - Cost per frame on a 20-minute, 3000-word part with 60 cuts: ≤ 0.4 ms at every level (measured in node).
 - Not yet checked in the window (agents can't see the screen): the pinch from fit to full zoom and back.
-- Until Phase 3 lands, cut words simply vanish from the strip (the cut is still drawn in the track); the cut
-  block over strip + track replaces that.
-- Next: Phase 3 (cut blocks).
+- **Phase 3 done** (`src/ui/cut-view.js`, `src/ui/timeline.js`, `keptSelection` in `src/ui/selection.js`, ⌫/⌘Z in
+  `src/main.js`; tests `test/cut-blocks.test.mjs` on a fake DOM): one cut layer per part from `STRIP.top` to the
+  track bottom (96 pt) at z 3; selection fill z 4, playhead 5, chip / badge / ✕ 6. Block: `surface` 72 % base, hatch
+  (78 %, 100 % on hover), 1 pt border, radius 4 (2 under 8 pt), "2.4 s" from 40 pt, 12 pt hit area under 12 pt.
+  Pauses all inside a cut are not made. Click anywhere in the block selects it and seeks to its start; ⌫ →
+  "Restored 2.4 s cut", the range stays selected (chip "Cut ⌫"), focus moves to the part group if it was on the
+  block; ⌫ → "Cut 2.4 s", yours, selected again; ⌘Z / ⇧⌘Z keep that spot selected. The transcript reads the same
+  cuts, so its words un-strike / strike with each toggle.
+- Not built (small, left for later): the 120 ms fade-out of a restored block, the 200 ms fade-in of Magic's new
+  blocks, and the Increase Contrast variant of the block.
+- Not yet checked in the window: click a cut, ⌫, ⌫, ⌘Z on a real recording.
+- Next: Phase 4 (docs, check in the window).
 
 ## Decisions
 - **Levels by points per word, not seconds on screen.** A fast talker needs more room; ppw follows the talk.
