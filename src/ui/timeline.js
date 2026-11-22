@@ -12,7 +12,7 @@ import { pauses, pauseCut } from './pauses.js';
 import { pauseView, stripPainter } from './strip-view.js';
 import { startEdgeDrag } from './edge-drag.js';
 import { cutsOf } from './cuts.js';
-import { toggleSelection } from './selection.js';
+import { toggleSelection, wordSelection } from './selection.js';
 import { setBit } from './bit.js';
 
 const SLOT = 120; // the add-slot's width
@@ -27,7 +27,8 @@ const EPS = 1e-6;
  *   playhead: () => ({i:number,t:number}), current: () => number, max: number,
  *   onSeek: (i:number, t:number) => void, onLive: (cuts:Array|null) => void, onCommit: (cuts:Array, label:string) => void,
  *   onToggle: () => void, onRemove: (id:number) => void, onDragStart: () => void, onZoom?: (z:number) => void,
- *   onSelect?: (sel:object|null) => void}} o
+ *   onSelect?: (sel:object|null) => void, onMenu?: (at:{x:number,y:number}) => void}} o
+ *   onMenu: right-click; the selection is already what was clicked (context-menu.js)
  */
 export function createTimeline(root, o) {
   let z = 0; // zoom: 0 = fit … 1 = MAX_PPS, on a log scale (so each step feels the same)
@@ -364,6 +365,33 @@ export function createTimeline(root, o) {
   };
   content.addEventListener('pointerup', release);
   content.addEventListener('pointercancel', release);
+
+  // Right-click: what's under the pointer, selected first unless it's inside the selection (Mac habit), then the menu.
+  content.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (drag || !boxes.length || e.target.closest('button')) return;
+    const { x } = local(e);
+    const pauseEl = e.target.closest('[data-pause]');
+    const cutEl = e.target.closest('[data-cut]');
+    const { i, t } = timeAt(boxes, x);
+    const box = boxes[i];
+    let next = null;
+    if (pauseEl) {
+      const lane = +pauseEl.closest('[data-lane]').dataset.lane;
+      const p = pausesOf(lane)[+pauseEl.dataset.pause];
+      if (p) next = { part: boxes[lane].id, s: p.s, e: p.e, pause: true };
+    } else if (cutEl) {
+      const c = o.cuts()[+cutEl.dataset.cut];
+      if (c) next = { part: c.part, s: c.s, e: c.e, cut: true };
+    }
+    const inside = selection && !selection.cut && selection.part === box.id && selection.s - EPS <= t && t <= selection.e + EPS;
+    if (!next && !inside) {
+      const k = o.words(box.id).findIndex((w) => w.s <= t && t < w.e);
+      if (k >= 0) next = wordSelection(box.id, o.words(box.id), k, k);
+    }
+    if (next && !(inside && !next.cut)) setSelection(next);
+    if (next || inside) o.onMenu?.({ x: e.clientX, y: e.clientY });
+  });
 
   // ---------- Keyboard: edges are sliders, cuts are buttons ----------
 

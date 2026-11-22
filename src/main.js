@@ -10,7 +10,9 @@ import { mountSearch } from './ui/transcript-search.js';
 import { mountDivider } from './ui/divider.js';
 import { createRail } from './ui/rail.js';
 import { withMagic } from './ui/cuts.js';
-import { toggleSelection, keptSelection } from './ui/selection.js';
+import { toggleSelection, keptSelection, wordsIn } from './ui/selection.js';
+import { removeText } from './ui/fix.js';
+import { menuFor, popup } from './ui/context-menu.js';
 import { withWords, withoutPart, partsWithWords } from './ui/edit.js';
 import { createHistory, changed } from './ui/history.js';
 import { bit } from './ui/bit.js';
@@ -101,6 +103,7 @@ const timeline = createTimeline($('timeline'), {
   onDragStart: () => player.pause(),
   onZoom: (z) => ($('zoom').value = Math.round(z * 100)),
   onSelect: () => transcript.paintSelection(), // one selection, shown in both views
+  onMenu: (at) => openMenu(at),
 });
 
 const transcript = createTranscript($('transcript'), $('transcript-panel'), {
@@ -116,6 +119,7 @@ const transcript = createTranscript($('transcript'), $('transcript-panel'), {
   },
   playhead: () => ({ i: player.current, t: player.time }),
   onView: (from, to) => rail.paintView(from, to),
+  onMenu: (at) => openMenu(at),
 });
 
 // The panel around the words: its width, the rail, the search field (design/transcript-panel.md).
@@ -309,6 +313,9 @@ document.addEventListener('keydown', (e) => {
   if (e.metaKey && e.key === '-') { e.preventDefault(); timeline.zoomBy(-0.1); return; }
   if (e.metaKey && e.key === '0') { e.preventDefault(); timeline.zoomTo(0); return; }
   if (e.metaKey || e.ctrlKey || e.altKey || !parts.length) return;
+  const sel = timeline.selection;
+  if (e.key === 'F10' && e.shiftKey) { e.preventDefault(); openMenu(null); return; }
+  if (sel && !sel.cut && writeKey(e)) { e.preventDefault(); transcript.write(e.key === 'Enter' ? null : e.key); return; }
   if (e.key === ' ' && !e.target.closest('button, [role=button]')) { e.preventDefault(); player.toggle(); }
   else if (e.key === 'ArrowLeft' && e.shiftKey) { e.preventDefault(); timeline.grow(-1); }
   else if (e.key === 'ArrowRight' && e.shiftKey) { e.preventDefault(); timeline.grow(1); }
@@ -341,6 +348,35 @@ function cutSelection() {
   spot = next;
   commit({ ...edit, cuts }, label);
   timeline.select(next); // after the commit: the cuts it reads are the new ones
+}
+
+/**
+ * A key that types on the selection from anywhere but a text field: a letter (the field opens holding it), or
+ * Return (not on a real button, which Return presses). Spec: design/missed-words.md ("Where you type").
+ */
+const writeKey = (e) => (e.key.length === 1 && e.key !== ' ') || (e.key === 'Enter' && !e.target.closest('button'));
+
+/** Right-click (or ⇧F10) on the selection: the native menu (context-menu.js). Items run their shortcut's code. */
+function openMenu(at) {
+  const sel = timeline.selection;
+  if (live || !sel) return;
+  const words = history.edit.words[sel.part] ?? [];
+  const restore = !!sel.cut || toggleSelection(history.edit.cuts, sel, words, lengths()).label.startsWith('Restored');
+  const items = menuFor(sel, { words: !!wordsIn(sel, words), restore });
+  popup(items, { write: () => transcript.write(null), toggle: cutSelection, removeText: removeSelectedText }, at)
+    .catch((e) => console.error('menu', e));
+}
+
+/** Remove Text: the highlighted words leave the transcript, the video stays. One undo step. */
+function removeSelectedText() {
+  const sel = timeline.selection;
+  const words = sel ? history.edit.words[sel.part] ?? [] : [];
+  const hit = sel && wordsIn(sel, words);
+  if (!hit) return;
+  const r = removeText(words, hit.from, hit.to);
+  timeline.clearSelection();
+  commit(withWords(history.edit, sel.part, r.words), r.label);
+  transcript.render();
 }
 
 /** After ⌘Z / ⇧⌘Z: the spot ⌫ toggled stays selected (as a cut or a range, whichever it is now); else nothing. */

@@ -1,35 +1,29 @@
-// The fix field: type over selected words to fix them or add some. Inline, in place of the words, no label, no
-// button. Return or a click away commits (one undo step), Esc cancels. Spec: design/transcript-editing.md.
+// The fix field: type over selected words to fix them, or into the time between words to add some. Inline, in
+// place of the words (or between them), no label, no button. Return or a click away commits (one undo step), Esc
+// cancels. Spec: design/transcript-editing.md, design/missed-words.md ("Where you type").
 import { el } from './dom.js';
-import { fixWords } from './fix.js';
-
-const said = (words) => words.map((w) => w.w).join(' ');
-const short = (text) => {
-  const w = text.split(' ');
-  return w.length > 3 ? `${w.slice(0, 3).join(' ')}…` : text;
-};
+import { writeWords } from './fix.js';
 
 /**
- * Pure: the step a fix makes. Same text or empty text → null (no step).
+ * Pure: the step a fix of words[from..to] makes. Same text or empty text → null (no step).
  * @returns {{words: Array, label: string} | null}  label: 'Fixed “gonna”'
  */
 export function fixStep(words, from, to, text) {
-  const before = said(words.slice(from, to + 1));
-  const typed = text.trim().split(/\s+/).filter(Boolean).join(' ');
-  if (!typed || typed === before) return null;
-  return { words: fixWords(words, from, to, typed), label: `Fixed “${short(before)}”` };
+  return writeWords(words, { s: words[from].s, e: words[to].e }, text);
 }
 
 /**
- * Open the field over `spans` (the selected word elements, in order).
- * @param {{text: string, selectAll: boolean, onDone: (text: string|null) => void}} o  onDone(null) = cancelled
+ * Open the field over `spans` (the selected word elements, in order), or, with no spans, empty at `place`.
+ * @param {{text: string, selectAll: boolean, onDone: (text: string|null) => void,
+ *   place?: (field: HTMLElement) => void}} o  onDone(null) = cancelled; place puts the field in the panel
  */
-export function openFixField(spans, { text, selectAll, onDone }) {
-  const field = el('span', 'rounded-md bg-bg px-0.5 outline outline-1 outline-accent', text);
+export function openFixField(spans, { text, selectAll, onDone, place }) {
+  const field = el('span', 'inline-block min-w-[1ch] rounded-md bg-bg px-0.5 outline outline-1 outline-accent', text);
   field.contentEditable = 'plaintext-only';
   field.setAttribute('role', 'textbox');
-  field.setAttribute('aria-label', `Fix words, ${spans.map((s) => s.dataset.w).join(' ')}`);
-  spans[0].before(field);
+  field.setAttribute('aria-label', spans.length ? `Fix words, ${spans.map((s) => s.dataset.w).join(' ')}` : 'Write words here');
+  if (spans.length) spans[0].before(field);
+  else place(field);
   spans.forEach((s) => s.classList.add('hidden'));
 
   let done = false;
@@ -54,5 +48,5 @@ export function openFixField(spans, { text, selectAll, onDone }) {
   const sel = getSelection();
   sel.removeAllRanges();
   sel.addRange(range);
-  return { close: () => finish(field.textContent) };
+  return { field, close: () => finish(field.textContent) };
 }

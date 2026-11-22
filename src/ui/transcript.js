@@ -7,7 +7,9 @@
 import { el, clock } from './dom.js';
 import { cutAt, cutsOf, isCut } from './cuts.js';
 import { wordsIn, wordSelection } from './selection.js';
-import { openFixField, fixStep } from './fix-field.js';
+import { openFixField } from './fix-field.js';
+import { writeTarget, writeWords } from './fix.js';
+import { unheard } from './unheard.js';
 import { createFollow, followTarget } from './follow.js';
 import { blocksOf } from './blocks.js';
 import { findMatches, firstFrom, stepMatch } from './search.js';
@@ -39,10 +41,11 @@ export function wordClass({ cut, lit, selected, match = 0 }) {
 /**
  * Pure: what a key does in the panel (focus on the panel, not in the fix field). null → not ours (Space, ⌫, Esc
  * and ⌘ keys go on to the app). Tested in test/transcript.test.mjs.
- * @returns {'prev'|'next'|'extendPrev'|'extendNext'|'fix'|'type'|null}
+ * @returns {'prev'|'next'|'extendPrev'|'extendNext'|'fix'|'type'|'menu'|null}
  */
 export function transcriptKey(e, hasSelection) {
   if (e.metaKey || e.ctrlKey || e.altKey) return null;
+  if (e.key === 'F10' && e.shiftKey) return hasSelection ? 'menu' : null;
   if (e.key === 'ArrowLeft') return e.shiftKey ? 'extendPrev' : 'prev';
   if (e.key === 'ArrowRight') return e.shiftKey ? 'extendNext' : 'next';
   if (!hasSelection) return null;
@@ -61,8 +64,10 @@ const reduceMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: red
  *   cuts: () => Array, selection: () => ({part:number,s:number,e:number,words?:boolean}|null),
  *   onSelect: (sel: object|null) => void, onSeek: (i:number, t:number) => void,
  *   onFix: (part:number, words:Array, label:string) => void,
- *   playhead?: () => ({i:number,t:number}), onView?: (from:{i,t}|null, to:{i,t}|null) => void}} o
+ *   playhead?: () => ({i:number,t:number}), onView?: (from:{i,t}|null, to:{i,t}|null) => void,
+ *   onMenu?: (at:{x:number,y:number}) => void}} o
  *   onView: the stretch of the video on screen changed (for the rail, rail.js)
+ *   onMenu: right-click (or ⇧F10) on the words; the selection is already what was clicked (context-menu.js)
  */
 export function createTranscript(box, panel, o) {
   let parts = []; // [{ id, i, words, spans }] of the parts with a transcript
@@ -99,7 +104,7 @@ export function createTranscript(box, panel, o) {
       section.setAttribute('role', 'group');
       section.setAttribute('aria-label', `Part ${i + 1}`);
       if (all.length > 1) section.append(el('h3', 'mb-2 text-[11px] font-medium text-text-secondary', `Part ${i + 1}`));
-      const { words } = p.transcript;
+      const { words, speech, seconds } = p.transcript;
       if (!words.length) section.append(el('p', 'text-text-secondary', 'No speech found.'));
       const spans = [];
       for (const { from, to } of blocksOf(words)) {
@@ -122,7 +127,7 @@ export function createTranscript(box, panel, o) {
         section.append(block);
       }
       box.append(section);
-      parts.push({ id: p.id, i, words, spans });
+      parts.push({ id: p.id, i, words, spans, section, speech, seconds });
     });
     if (cursor && !partOf(cursor.id)?.words[cursor.end]) cursor = null;
     paintCuts();
@@ -222,6 +227,10 @@ export function createTranscript(box, panel, o) {
     if (!act || !parts.length) return;
     e.preventDefault();
     e.stopPropagation(); // not the playhead's ← →
+    if (act === 'menu') {
+      const r = partOf(cursor.id)?.spans[cursor.end]?.getBoundingClientRect?.();
+      return o.onMenu?.(r ? { x: r.left, y: r.bottom } : null);
+    }
     if (act === 'fix') return fix(null);
     if (act === 'type') return fix(e.key);
     const dir = act.endsWith('Prev') ? -1 : 1;
@@ -235,24 +244,77 @@ export function createTranscript(box, panel, o) {
     choose(p.id, act.startsWith('extend') ? cursor.anchor : end, end);
   });
 
-  /** Open the fix field over the selected words: with a typed letter, or (null) with their text, all selected. */
+  /** The selected words as the shared selection (the panel's own cursor), or the shared one. */
+  function writeSel() {
+    const shared = o.selection();
+    if (!shared) return null;
+    if (cursor) {
+      const p = partOf(cursor.id);
+      return wordSelection(p.id, p.words, cursor.anchor, cursor.end);
+    }
+    return shared;
+  }
+
+  /**
+   * Open the field on the selection (from either view): over the words it highlights (or, with no room between
+   * words, the words it overlaps: highlighted first), or empty between the neighbouring words. With a typed
+   * letter, or (null) with the words' text, all selected. The write rule is `writeWords` (fix.js).
+   */
   function fix(letter) {
-    if (fixing || !cursor) return;
-    const p = partOf(cursor.id);
-    const from = Math.min(cursor.anchor, cursor.end), to = Math.max(cursor.anchor, cursor.end);
-    const spans = p.spans.slice(from, to + 1);
-    const words = p.words;
+    const sel = writeSel();
+    const p = sel && partOf(sel.part);
+    if (fixing || !p || sel.cut) return;
+    const target = writeTarget(p.words, sel, unheard(p.speech, p.words));
+    if (!target) return;
+    let spans = [], place;
+    if (target.replace) {
+      const { from, to } = target.replace;
+      if (!cursor || cursor.id !== p.id || Math.min(cursor.anchor, cursor.end) !== from || Math.max(cursor.anchor, cursor.end) !== to) {
+        cursor = { id: p.id, anchor: from, end: to }; // the overlapped words: you see what you're fixing
+        p.spans.forEach((span, k) => { span.state.selected = from <= k && k <= to; look(span); });
+      }
+      spans = p.spans.slice(from, to + 1);
+    } else {
+      const { at } = target.insert;
+      const next = p.spans[at], last = p.spans.at(-1);
+      place = (field) => {
+        field.classList.add('mr-1');
+        if (next) next.before(field);
+        else if (last) last.after(field);
+        else p.section.append(field);
+      };
+    }
     fixing = openFixField(spans, {
       text: letter ?? spans.map((s) => s.dataset.w).join(' '),
       selectAll: letter == null,
+      place,
       onDone: (text) => {
         fixing = null;
-        const step = text == null ? null : fixStep(words, from, to, text);
+        // Applied to the words as they are now (the selection is time, not indexes).
+        const q = partOf(p.id);
+        const step = text == null || !q ? null : writeWords(q.words, sel, text, unheard(q.speech, q.words), q.seconds);
         if (step) o.onFix(p.id, step.words, step.label);
+        else paintSelection();
         if (box.isConnected) box.focus({ preventScroll: true });
       },
     });
+    if (!spans.length) fixing.field.scrollIntoView?.({ block: 'nearest' });
   }
+
+  // ---------- Right-click ----------
+
+  box.addEventListener('contextmenu', (e) => {
+    if (e.target.closest('[contenteditable]')) return; // the field's own menu (copy, paste)
+    e.preventDefault();
+    if (fixing) return fixing.close();
+    const span = e.target.closest('span[data-i]');
+    if (!span) return;
+    const id = +span.dataset.id, k = +span.dataset.i;
+    const inside = cursor && cursor.id === id && Math.min(cursor.anchor, cursor.end) <= k && k <= Math.max(cursor.anchor, cursor.end);
+    if (!inside) choose(id, k, k); // outside the selection: select it first (Mac habit)
+    box.focus({ preventScroll: true });
+    o.onMenu?.({ x: e.clientX, y: e.clientY });
+  });
 
   // ---------- Following the playhead ----------
 
@@ -382,6 +444,8 @@ export function createTranscript(box, panel, o) {
   return {
     render, paintCuts, paintSelection, highlight, goTo, reveal, search, step,
     focus: () => box.focus({ preventScroll: true }),
+    /** Type on the shared selection from anywhere (the timeline): a letter, or null (Return) for the words' text. */
+    write: (letter) => fix(letter),
     get fixing() { return !!fixing; },
   };
 }
