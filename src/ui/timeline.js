@@ -7,7 +7,8 @@ import { layout, contentWidth, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap
 import { cutView, edgeHandle, secs } from './cut-view.js';
 import { drawTimeline, RULER, TRACK } from './waveform-view.js';
 import { startEdgeDrag } from './edge-drag.js';
-import { cutsOf, toggleRange } from './cuts.js';
+import { cutsOf } from './cuts.js';
+import { toggleSelection } from './selection.js';
 import { setBit } from './bit.js';
 
 const SLOT = 120; // the add-slot's width
@@ -21,7 +22,8 @@ const EPS = 1e-6;
  *   waveform: (id:number) => ({perSecond:number,peaks:number[]}|undefined), lengths: () => object,
  *   playhead: () => ({i:number,t:number}), current: () => number, max: number,
  *   onSeek: (i:number, t:number) => void, onLive: (cuts:Array|null) => void, onCommit: (cuts:Array, label:string) => void,
- *   onToggle: () => void, onRemove: (id:number) => void, onDragStart: () => void, onZoom?: (z:number) => void}} o
+ *   onToggle: () => void, onRemove: (id:number) => void, onDragStart: () => void, onZoom?: (z:number) => void,
+ *   onSelect?: (sel:object|null) => void}} o
  */
 export function createTimeline(root, o) {
   let z = 0; // zoom: 0 = fit … 1 = MAX_PPS, on a log scale (so each step feels the same)
@@ -124,7 +126,7 @@ export function createTimeline(root, o) {
     const x0 = xAt(boxes, i, selection.s), x1 = xAt(boxes, i, selection.e);
     sel.style.left = `${x0}px`;
     sel.style.width = `${Math.max(1, x1 - x0)}px`;
-    const restore = selection.cut || toggleRange(o.cuts(), selection, o.lengths()).label.startsWith('Restored');
+    const restore = selection.cut || toggleSelection(o.cuts(), selection, o.words(selection.part), o.lengths()).label.startsWith('Restored');
     showChip((x0 + x1) / 2, restore ? 'Restore ⌫' : 'Cut ⌫');
   }
 
@@ -137,8 +139,8 @@ export function createTimeline(root, o) {
 
   function setSelection(s) {
     selection = s;
-    if (s) globalThis.getSelection?.()?.removeAllRanges(); // one selection on the screen
     paintCuts();
+    o.onSelect?.(s); // the transcript highlights the same words
   }
 
   /** Move the playhead line. While playing, page the view when it passes 90 % (so it sits at 10 %). */
@@ -331,6 +333,8 @@ export function createTimeline(root, o) {
     zoomTo,
     zoomBy: (d) => zoomTo(z + d),
     get selection() { return selection; },
+    /** Set the one selection (the transcript's words, or null). */
+    select: (s) => { grow = null; setSelection(s); },
     clearSelection: () => { grow = null; if (selection) setSelection(null); },
     /** ⇧← / ⇧→: grow a time selection from the playhead by one bit. */
     grow(dir) {

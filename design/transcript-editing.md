@@ -24,7 +24,7 @@ fixing is the occasional one. So cutting needs no mode, and fixing needs one ges
 | Click a word | Playhead to its start; the word is selected (shared selection, so the timeline shows it) |
 | ⇧-click / drag across words | Extend the selection |
 | ⌫ / Delete | The one toggle rule: cut the words (half the pause each side goes too), or bring them back if they're all cut |
-| Type a letter with words selected | The fix field opens over them, holding that letter |
+| Type a letter with words selected (focus in the panel) | The fix field opens over them, holding that letter |
 | Double-click a word, or Return on a selection | The fix field opens with the words' text, all selected |
 | Return, or click away | Commit the fix: one undo step "Fixed “gonna”" |
 | Esc | In the field: cancel. Outside: clear the selection |

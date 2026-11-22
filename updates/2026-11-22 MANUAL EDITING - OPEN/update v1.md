@@ -144,7 +144,18 @@ Check in the window: one full edit of a real recording, keyboard only, then with
   Known limits: a long file's waveform decodes the whole audio at 8 kHz (a few seconds before it shows); a part's
   trim-end handle is hidden until its duration is known; refocusing an edge after a repaint during nudges relies
   on a `painting` flag (WebKit's focus-on-removal behaviour untested).
-- Next: Phase 6 (transcript editing, Jony), then Phase 7.
+- **Phase 6 done (Jony).** Files: `src/ui/selection.js` (`wordsIn`, `wordSelection`, `toggleSelection`: the one
+  ⌫ rule for words, ranges and cuts), `src/ui/transcript.js` (`createTranscript`: a view like the timeline, no
+  cuts or selection of its own), `src/ui/fix-field.js` (`fixStep` + the inline field), `src/ui/follow.js` (4 s
+  pause, comfortable band, a third from the top). `edit.js` gains `partsWithWords` (what the views and Magic read).
+  The timeline holds the one selection: the transcript sets it with `timeline.select`, and `onSelect` repaints the
+  transcript, so a word selection shows as a range on the timeline and a dragged range highlights its words.
+  Native text selection is gone from the panel (the words are the selection); the old `selectedWords()` went with it.
+  Tests: `test/transcript.test.mjs` (15), `npm run test:ui` 90/90.
+  **Not checked in the window**: drag-select feel, the fix field in WebKit (`contenteditable="plaintext-only"`,
+  blur on click-away), smooth follow-scroll. Typing a letter opens the fix field only when focus is in the panel
+  (clicking a word puts it there); a range picked on the timeline needs a click in the panel before typing.
+- Next: Phase 7.
 
 ## Decisions
 - **One time base: source time.** Timeline, transcript and cuts all speak seconds in each part's own file. Only the
