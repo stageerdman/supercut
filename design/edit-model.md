@@ -19,6 +19,10 @@ edit = {
   words: { [partId]: [{ w, s, e, fixed? }] },            // starts as the transcript; fixes replace entries
 }
 ```
+**Notes** (`design/notes.md`) join the state as `notes: [{ id, part, s, e, text, color, by, done, doneAt?, about? }]`
+and `dismissed: [{ part, s, e }]` (Magic notes you deleted). They belong to time: `toggle`, `moveEdge` and `withMagic`
+never touch them, and history, `withoutPart`, `renamePart` and `changed` cover them. Rules: `src/ui/notes.js`.
+
 `by` replaces today's "has a `reason` = Magic" test. `reason` stays for the hover text, also on a Magic cut that became yours.
 A frame is 1/30 s (`FRAME` in `bit.js`) until we read the real frame rate.
 

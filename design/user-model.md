@@ -47,6 +47,15 @@ Living file. Every screen is checked against it. Source: `updates/2026-11-20 INI
 | A14 | 32 / 4 points per word are the right lines for words / phrases / no text (`design/timeline-words-by-zoom.md`) | Pinch through a real 20-min talk; note where text first feels crowded or sparse |
 | A15 | Covering cut words with the block loses nothing: people read cut words in the panel, not on the strip | Ask 3 users after a Magic run where they look to see what was cut |
 
+| A16 | Most notes are made while playing and have no text (research Q1) | Count notes with / without text, made playing vs paused |
+| A17 | Most people never change a note's colour, so 4 colours are enough (Q4) | Count colour changes per session |
+| A18 | `M` lands ~0.5 s late, so going to a note 1 s early is right (Q8) | Log the gap between `M` and the nearest word start / cut edge |
+| A19 | CapCut users find the ⚑ button without knowing `M` (Q5) | Ask 3 first-time users to "mark this for later" |
+
+## Notes (2026-11-22, reasoned)
+- The job: **"Remember this spot so I can deal with it later, and don't let me forget."** A note is a to-do pinned
+  to time, for yourself. The loop is drop it while listening → next open note → fix → Done. Spec: `design/notes.md`.
+
 ## Editing by hand (2026-11-22, reasoned)
 - Two views, one thing: cuts show in the transcript (struck) and on the timeline (hatched) at the same place, grey for
   yours, coral for Magic's. Specs: `design/edit-model.md`, `design/timeline.md`, `design/transcript-editing.md`.

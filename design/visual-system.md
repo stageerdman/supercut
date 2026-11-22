@@ -29,6 +29,15 @@ Transcript text uses `body` at 15 / regular with 1.5 line height (reading, not s
 | `danger` | #FF5A5F | Only for destructive confirmations (rare) |
 | `player` | #000000 | Behind the video only |
 
+**Note colours** (`design/notes.md`), for notes only. They're the user's own categories and never mean "cut".
+| Token | Value |
+|---|---|
+| `noteYellow` (default) | #F2C94C |
+| `noteBlue` | #5AA9FF |
+| `noteViolet` | #B48CFF |
+| `noteTeal` | #3CC8B4 |
+Each is ≥ 3 : 1 on `bg`. Text on them uses `onAccent`.
+
 Rules: accent appears in at most three places at once. User cuts are neutral (`textSecondary` hatch at 35 %); AI cuts are accent hatch at 45 %. No gradients, no shadows except the system window shadow.
 
 Why coral, not CapCut's cyan or OpenCut's blue: our own look, warm against the cool dark, and it reads as "cut" (scissors, red-ish) without being an error red.

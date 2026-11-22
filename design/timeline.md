@@ -31,6 +31,8 @@ edge, listen to the join. Rarely: cut a range by hand (a phone call, the start a
 Timeline area: 16 pt padding, ruler 20, 4 gap, track 72 → 128 pt tall (today's box is 120; it grows by 8).
 Since then a 20 pt transcript strip sits between the ruler and the track (words, selectable pauses): 152 pt.
 Spec: `design/timeline-strip.md`.
+**Notes lane** (`design/notes.md`): a 20 pt row 4 pt under the track (timeline 176 pt). It's always there once a part
+is loaded, and no cut block reaches it.
 - **Parts** sit in order, 8 pt apart, each as wide as its source length at the current zoom. Badge "1"/"2" top-left,
   remove ✕ on hover and the add-slot stay as built today (`src/ui/timeline.js`).
 - **Waveform** fills the track: mirrored bars, `textSecondary` at 60 %; inside a cut at 25 %. Drawn on one canvas per
