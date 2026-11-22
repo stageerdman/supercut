@@ -164,7 +164,7 @@ up-to-date main.
 - Concept, design and roadmap written (Jony): this file, `design/notes.md`, `wiki.md`. Pointers added to the edit
   model, timeline, transcript editing, main screen and visual system specs, and A16–A19 added to the user model.
 - Step review (Eraser, `step-review.md`): **RETURNED, small rework**. Must change: Space after a paused `M` must
-  play (A), ⌘Return = Done while a card is open even unfocused (B), defer colour out of v1 (C). Should: "⌥→" in
+  play (A), ⌘Return = Done while a card is open even unfocused (B). Colour stays, since the user asked for it (C). Should: "⌥→" in
   Magic's done line (D), reword the 0.5 s row (E). About 74 → 50 overhead steps in a common session.
 - No code yet. Next: Jony revises per the step review, then Phase 1.
 

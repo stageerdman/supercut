@@ -5,8 +5,7 @@ To: Jony. The rework is yours. These are the cuts I found, with counts.
 
 **Verdict: RETURNED (small rework).** Most of the concept is already lean: Jony removed a lot (no panel, no
 required text, no popups, no delete dialog). But the **main loop costs two steps more than it needs to**, one flow
-has a **trap** (Space types into the note), and **colour** is a whole feature that the research scores lowest.
-Fix the three items under "Must change" and I'll approve.
+has a **trap** (Space types into the note). Fix the two "Must change" items (A, B) and I'll approve.
 
 ## The goal
 "Remember this spot while I'm listening, and later go through each one, fix it and tick it off."
@@ -89,13 +88,12 @@ thing to remember at the moment trust is lowest.
 ### 10. Change a note's colour (L5 F3, the lowest score in the research): 2 steps, plus a choice on every card
 1. Open the card. 2. Pick one of four swatches.
 
-**Must change (C): Defer colour out of v1.** What breaks without it? Nothing in the loop. Who needs it? The research
-says power users from Resolve/Premiere, and that most keep the default (A17, Q4 unanswered). What it costs everyone,
-on every card: a row of four choices to read past. What it costs the build: four tokens and 3 : 1 checks, cluster
-colouring ("its colour if they all share one, else…"), coloured transcript underlines, a "Changed note colour" undo
-step, the `color` field and its Magic rule. Text already does categories ("intro: too slow"). This is the same rule
-you applied to drag and the list: **add it back if a real user misses it.** All notes use one note colour; Magic's
-stay marked by the ✦ shape, which already doesn't rely on colour.
+**Keep (C), as designed.** On step count alone I'd defer colour: the research scores it lowest (L5 F3, A17) and
+every card shows four choices. But the user's own feature brief (f-notes) asks for notes that "can be highlighted
+with different colors", so it's a requirement, not a designer preference. It stays. The spec already keeps it light:
+yellow by default (zero steps for most people), four fixed swatches instead of a picker, a change applies at once (no
+confirm), and Magic never picks colours. One thing to watch: don't let colour grow (no named categories, no colour
+filter) unless a real user asks for it.
 
 ## Smaller cuts (should change)
 - **(E) The "Making a note" table, last row** reads "Paused, *or* the playhead within 0.5 s of an open moment note →
@@ -125,15 +123,13 @@ stay marked by the ✦ shape, which already doesn't rely on colour.
 | Drop while paused and play on (×2, no text) | 8 + a trap | 4 |
 | Resolve 10 (the loop) | 50 | 30 |
 | Find Magic's notes | 2 + remember ⌥→ | 2 |
-| Colour choices shown per card | 4 swatches | 0 |
 | **Total** | **~74 + a trap** | **~50** |
 
 ## What to change in the spec and plan (yours to write)
 - A: Space on an empty, just-made note closes the card and plays (or don't take focus). Add the test to Phase 3.
 - B: ⌘Return = Done while any note card is open, focused or not. Change the keyboard table and the Phase 3 / 4 tests
   ("⌘Return after ⌥→, without clicking into the card → Done, Magic doesn't run").
-- C: Drop `color`, swatches and the four note tokens from v1; one note colour. Move colour to "Out of scope, add back
-  if missed" with Q4.
+- C: Nothing. Colour stays (user requirement), as light as it is now.
 - D: Done line "· 2 notes to check · ⌥→".
 - E: Reword the 0.5 s row.
 
