@@ -11,6 +11,21 @@ where the person is still talking. And the transcript misses fewer words in the 
 - [ ] Phase 3 — pauses from speech runs, not words
 - [ ] Phase 4 — what's still unheard: mark it, re-recognize it on request
 
+## Build plan (Uncle Bob, 2026-11-22)
+Each phase ends with its tests green (`npm run test:ui`, `npm run test:rust`).
+- **1a** `speech.rs` (pure): Silero probabilities → speech runs (hysteresis 0.5 / 0.35, holes < 0.15 s bridged).
+  Tests: hysteresis, bridging, edges clamped to the length.
+- **1b** `vad.rs`: Silero v5 session on the shared ONNX Runtime env (`onnx.rs`, also used by `parakeet.rs`).
+  Tests (model is committed, so they always run): silence and a pure tone → no runs; `en.wav`-style speech → runs.
+- **2** `pieces.rs` (pure) + `transcribe.rs`: speech runs → ≤ 30 s pieces cut in silences, 0.25 s pad (never past
+  the middle of the gap); a run > 30 s is split with a short overlap and a seam (the old keep-window idea, kept only
+  there). Delete the 120 s chunks. Tests with a fake recognizer that hears exactly the "words" written into the
+  signal: every word once, at file time, through silences, long runs and seams; progress per piece.
+- **3** `Transcript.speech` sent to the UI; `pauses()` takes speech runs, words only for a transcript without them.
+  Timeline (`timeline.js`, `strip-view.js`) reads the part's speech. Tests: no pause over a speech run, a speech
+  run with no word leaves no pause, word fallback unchanged. Magic's cuts still come from word ranges (unchanged).
+- **4** Moved to MISSED WORDS (see below).
+
 ## Decision
 **Silero VAD v5 (MIT, 2.3 MB ONNX), run on the same 16 kHz samples we already decode for Parakeet, through the
 ONNX Runtime we already ship (`parakeet_rs::ort`).** It does two jobs:
