@@ -3,7 +3,8 @@
 .env.*
 !.env.example
 node_modules/
-models/
+# The downloaded speech model and sample recordings; src-tauri/models/ (Silero, 2 MB) is committed.
+/models/
 src/app.css
 src-tauri/binaries/
 src-tauri/gen/

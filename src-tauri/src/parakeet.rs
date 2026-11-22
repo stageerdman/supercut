@@ -2,6 +2,7 @@
 
 use crate::audio::RATE;
 use crate::error::AppError;
+use crate::onnx;
 use crate::recognizer::{SpeechRecognizer, Token};
 use parakeet_rs::{ExecutionConfig, ParakeetTDT, TimestampMode, Transcriber};
 use std::path::{Path, PathBuf};
@@ -121,7 +122,7 @@ mod tests {
 
 fn load(dir: &Path) -> Result<Parakeet, AppError> {
     let err = |e: &dyn std::fmt::Display| AppError::ModelLoad(e.to_string());
-    let env = parakeet_rs::ort::init().build().map_err(|e| err(&e))?;
+    let env = onnx::environment().map_err(|e| err(&e))?.clone();
     let model = ParakeetTDT::from_pretrained(dir, Some(ExecutionConfig::new().with_environment(env))).map_err(|e| err(&e))?;
     Ok(Parakeet(model))
 }

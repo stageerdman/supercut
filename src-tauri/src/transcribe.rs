@@ -1,50 +1,27 @@
-//! Any video or audio file -> words with times, fully on this Mac.
-//! Long recordings are cut into 120 s chunks with 15 s overlap (as in Pensieve);
-//! each word is kept from exactly one chunk: the middle of each overlap is the seam.
+//! Any video or audio file -> words with times, and where the talking is, fully on this Mac.
+//! Silero (`vad.rs`) finds the talking; Parakeet hears it in short pieces cut at silences (`pieces.rs`).
 
 use crate::audio::{self, RATE};
 use crate::error::AppError;
 use crate::keep_awake::KeepAwake;
 use crate::log;
 use crate::parakeet;
+use crate::pieces;
 use crate::recognizer::{SpeechRecognizer, Token};
+use crate::speech::Span;
+use crate::vad;
 use crate::words::{merge_tokens, Word};
 use serde::Serialize;
 use std::path::Path;
-
-const CHUNK_S: f64 = 120.0;
-const OVERLAP_S: f64 = 15.0;
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct Transcript {
     pub text: String,
     pub words: Vec<Word>,
+    /// Where someone is talking, heard from the audio. Pauses are the time between these runs, not between
+    /// words: word times are coarse, and speech the recognizer missed has no word at all.
+    pub speech: Vec<Span>,
     pub seconds: f64,
-}
-
-/// Sample ranges [a, b) of each chunk.
-pub fn chunk_ranges(n: usize) -> Vec<(usize, usize)> {
-    let len = (CHUNK_S * RATE as f64) as usize;
-    let step = ((CHUNK_S - OVERLAP_S) * RATE as f64) as usize;
-    let mut ranges = Vec::new();
-    let mut a = 0;
-    while a < n {
-        let b = (a + len).min(n);
-        ranges.push((a, b));
-        if b == n {
-            break;
-        }
-        a += step;
-    }
-    ranges
-}
-
-/// The part of chunk `k` whose words we keep (seconds).
-pub fn keep_window(ranges: &[(usize, usize)], k: usize) -> (f64, f64) {
-    let (a, b) = ranges[k];
-    let lo = if k == 0 { f64::NEG_INFINITY } else { a as f64 / RATE as f64 + OVERLAP_S / 2.0 };
-    let hi = if k + 1 == ranges.len() { f64::INFINITY } else { b as f64 / RATE as f64 - OVERLAP_S / 2.0 };
-    (lo, hi)
 }
 
 /// Millisecond precision: enough for cuts, and no f32 noise like 0.4000000059604645.
@@ -56,27 +33,28 @@ fn shift(tokens: Vec<Token>, offset: f64) -> Vec<Token> {
     tokens.into_iter().map(|t| Token { s: ms(offset + t.s), e: ms(offset + t.e), ..t }).collect()
 }
 
-/// The pipeline without I/O: chunk, recognize, put on the file's clock, stitch.
-/// `progress(chunks done, chunks total)`.
+/// The pipeline without I/O: cut the talking in `speech` into pieces, recognize each, put the words on the
+/// file's clock. `progress(pieces done, pieces total)`.
 pub fn transcribe_samples(
     rec: &mut dyn SpeechRecognizer,
     samples: &[f32],
+    speech: &[Span],
     mut progress: impl FnMut(usize, usize),
 ) -> Result<Transcript, AppError> {
-    let ranges = chunk_ranges(samples.len());
+    let pieces = pieces::plan(speech, samples.len());
     let mut words = Vec::new();
-    for (k, &(a, b)) in ranges.iter().enumerate() {
-        progress(k, ranges.len());
-        let tokens = shift(rec.recognize(&samples[a..b])?, a as f64 / RATE as f64);
-        let (lo, hi) = keep_window(&ranges, k);
-        words.extend(merge_tokens(&tokens).into_iter().filter(|w| w.s >= lo && w.s < hi));
+    for (k, p) in pieces.iter().enumerate() {
+        progress(k, pieces.len());
+        let tokens = shift(rec.recognize(&samples[p.a..p.b])?, p.a as f64 / RATE as f64);
+        words.extend(merge_tokens(&tokens).into_iter().filter(|w| p.keeps(w.s)));
     }
-    progress(ranges.len(), ranges.len());
+    progress(pieces.len(), pieces.len());
     let text = words.iter().map(|w| w.w.as_str()).collect::<Vec<_>>().join(" ");
-    Ok(Transcript { text, words, seconds: samples.len() as f64 / RATE as f64 })
+    let speech = speech.iter().map(|r| Span { s: ms(r.s), e: ms(r.e) }).collect();
+    Ok(Transcript { text, words, speech, seconds: samples.len() as f64 / RATE as f64 })
 }
 
-/// The real thing: bundled ffmpeg + Parakeet, Mac kept awake until done. `trace` tags the log lines.
+/// The real thing: bundled ffmpeg + Silero + Parakeet, Mac kept awake until done. `trace` tags the log lines.
 pub fn transcribe_file(
     model: &Path,
     ffmpeg: &Path,
@@ -88,10 +66,15 @@ pub fn transcribe_file(
     let result = (|| {
         let _awake = KeepAwake::start();
         let samples = audio::decode(ffmpeg, input)?;
-        parakeet::with_model(model, |p| transcribe_samples(p, &samples, progress))
+        let speech = vad::speech(&samples)?;
+        parakeet::with_model(model, |p| transcribe_samples(p, &samples, &speech, progress))
     })();
     match &result {
-        Ok(t) => log::info("transcribe", trace, format!("done: {} words, {:.1} s", t.words.len(), t.seconds)),
+        Ok(t) => log::info(
+            "transcribe",
+            trace,
+            format!("done: {} words, {} speech runs, {:.1} s", t.words.len(), t.speech.len(), t.seconds),
+        ),
         Err(e) => log::error("transcribe", trace, format!("{} failed: {e}", input.display())),
     }
     result
@@ -107,18 +90,34 @@ pub mod fake {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("binaries/ffmpeg-aarch64-apple-darwin")
     }
 
-    /// Hears one word per second. The samples carry their own second number as their value,
-    /// so the word text says where in the file it came from: "w0", "w1", …
-    pub struct Counting;
-
-    pub fn speech(seconds: usize) -> Vec<f32> {
-        (0..seconds * RATE).map(|i| (i / RATE) as f32).collect()
+    /// A recording of `seconds` where word n (from 1) is said over `words[n - 1]`: its samples carry n as their
+    /// value, silence is 0. `Marked` hears exactly those words, so a word lost, doubled or clipped by how the
+    /// recording was cut shows up as a missing, repeated or shifted "w<n>".
+    pub fn spoken(seconds: f64, words: &[Span]) -> Vec<f32> {
+        let mut out = vec![0.0; (seconds * RATE as f64) as usize];
+        for (n, w) in words.iter().enumerate() {
+            out[(w.s * RATE as f64) as usize..(w.e * RATE as f64) as usize].fill((n + 1) as f32);
+        }
+        out
     }
 
-    impl SpeechRecognizer for Counting {
+    pub struct Marked;
+
+    impl SpeechRecognizer for Marked {
         fn recognize(&mut self, samples: &[f32]) -> Result<Vec<Token>, AppError> {
-            let tok = |j: usize| Token { text: format!("▁w{}", samples[j * RATE]), s: j as f64 + 0.1, e: j as f64 + 0.5 };
-            Ok((0..samples.len() / RATE).map(tok).collect())
+            let mut tokens = Vec::new();
+            let mut i = 0;
+            while i < samples.len() {
+                let (n, from) = (samples[i], i);
+                while i < samples.len() && samples[i] == n {
+                    i += 1;
+                }
+                let t = |j: usize| j as f64 / RATE as f64;
+                if n > 0.0 {
+                    tokens.push(Token { text: format!("▁w{n}"), s: t(from), e: t(i) });
+                }
+            }
+            Ok(tokens)
         }
     }
 
@@ -133,7 +132,7 @@ pub mod fake {
 
 #[cfg(test)]
 mod tests {
-    use super::fake::{ffmpeg, speech, Broken, Counting};
+    use super::fake::{ffmpeg, spoken, Broken, Marked};
     use super::*;
     use std::path::PathBuf;
     use std::process::Command;
@@ -141,61 +140,59 @@ mod tests {
 
     const S: usize = RATE;
 
-    #[test]
-    fn short_audio_is_one_chunk() {
-        assert_eq!(chunk_ranges(30 * S), vec![(0, 30 * S)]);
-        assert!(chunk_ranges(0).is_empty());
+    fn span(s: f64, e: f64) -> Span {
+        Span { s, e }
+    }
+
+    /// 100 words, one a second: word n over [n - 0.8, n - 0.3).
+    fn hundred_words() -> Vec<Span> {
+        (0..100).map(|k| span(k as f64 + 0.2, k as f64 + 0.7)).collect()
+    }
+
+    fn heard_once_at_file_time(t: &Transcript, said: &[Span]) {
+        let got: Vec<_> = t.words.iter().map(|w| (w.w.clone(), w.s, w.e)).collect();
+        let want: Vec<_> = said.iter().enumerate().map(|(n, w)| (format!("w{}", n + 1), ms(w.s), ms(w.e))).collect();
+        assert_eq!(got, want, "every word once, whole, at its time in the file");
     }
 
     #[test]
-    fn chunks_overlap_by_15_s_and_cover_everything() {
-        let n = 300 * S;
-        let r = chunk_ranges(n);
-        assert_eq!(r[0], (0, 120 * S));
-        assert_eq!(r[1].0, 105 * S);
-        assert_eq!(r.last().unwrap().1, n);
-        for w in r.windows(2) {
-            assert_eq!(w[0].1 - w[1].0, 15 * S);
-        }
+    fn words_are_heard_through_pieces_cut_in_the_silences() {
+        let said = hundred_words();
+        // Ten runs of talking with 0.5 s between them: pieces of three runs each.
+        let speech: Vec<Span> = (0..10).map(|k| span(10.0 * k as f64 + 0.2, 10.0 * k as f64 + 9.7)).collect();
+        let t = transcribe_samples(&mut Marked, &spoken(101.0, &said), &speech, |_, _| {}).unwrap();
+        heard_once_at_file_time(&t, &said);
+        assert_eq!((t.seconds, t.speech.len()), (101.0, 10), "the speech runs ride along");
+        assert!(t.text.starts_with("w1 w2 w3"));
     }
 
     #[test]
-    fn keep_windows_meet_without_gap_or_overlap() {
-        let r = chunk_ranges(400 * S);
-        assert_eq!(keep_window(&r, 0).0, f64::NEG_INFINITY);
-        assert_eq!(keep_window(&r, r.len() - 1).1, f64::INFINITY);
-        for k in 1..r.len() {
-            assert_eq!(keep_window(&r, k - 1).1, keep_window(&r, k).0);
-        }
+    fn talking_without_a_pause_is_heard_across_window_seams() {
+        let said = hundred_words();
+        let t = transcribe_samples(&mut Marked, &spoken(101.0, &said), &[span(0.2, 99.7)], |_, _| {}).unwrap();
+        heard_once_at_file_time(&t, &said);
     }
 
     #[test]
-    fn stitched_words_are_each_heard_once_at_their_file_time() {
-        let t = transcribe_samples(&mut Counting, &speech(400), |_, _| {}).unwrap();
-        assert_eq!(t.words.len(), 400, "no word lost or doubled at the seams");
-        for (n, w) in t.words.iter().enumerate() {
-            assert_eq!((w.w.as_str(), w.s, w.e), (format!("w{n}").as_str(), n as f64 + 0.1, n as f64 + 0.5));
-        }
-        assert_eq!(t.seconds, 400.0);
-        assert!(t.text.starts_with("w0 w1 w2"));
-    }
-
-    #[test]
-    fn progress_counts_every_chunk_then_finishes() {
+    fn progress_counts_every_piece_then_finishes() {
+        let said = hundred_words();
+        let speech = [span(0.2, 9.7), span(40.2, 49.7), span(80.2, 89.7)];
         let mut seen = Vec::new();
-        transcribe_samples(&mut Counting, &speech(250), |d, n| seen.push((d, n))).unwrap();
+        transcribe_samples(&mut Marked, &spoken(101.0, &said), &speech, |d, n| seen.push((d, n))).unwrap();
         assert_eq!(seen, [(0, 3), (1, 3), (2, 3), (3, 3)]);
     }
 
     #[test]
-    fn silence_gives_an_empty_transcript() {
-        let t = transcribe_samples(&mut Counting, &[], |_, _| {}).unwrap();
+    fn where_nobody_talks_nothing_is_sent_to_the_recognizer() {
+        let t = transcribe_samples(&mut Broken, &vec![0.0; 5 * S], &[], |_, _| {}).unwrap();
+        assert_eq!((t.words.len(), t.seconds), (0, 5.0));
+        let t = transcribe_samples(&mut Broken, &[], &[], |_, _| {}).unwrap();
         assert_eq!((t.words.len(), t.seconds), (0, 0.0));
     }
 
     #[test]
     fn a_recognizer_failure_reaches_the_caller() {
-        let err = transcribe_samples(&mut Broken, &speech(5), |_, _| {}).unwrap_err();
+        let err = transcribe_samples(&mut Broken, &vec![0.0; 5 * S], &[span(1.0, 2.0)], |_, _| {}).unwrap_err();
         assert_eq!(err.to_string(), "Transcription failed: out of memory");
     }
 
@@ -254,18 +251,20 @@ mod tests {
     }
 
     #[test]
-    fn live_long_recording_is_stitched_across_chunks() {
+    fn live_long_recording_is_heard_piece_by_piece() {
         let Some(wav) = sample() else { return println!("# skipped: model not downloaded") };
         let once = run(&wav).words.len();
-        // 60 copies of the 3.9 s clip back to back ≈ 3.9 min: three chunks, two seams.
+        // 60 copies of the 3.9 s clip back to back ≈ 3.9 min: many pieces, cut where the copies meet.
         let copies = 60;
         let long = tmp("long.wav");
         ff(&["-stream_loop", &(copies - 1).to_string(), "-i", wav.to_str().unwrap(), long.to_str().unwrap()]);
         let t = run(&long);
-        assert!(t.seconds > 2.0 * (CHUNK_S - OVERLAP_S), "spans 3 chunks");
         check_times(&t.words);
         let expected = once * copies;
         let diff = (t.words.len() as f64 - expected as f64).abs() / expected as f64;
-        assert!(diff < 0.05, "no words lost or doubled at seams: {} words, expected about {expected}", t.words.len());
+        assert!(diff < 0.05, "no words lost or doubled between pieces: {} words, expected about {expected}", t.words.len());
+        let unheard: Vec<_> =
+            t.speech.iter().filter(|r| r.e - r.s >= 0.5 && !t.words.iter().any(|w| w.s < r.e && r.s < w.e)).collect();
+        assert!(unheard.is_empty(), "every half second of talking has a word on it: {unheard:?}");
     }
 }
