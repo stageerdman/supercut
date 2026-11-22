@@ -1,0 +1,8 @@
+{
+  "name": "audio-pauses-spike",
+  "private": true,
+  "description": "Throwaway spike: compare transcript-gap pauses with audio-based silence detection.",
+  "dependencies": {
+    "onnxruntime-node": "^1.20.0"
+  }
+}
