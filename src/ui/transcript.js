@@ -9,6 +9,8 @@ import { cutAt, cutsOf, isCut } from './cuts.js';
 import { wordsIn, wordSelection } from './selection.js';
 import { openFixField, fixStep } from './fix-field.js';
 import { createFollow, followTarget } from './follow.js';
+import { blocksOf } from './blocks.js';
+import { findMatches, firstFrom, stepMatch } from './search.js';
 
 export { isCut };
 
@@ -21,11 +23,14 @@ export function cutTitle(cut, s) {
 /** Pure: a word's spoken name, with its state. "gonna, cut by Magic". */
 export const wordLabel = (w, cut) => (!cut ? w : cut.by === 'magic' ? `${w}, cut by Magic` : `${w}, cut`);
 
-/** Pure: a word's classes. A cut keeps its strike when lit; the strike's colour says who cut it. */
-export function wordClass({ cut, lit, selected }) {
+/**
+ * Pure: a word's classes. A cut keeps its strike when lit; the strike's colour says who cut it.
+ * `match`: 0 none, 1 a search match, 2 the current one (design/transcript-panel.md § Search).
+ */
+export function wordClass({ cut, lit, selected, match = 0 }) {
   return [
     'cursor-pointer rounded',
-    selected ? 'bg-accent/20' : 'hover:bg-raised',
+    match === 2 ? 'bg-accent/35' : selected ? 'bg-accent/20' : match ? 'bg-white/14' : 'hover:bg-raised',
     lit ? 'text-accent' : cut && 'text-text-secondary',
     cut && `line-through decoration-2 ${cut.by === 'magic' ? 'decoration-accent' : 'decoration-text-secondary'}`,
   ].filter(Boolean).join(' ');
@@ -55,11 +60,16 @@ const reduceMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: red
  * @param {{parts: () => Array<{id:number, transcript: {words: Array<{w:string,s:number,e:number}>}|null}>,
  *   cuts: () => Array, selection: () => ({part:number,s:number,e:number,words?:boolean}|null),
  *   onSelect: (sel: object|null) => void, onSeek: (i:number, t:number) => void,
- *   onFix: (part:number, words:Array, label:string) => void}} o
+ *   onFix: (part:number, words:Array, label:string) => void,
+ *   playhead?: () => ({i:number,t:number}), onView?: (from:{i,t}|null, to:{i,t}|null) => void}} o
+ *   onView: the stretch of the video on screen changed (for the rail, rail.js)
  */
 export function createTranscript(box, panel, o) {
   let parts = []; // [{ id, i, words, spans }] of the parts with a transcript
   let lit = null;
+  let query = '';
+  let matches = []; // [{ id, from, to, s }] (search.js)
+  let current = -1; // index into matches
   let cursor = null; // { id, anchor, end } word indexes, for ⇧ and ← →
   let mine = null; // the last selection we made (so the cursor survives our own round trip)
   let pressing = false;
@@ -85,29 +95,40 @@ export function createTranscript(box, panel, o) {
     parts = [];
     all.forEach((p, i) => {
       if (!p.transcript) return;
-      if (all.length > 1) box.append(el('h3', 'mt-3 mb-1 text-[11px] font-medium text-text-secondary first:mt-0', `Part ${i + 1}`));
-      const para = el('p');
-      para.setAttribute('role', 'group');
-      para.setAttribute('aria-label', `Part ${i + 1}`);
+      const section = el('section', 'mt-6 first:mt-0');
+      section.setAttribute('role', 'group');
+      section.setAttribute('aria-label', `Part ${i + 1}`);
+      if (all.length > 1) section.append(el('h3', 'mb-2 text-[11px] font-medium text-text-secondary', `Part ${i + 1}`));
       const { words } = p.transcript;
-      if (!words.length) para.append(el('span', 'text-text-secondary', 'No speech found.'));
-      const spans = words.map((w, k) => {
-        const span = el('span', '', w.w);
-        span.id = `w-${p.id}-${k}`;
-        span.dataset.id = p.id;
-        span.dataset.i = k;
-        span.dataset.w = w.w;
-        span.setAttribute('role', 'option');
-        span.state = { cut: null, lit: false, selected: false };
-        para.append(span, ' ');
-        return span;
-      });
-      box.append(para);
+      if (!words.length) section.append(el('p', 'text-text-secondary', 'No speech found.'));
+      const spans = [];
+      for (const { from, to } of blocksOf(words)) {
+        const block = el('div', 'mt-4 first:mt-0');
+        const time = el('div', 'mb-0.5 text-[11px] font-medium tabular-nums text-text-secondary', clock(words[from].s));
+        time.setAttribute('aria-hidden', 'true');
+        const para = el('p');
+        for (let k = from; k <= to; k++) {
+          const span = el('span', '', words[k].w);
+          span.id = `w-${p.id}-${k}`;
+          span.dataset.id = p.id;
+          span.dataset.i = k;
+          span.dataset.w = words[k].w;
+          span.setAttribute('role', 'option');
+          span.state = { cut: null, lit: false, selected: false, match: 0 };
+          para.append(span, ' ');
+          spans.push(span);
+        }
+        block.append(time, para);
+        section.append(block);
+      }
+      box.append(section);
       parts.push({ id: p.id, i, words, spans });
     });
     if (cursor && !partOf(cursor.id)?.words[cursor.end]) cursor = null;
     paintCuts();
     paintSelection();
+    if (query) search(query, true);
+    viewChanged();
   }
 
   /** Strike the cut words, in place (selection and scroll stay). Call after any change to `cuts()`. */
@@ -170,7 +191,7 @@ export function createTranscript(box, panel, o) {
     if (e.button !== 0 || e.target.closest('[contenteditable]')) return;
     if (fixing) { e.preventDefault(); return fixing.close(); } // a click away commits the fix (the words may change)
     const span = e.target.closest('span[data-i]');
-    if (!span) { if (e.target === box || e.target.closest('p')) { mine = null; o.onSelect(null); } return; }
+    if (!span) { mine = null; o.onSelect(null); return; } // the space around the words clears the selection
     e.preventDefault(); // no native text selection: the words are the selection
     box.focus({ preventScroll: true });
     const id = +span.dataset.id, k = +span.dataset.i;
@@ -242,8 +263,8 @@ export function createTranscript(box, panel, o) {
     if (top != null) box.scrollTo({ top, behavior: smooth && !reduceMotion() ? 'smooth' : 'auto' });
   }
 
-  /** Light the word under the playhead of part index `i` at time `t`, and keep it in view. */
-  function highlight(i, t) {
+  /** Light the word under the playhead of part index `i` at time `t`; keep it in view unless you're scrolling. */
+  function highlight(i, t, scroll = follow.on) {
     const p = parts.find((q) => q.i === i);
     let hit = null;
     if (p) {
@@ -254,7 +275,25 @@ export function createTranscript(box, panel, o) {
     if (lit) { lit.state.lit = false; look(lit); }
     if (hit) { hit.state.lit = true; look(hit); }
     lit = hit;
-    if (hit && follow.on && !fixing) scrollTo(hit);
+    if (hit && scroll && !fixing) scrollTo(hit);
+  }
+
+  let lastGo = -Infinity;
+  /**
+   * A seek you made elsewhere (timeline click or scrub, the rail, ← →): scroll there and light the word, even if
+   * you scrolled the panel a moment ago. Seeks in quick succession (a scrub) scroll instantly. Into a pause: the
+   * next word comes into view, nothing lit.
+   */
+  function goTo(i, t) {
+    const now = globalThis.performance?.now() ?? Date.now();
+    const smooth = now - lastGo > 250;
+    lastGo = now;
+    follow.reset();
+    highlight(i, t, false);
+    if (fixing) return;
+    const p = parts.find((q) => q.i === i);
+    const k = p?.words.findIndex((w) => w.e + 0.05 > t);
+    if (p && p.words.length) scrollTo(p.spans[k >= 0 ? k : p.words.length - 1], smooth);
   }
 
   /** Bring the word at `s` of part id into view (an undo). */
@@ -264,5 +303,85 @@ export function createTranscript(box, panel, o) {
     if (p && k >= 0) scrollTo(p.spans[k]);
   }
 
-  return { render, paintCuts, paintSelection, highlight, reveal, get fixing() { return !!fixing; } };
+  // ---------- Search (design/transcript-panel.md § Search) ----------
+
+  function paintMatches(on) {
+    matches.forEach((m, n) => {
+      const p = partOf(m.id);
+      for (let k = m.from; k <= m.to; k++) {
+        const span = p?.spans[k];
+        if (!span) continue;
+        span.state.match = on ? (n === current ? 2 : 1) : 0;
+        look(span);
+      }
+    });
+  }
+
+  const found = () => ({ k: current, n: matches.length });
+
+  /** Light every match of `q`; start at the first one from the playhead (or keep the one we're on). */
+  function search(q, keep = false) {
+    paintMatches(false);
+    const was = matches[current];
+    query = q;
+    matches = findMatches(parts, q);
+    const at = o.playhead?.() ?? { i: 0, t: 0 };
+    const again = keep && was ? matches.findIndex((m) => m.id === was.id && m.from === was.from) : -1;
+    current = again >= 0 ? again : firstFrom(matches, o.parts().map((p) => p.id), at);
+    paintMatches(true);
+    if (!keep) showMatch();
+    return found();
+  }
+
+  /** The next (1) or previous (-1) match, scrolled into view. */
+  function step(d) {
+    if (!matches.length) return found();
+    paintMatches(false);
+    current = stepMatch(current, d, matches.length);
+    paintMatches(true);
+    showMatch();
+    return found();
+  }
+
+  function showMatch() {
+    const m = matches[current];
+    if (!m) return;
+    follow.scrolled(); // searching is reading by hand: playback doesn't pull the panel away
+    scrollTo(partOf(m.id)?.spans[m.from]);
+  }
+
+  // ---------- What's on screen (for the rail) ----------
+
+  /** { i, t } of the first and last word on screen. Binary search over the words in reading order. */
+  function visible() {
+    if (!box.getBoundingClientRect || !parts.length) return null;
+    const all = parts.flatMap((p) => p.spans.map((span, k) => [p, k, span]));
+    if (!all.length) return null;
+    const b = box.getBoundingClientRect();
+    const first = (test) => { // first index where test(rect) is true (test goes false → true down the list)
+      let lo = 0, hi = all.length;
+      while (lo < hi) { const m = (lo + hi) >> 1; test(all[m][2].getBoundingClientRect()) ? (hi = m) : (lo = m + 1); }
+      return lo;
+    };
+    const a = Math.min(all.length - 1, first((r) => r.bottom > b.top));
+    const z = Math.max(a, first((r) => r.top >= b.bottom) - 1);
+    const [pa, ka] = all[a], [pz, kz] = all[z];
+    return { from: { i: pa.i, t: pa.words[ka].s }, to: { i: pz.i, t: pz.words[kz].e } };
+  }
+
+  let viewReq = 0;
+  function viewChanged() {
+    if (!o.onView || viewReq) return;
+    const run = () => { viewReq = 0; const v = visible(); o.onView(v?.from ?? null, v?.to ?? null); };
+    if (globalThis.requestAnimationFrame) viewReq = requestAnimationFrame(run);
+    else run();
+  }
+  box.addEventListener('scroll', viewChanged, { passive: true });
+  if (globalThis.ResizeObserver) new ResizeObserver(viewChanged).observe(box);
+
+  return {
+    render, paintCuts, paintSelection, highlight, goTo, reveal, search, step,
+    focus: () => box.focus({ preventScroll: true }),
+    get fixing() { return !!fixing; },
+  };
 }

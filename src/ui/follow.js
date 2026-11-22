@@ -9,6 +9,8 @@ export function createFollow(now = Date.now) {
   return {
     /** The user scrolled (wheel, scrollbar, keys) or worked in the panel. */
     scrolled() { last = now(); },
+    /** You sought elsewhere (timeline, rail): your newer intent wins, following is back on. */
+    reset() { last = -Infinity; },
     /** May the panel scroll to the lit word now? */
     get on() { return now() - last >= PAUSE_MS; },
   };

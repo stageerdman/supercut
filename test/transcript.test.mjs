@@ -230,7 +230,16 @@ function panel(edit, sel = { now: null }) {
     onFix() {},
   });
   t.render();
-  const spans = (part) => box.children.filter((c) => c.tag === 'p')[part].children.filter((c) => typeof c === 'object' && c.tag === 'span');
+  const spans = (part) => { // the words of a part, through its blocks
+    const out = [];
+    const walk = (n) => {
+      if (typeof n !== 'object') return;
+      if (n.tag === 'span' && n.dataset.i != null) out.push(n);
+      n.children.forEach(walk);
+    };
+    walk(box.children.filter((c) => c.tag === 'section')[part]);
+    return out;
+  };
   const fire = (kind, target, extra = {}) => {
     const e = { target, button: 0, preventDefault() {}, stopPropagation() {}, ...extra };
     box.listeners[kind]?.forEach((f) => f(e));

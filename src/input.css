@@ -14,6 +14,14 @@
   --color-danger: #ff5a5f;
 }
 
+/* The rail beside the words does the scrollbar's job, in time (design/transcript-panel.md). The wheel still scrolls. */
+#transcript {
+  scrollbar-width: none;
+}
+#transcript::-webkit-scrollbar {
+  display: none;
+}
+
 /* The fix field is the one place in the transcript where text can be selected. */
 #transcript [contenteditable] {
   user-select: text;

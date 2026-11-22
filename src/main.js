@@ -6,6 +6,9 @@ import { showBanner, hideBanner } from './ui/banner.js';
 import { workText, makeEta, createStatusLine } from './ui/status.js';
 import { createTimeline } from './ui/timeline.js';
 import { createTranscript } from './ui/transcript.js';
+import { mountSearch } from './ui/transcript-search.js';
+import { mountDivider } from './ui/divider.js';
+import { createRail } from './ui/rail.js';
 import { withMagic } from './ui/cuts.js';
 import { toggleSelection } from './ui/selection.js';
 import { withWords, withoutPart, partsWithWords } from './ui/edit.js';
@@ -75,9 +78,9 @@ const status = createStatusLine({ box: $('work'), text: $('status'), track: $('p
 const player = createPlayer($('player'), {
   parts: () => parts,
   cuts: cutsNow,
-  onTime: (i, t) => { renderTime(); transcript.highlight(i, t); if (!player.playing) timeline.paintPlayhead(false); },
+  onTime: (i, t) => { renderTime(); transcript.highlight(i, t); rail.paintHead(); if (!player.playing) timeline.paintPlayhead(false); },
   onFrame: (i, t) => timeline.paintPlayhead(true, { i, t }), // while playing: every display frame, smooth
-  onPart: () => timeline.render(),
+  onPart: () => { timeline.render(); rail.paintTrack(); rail.paintHead(); },
   onError: (name) => showBanner(`${name} can't be played here. Its transcript still works.`),
 });
 
@@ -90,7 +93,7 @@ const timeline = createTimeline($('timeline'), {
   playhead: () => ({ i: player.current, t: player.time }),
   current: () => player.current,
   max: MAX_PARTS,
-  onSeek: (i, t) => player.show(i, t, player.playing), // keeps play/pause
+  onSeek: (i, t) => seekTo(i, t), // a click or a scrub
   onLive: (c) => { live = c; paintEdit(); },
   onCommit: (c, label) => { live = null; commit({ ...history.edit, cuts: c }, label); },
   onToggle: () => cutSelection(),
@@ -111,7 +114,28 @@ const transcript = createTranscript($('transcript'), $('transcript-panel'), {
     commit(withWords(history.edit, id, words), label); // one undo step; Magic reads these words next run
     transcript.render();
   },
+  playhead: () => ({ i: player.current, t: player.time }),
+  onView: (from, to) => rail.paintView(from, to),
 });
+
+// The panel around the words: its width, the rail, the search field (design/transcript-panel.md).
+mountDivider($('transcript-divider'), $('transcript-panel'));
+const rail = createRail($('transcript-rail'), {
+  lengths: () => parts.map((p) => p.duration || p.transcript?.seconds || 0),
+  playhead: () => ({ i: player.current, t: player.time }),
+  onSeek: (i, t) => { seekTo(i, t); timeline.reveal(i, t); },
+});
+const search = mountSearch(
+  { input: $('transcript-search'), count: $('search-count'), prev: $('search-prev'), next: $('search-next'), tools: $('search-tools') },
+  transcript,
+);
+
+/** A seek you make (timeline, rail): the video goes there, play/pause kept, and the transcript follows. */
+function seekTo(i, t) {
+  player.show(i, t, player.playing);
+  transcript.goTo(i, t);
+  rail.paintHead();
+}
 $('zoom').oninput = (e) => timeline.zoomTo(e.target.value / 100);
 $('zoom-out').onclick = () => timeline.zoomBy(-0.1);
 $('zoom-in').onclick = () => timeline.zoomBy(0.1);
@@ -123,6 +147,8 @@ function loadWaveform(id) {
     const p = parts.find((x) => x.id === id);
     if (p && !p.duration) p.duration = w.seconds;
     timeline.render();
+    rail.paintTrack();
+    rail.paintHead();
     renderTime();
   }, () => {});
 }
@@ -275,6 +301,7 @@ document.addEventListener('keydown', (e) => {
   const typing = e.target.closest('input, textarea, [contenteditable]');
   if (e.metaKey && e.key === 'o') { e.preventDefault(); choose(); return; }
   if (e.metaKey && e.key === 'Enter') { e.preventDefault(); pressMagic(); return; }
+  if (e.metaKey && e.key === 'f' && parts.some((p) => p.transcript)) { e.preventDefault(); search.focus(); return; }
   if (typing) return;
   if (e.metaKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undoRedo(e.shiftKey); return; }
   if (e.metaKey && (e.key === '=' || e.key === '+')) { e.preventDefault(); timeline.zoomBy(0.1); return; }
@@ -284,12 +311,18 @@ document.addEventListener('keydown', (e) => {
   if (e.key === ' ' && !e.target.closest('button, [role=button]')) { e.preventDefault(); player.toggle(); }
   else if (e.key === 'ArrowLeft' && e.shiftKey) { e.preventDefault(); timeline.grow(-1); }
   else if (e.key === 'ArrowRight' && e.shiftKey) { e.preventDefault(); timeline.grow(1); }
-  else if (e.key === 'ArrowLeft') { e.preventDefault(); player.step(-bit()); }
-  else if (e.key === 'ArrowRight') { e.preventDefault(); player.step(bit()); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); stepPlayhead(-bit()); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); stepPlayhead(bit()); }
   else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); cutSelection(); }
   else if (e.key === 'Escape') timeline.clearSelection();
 });
 $('play').onclick = () => player.toggle();
+
+/** ← →: one bit, and the transcript follows like any other seek. */
+function stepPlayhead(d) {
+  player.step(d);
+  transcript.goTo(player.current, player.time);
+}
 
 /**
  * Backspace, the one toggle rule, on the one selection (words, a time range or a cut, from either view).
@@ -315,6 +348,8 @@ function render() {
   $('title').textContent = has ? parts[0].name.replace(/\.[^.]+$/, '') : '';
   timeline.render();
   transcript.render();
+  rail.paintTrack();
+  rail.paintHead();
   renderTime();
   magic.update();
   status.render();
