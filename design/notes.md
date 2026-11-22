@@ -1,6 +1,6 @@
 # Notes
 
-Author: Jony · 2026-11-22 · Status: ready to build. Plan: `updates/2026-11-22 NOTES - OPEN/update v1.md`.
+Author: Jony · 2026-11-22 · Status: **final, ready to build** (revised after Eraser's step review, `step-review.md`). Plan: `updates/2026-11-22 NOTES - OPEN/update v1.md`.
 Research: `updates/2026-11-22 NOTES - OPEN/research-notes.md` (Columbo). Model: `design/edit-model.md`.
 Timeline: `design/timeline.md`, `design/timeline-words-by-zoom.md`. Tokens: `design/visual-system.md`.
 Checked against `design/user-model.md`: goal 2 (trust every cut: park a doubt and come back to it), goal 1 (finish
@@ -52,12 +52,15 @@ deletes a note.
 | No selection | A **moment note** at the playhead |
 | Words selected (panel or strip) or a time range selected | A **section note** over the selection (the words' starts and ends, not the pause midpoints a cut uses) |
 | A cut selected | A section note over that cut, with `about` = the cut. This is "the join sounds off" note |
-| Paused, or the playhead within 0.5 s of an open moment note | Opens that note instead of making a twin. A double press can't make two |
+| The playhead within 0.5 s of an open moment note (playing or paused), no selection | No new note: there's one already. Paused, its card opens. Playing, its marker pops again and nothing opens. A double press can't make two |
 
 After making a note:
 - **Playing**: nothing opens. Playback goes on. The marker pops in (scale 0.6 → 1 and fade, 160 ms). The status line
   says "Note added · ⌘Z undoes" for 2 s.
 - **Paused**: the card opens with the cursor in the text field, so you can type at once (2–5 words, A).
+- **Paused, then Space**: while the text field is still empty, **Space closes the card and plays**. The note stays,
+  empty, exactly as if `M` had been pressed while playing. Once anything is typed, Space is a space. So "mark and play
+  on" is `M`, Space, two keys, and Space never silently types into a note.
 - A selection is cleared (it's been used), as after ⌫.
 - **The very first note ever**: the status line says "Note added. Notes are only for you, never in your video." for
   6 s, once, then never again. That answers the "will this be burned in?" worry without a dialog.
@@ -134,8 +137,12 @@ point when you're fixing what the note says.
   Text is never lost.
 - **Colours**: four swatches, 16 pt dots with a 28 pt hit area, in a radio group. The chosen one has a 1.5 pt `text`
   ring. A change applies at once.
-- **Done** is the one primary button: `accent` fill, `onAccent` label "✓ Done", 28 pt tall. ⌘Return does the same
-  inside the card. (⌘Return is Magic everywhere else, but in the card it means Done, so focus has to be in the card.)
+- **Done** is the one primary button: `accent` fill, `onAccent` label "✓ Done", 28 pt tall. **⌘Return does the same
+  whenever a card is open, focused or not**, so after ⌥→ and a fix on the timeline, one press ends the note. (⌘Return
+  is Magic everywhere else. While a card is open it means Done; close the card and it's Magic again. A wrong guess
+  costs nothing: Done undoes with ⌘Z.) The button's tooltip is "Done (⌘Return)".
+- **Done with the mouse, from the timeline**: right-click the note in the lane → "Done". The pointer is already down
+  there after the fix, so there's no trip up to the card.
 - **Delete** is a quiet icon button (`trash`, 13 pt, `textSecondary`, 28 pt target, label "Delete note"). ⌘⌫ inside
   the card does the same. There's no dialog, because ⌘Z brings it back.
 - **Undo**: one step per thing you did. Opening, typing and closing is one step, "Edited note", made only if the text
@@ -157,8 +164,10 @@ This loop is why the feature exists.
   kept moment. People press `M` about half a second late (A18), and this also plays you across a join when the note
   is about a cut. If the note is off screen, the view centres it. The note becomes current (ring), and its card opens
   **without focus**, so Space still plays and you can drag edges while you read it. Play/pause stays as it was.
-- Then you fix the problem with the usual tools and press Done on the card. To go on, press ⌥→ again. There's no
-  automatic jump to the next note: the playhead never moves unless you asked it to.
+- Then you fix the problem with the usual tools and end the note with **⌘Return** (or right-click the note → Done, or
+  the card's ✓ Done). To go on, press ⌥→ again. There's no automatic jump to the next note: the playhead never moves
+  unless you asked it to.
+- **Per note that's three steps of overhead**: ⌥→, read, ⌘Return.
 
 ## The transport row
 ```
@@ -213,8 +222,8 @@ does that).
   note overlaps one you **deleted** before (`edit.dismissed`) or one of your open notes. Notes you wrote, edited,
   recoloured or marked done are yours (`by: 'you'`) and are never touched. This is the same rule `withMagic` uses for
   cuts. The notes are part of the same single undo step, "Magic Cut".
-- **Done line**: "38 cuts · 24:10 → 14:52 · 2 notes to check · ⌘Z to undo". With no notes, the line stays as it is
-  today.
+- **Done line**: "38 cuts · 24:10 → 14:52 · 2 notes to check · ⌥→ · ⌘Z to undo". The key is said where the user is
+  already reading, right when trust is lowest. With no notes, the line stays as it is today.
 
 ## What cut review will use (later, `f-cut-review-mode`)
 Review needs nothing new from notes. A "No" makes an ordinary note with `about` set to the cut, empty text, and no
@@ -255,10 +264,12 @@ should also look for a hand edit near `about`, not only the tick.
 ## Keyboard
 | Key | Action |
 |---|---|
-| `M` | Add a note: at the playhead, or over the selection. On an open note (within 0.5 s) it opens that one instead. Never inside a text field |
+| `M` | Add a note: at the playhead, or over the selection. Within 0.5 s of an open moment note (playing or paused) it makes no twin; paused, it opens that one. Never inside a text field |
 | ⌥→ / ⌥← | Next / previous open note |
 | Return | On a focused note: open its card |
-| In the card: Return · ⇧Return · ⌘Return · ⌘⌫ · Esc | Save and close · new line · Done · Delete · close (keeps text) |
+| ⌘Return | **While any card is open, focused or not: Done.** Otherwise Magic, as today |
+| In the card: Return · ⇧Return · ⌘⌫ · Esc | Save and close · new line · Delete · close (keeps text) |
+| In the card, text still empty: Space | Close the card and play (the note stays). With text, Space is a space |
 
 ## Components (each its own file, tested on its own)
 - `src/ui/notes.js` (pure): `addNote`, `editNote`, `setDone`, `deleteNote`, `openNotes`, `nextOpen(notes, parts, at,
