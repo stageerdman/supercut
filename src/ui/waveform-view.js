@@ -2,9 +2,11 @@
 // One canvas the size of the view, moved with the scroll (a 30-minute part zoomed in is far wider than a canvas can be).
 import { tickStep, tickLabel } from './timeline-geometry.js';
 import { cutsOf } from './cuts.js';
+import { STRIP, drawStrip } from './strip-view.js';
 
 export const RULER = { top: 8, h: 20 };
-export const TRACK = { top: 32, h: 72 };
+export { STRIP };
+export const TRACK = { top: STRIP.top + STRIP.h + 4, h: 72 }; // under the transcript strip
 const GREY = '158, 161, 168';
 const BAR = 2; // points per bar, 1 pt gap
 
@@ -41,7 +43,7 @@ export function ticks(box, scroll, width, pps) {
 }
 
 /** Paint the view. `canvas` is moved to `scroll` and sized to `width` by the caller. */
-export function drawTimeline(canvas, { boxes, scroll, width, height, pps, waveforms, cuts }) {
+export function drawTimeline(canvas, { boxes, scroll, width, height, pps, waveforms, words, cuts }) {
   const dpr = globalThis.devicePixelRatio || 1;
   if (canvas.width !== Math.round(width * dpr)) canvas.width = Math.round(width * dpr);
   if (canvas.height !== Math.round(height * dpr)) canvas.height = Math.round(height * dpr);
@@ -74,4 +76,5 @@ export function drawTimeline(canvas, { boxes, scroll, width, height, pps, wavefo
       g.fillRect(x, mid - y, BAR - 1, y * 2);
     }
   }
+  if (words) drawStrip(g, { boxes, scroll, width, words, cuts });
 }

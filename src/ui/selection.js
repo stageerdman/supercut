@@ -1,6 +1,6 @@
 // The one selection on the screen, shared by the timeline and the transcript: { part, s, e, words?, cut? } in
 // source time, one part, or null. From the transcript it is the words' span (`words: true`); from the timeline the
-// dragged range; a selected cut has `cut: true`. Pure, no DOM. Rules: design/edit-model.md (Selection).
+// dragged range; a selected cut has `cut: true`, a pause from the timeline strip `pause: true`. Pure, no DOM. Rules: design/edit-model.md (Selection).
 // Tested in test/transcript.test.mjs.
 import { toggleWords, toggleRange } from './cuts.js';
 
@@ -31,5 +31,6 @@ export function toggleSelection(cuts, sel, words, lengths = {}) {
     if (!hit) return { cuts, label: '' };
     return toggleWords(cuts, sel.part, words.slice(hit.from, hit.to + 1), words, lengths);
   }
-  return toggleRange(cuts, sel, lengths);
+  const r = toggleRange(cuts, sel, lengths);
+  return sel.pause ? { ...r, label: `${r.label} pause` } : r; // "Cut 0.8 s pause"
 }

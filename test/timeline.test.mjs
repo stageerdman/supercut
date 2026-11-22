@@ -7,7 +7,10 @@ import { layout, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap, snapTargets,
 import { startEdgeDrag } from '../src/ui/edge-drag.js';
 import { cutLabel, cutHover, edgeText, cutView, MIN_W } from '../src/ui/cut-view.js';
 import { bars, ticks } from '../src/ui/waveform-view.js';
-import { toggleRange } from '../src/ui/cuts.js';
+import { toggleRange, isCut } from '../src/ui/cuts.js';
+import { pauses, pauseCut, MIN_PAUSE } from '../src/ui/pauses.js';
+import { stripWords, pauseView, pauseLabel } from '../src/ui/strip-view.js';
+import { toggleSelection } from '../src/ui/selection.js';
 import { FRAME } from '../src/ui/bit.js';
 
 const you = (s, e, part = 1) => ({ part, s, e, by: 'you' });
@@ -237,6 +240,77 @@ test('waveform: scaled to the loudest moment, dimmed inside cuts, only what is i
   assert.equal(cols.at(-1).cut, true);
   assert.equal(bars(box, wf, [], 116, 50).length, 25, 'only the visible range');
   assert.deepEqual(bars(box, undefined, [], 0, 1000), [], 'no waveform yet: the flat line');
+});
+
+// ---------- pauses.js + strip-view.js: the transcript strip ----------
+
+const said = [{ w: 'Hi', s: 0.5, e: 0.8 }, { w: 'there', s: 0.85, e: 1.2 }, { w: 'so', s: 2.2, e: 2.4 }, { w: 'yes', s: 2.6, e: 2.9 }];
+
+test('pauses: gaps between words minus a breath each side; short gaps are just speech; the ends are trims', () => {
+  const ps = pauses(said, 5);
+  assert.equal(ps.length, 3);
+  near(ps[0].s, 0); near(ps[0].e, 0.4, 'before the first word: from 0');
+  near(ps[1].s, 1.3); near(ps[1].e, 2.1, 'a breath kept next to each word');
+  near(ps[2].s, 3.0); near(ps[2].e, 5, 'after the last word: to the end');
+  assert.equal(pauses(said, undefined).length, 2, 'length unknown: no pause after the last word');
+  assert.deepEqual(pauses([], 5), [], 'no transcript yet: no pauses');
+  assert.equal(pauses(said, 5), pauses(said, 5), 'memoized per words list');
+  assert.ok(ps.every((p) => p.e - p.s >= MIN_PAUSE), 'never shorter than MIN_PAUSE');
+});
+
+test('select a pause + ⌫ cuts exactly it (one step), the words stay; ⌫ again restores it', () => {
+  const lens = { 1: 5 };
+  const p = pauses(said, 5)[1];
+  const sel = { part: 1, s: p.s, e: p.e, pause: true };
+  const cut = toggleSelection([], sel, said, lens);
+  assert.equal(cut.label, 'Cut 0.8 s pause');
+  assert.deepEqual(cut.cuts, [you(p.s, p.e)]);
+  assert.ok(said.every((w) => !isCut(w, cut.cuts)), 'no word is touched');
+  assert.equal(pauseCut(p, 1, cut.cuts)?.by, 'you');
+  const back = toggleSelection(cut.cuts, sel, said, lens);
+  assert.equal(back.label, 'Restored 0.8 s pause');
+  assert.deepEqual(back.cuts, []);
+});
+
+test('a pause half inside a word cut is not cut: ⌫ cuts the rest; touching cuts count together', () => {
+  const p = pauses(said, 5)[1]; // 1.3 … 2.1
+  const half = [you(0.825, 1.7)]; // "there" cut to the pause middle
+  assert.equal(pauseCut(p, 1, half), undefined);
+  const r = toggleSelection(half, { part: 1, ...p, pause: true }, said, { 1: 5 });
+  assert.equal(r.label, 'Cut 0.8 s pause');
+  assert.deepEqual(r.cuts, [you(0.825, 2.1)]);
+  assert.equal(pauseCut(p, 1, [you(1, 1.7), magic(1.7, 2.5)])?.by, 'magic', 'two owners, all covered: the middle decides');
+  assert.equal(pauseCut(p, 1, [you(1.3, 2.1, 2)]), undefined, 'other parts are not touched');
+});
+
+test('strip words: at their times, clipped to their slot, struck by the owner of their cut, only what is in view', () => {
+  const [box] = layout([{ id: 1, duration: 5 }], 100); // 100 pt per second
+  const ws = stripWords(box, said, [magic(2.1, 2.5)], 0, 1000);
+  assert.deepEqual(ws.map((w) => w.text), ['Hi', 'there', 'so', 'yes']);
+  near(ws[0].x, PAD + 50);
+  near(ws[0].w, 35, '"Hi" reaches to "there"');
+  near(ws[1].w, 45, '"there" gets a breath before the pause');
+  assert.deepEqual(ws.map((w) => w.by), [null, null, 'magic', null]);
+  assert.deepEqual(stripWords(box, said, [], PAD + 200, 50).map((w) => w.text), ['so'], 'only the visible range');
+  const [far] = layout([{ id: 1, duration: 5 }], 2); // zoomed out: words too narrow to draw
+  assert.deepEqual(stripWords(far, said, [], 0, 1000), []);
+});
+
+test('pause view: grey block with its length, the cut hatch when cut, selectable by Tab, says what ⌫ does', () => {
+  globalThis.document = fakeDocument();
+  const p = { s: 42, e: 43.2 };
+  const kept = pauseView(p, { left: 10, width: 120, selected: true, index: 2 });
+  assert.equal(kept.textContent, '1.2 s');
+  assert.equal(kept.dataset.pause, 2);
+  assert.equal(kept.tabIndex, 0);
+  assert.equal(kept.attrs.role, 'button');
+  assert.match(kept.className, /ring-accent/, 'selected');
+  assert.equal(kept.attrs['aria-label'], 'Pause, 1.2 seconds, at 0:42.0. Backspace cuts it.');
+  const cut = pauseView(p, { left: 10, width: 20, selected: false, index: 0, cut: magic(42, 44) });
+  assert.match(cut.style.cssText, /255 106 61/, 'cut by Magic: coral hatch');
+  assert.equal(cut.textContent, '', 'no label when cut or narrow');
+  assert.equal(pauseLabel(p, true), 'Pause, 1.2 seconds, at 0:42.0, cut. Backspace restores.');
+  delete globalThis.document;
 });
 
 // ---------- player.js against a fake <video> ----------

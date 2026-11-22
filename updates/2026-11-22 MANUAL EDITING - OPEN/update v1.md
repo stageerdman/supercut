@@ -155,6 +155,13 @@ Check in the window: one full edit of a real recording, keyboard only, then with
   **Not checked in the window**: drag-select feel, the fix field in WebKit (`contenteditable="plaintext-only"`,
   blur on click-away), smooth follow-scroll. Typing a letter opens the fix field only when focus is in the panel
   (clicking a word puts it there); a range picked on the timeline needs a click in the panel before typing.
+- **Transcript strip on the timeline done (Jony)**, spec `design/timeline-strip.md`. Words sit at their times above
+  the track (canvas, clipped to their slot, so zoomed out shows fragments); pauses ≥ 0.2 s (gap minus a 0.1 s breath
+  each side) are blocks you click or Tab to select; ⌫ goes through `toggleSelection` ("Cut 0.8 s pause", one step;
+  all cut → restore). The selection fill covers strip + track, so transcript selections show there too. `#timeline`
+  128 → 152 pt. Files: `src/ui/pauses.js`, `src/ui/strip-view.js`; `timeline.js`, `waveform-view.js` (TRACK moves
+  down), `selection.js` (pause label). Tests: 5 new in `test/timeline.test.mjs`, `npm run test:ui` 95/95.
+  **Not checked in the window**: text legibility at each zoom, click/Tab on pauses in WebKit.
 - Next: Phase 7.
 
 ## Decisions
@@ -176,3 +183,7 @@ Check in the window: one full edit of a real recording, keyboard only, then with
   remnants replaceable by the next run after `withMagic` subtracts your cuts.
 - **The transcript arriving is not an undo step**: `history.everywhere` writes the words into past and future.
 - **Clicking a word no longer starts playback**; it moves the playhead and keeps play/pause as it was.
+- **A pause cut keeps a breath.** The block (and so the cut) stops 0.1 s short of each word, so a cut pause never butts
+  two words together. ⌫ on a pause that's all cut restores it: the same toggle rule as everything else.
+- **Words in the strip aren't selectable**; the transcript panel is where words are picked. The strip is for seeing
+  timing and cutting pauses.
