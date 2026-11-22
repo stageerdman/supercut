@@ -163,6 +163,7 @@ function fakeDom() {
       },
       focus() {},
       before(x) { x.parent = this.parent; this.parent.children.splice(this.parent.children.indexOf(this), 0, x); },
+      after(x) { x.parent = this.parent; this.parent.children.splice(this.parent.children.indexOf(this) + 1, 0, x); },
       remove() { this.parent.children.splice(this.parent.children.indexOf(this), 1); },
       fire(kind, e) { this.listeners[kind]?.forEach((f) => f(e)); },
     };
@@ -216,7 +217,7 @@ test('fix field: opens in place of the words, keys stay inside, Return commits, 
 function panel(edit, sel = { now: null }) {
   const make = fakeDom();
   const box = make('div'), aside = make('aside');
-  const log = { seeks: [], selects: [] };
+  const log = { seeks: [], selects: [], fixes: [], menus: [] };
   const parts = [
     { id: 1, name: 'a', transcript: { seconds: 4, words } },
     { id: 2, name: 'b', transcript: { seconds: 2, words: [W('two', 0.2, 0.5), W('more', 0.6, 0.9)] } },
@@ -227,7 +228,8 @@ function panel(edit, sel = { now: null }) {
     selection: () => sel.now,
     onSelect: (s) => { sel.now = s; log.selects.push(s); t.paintSelection(); },
     onSeek: (i, s) => log.seeks.push([i, s]),
-    onFix() {},
+    onFix: (id, w, label) => log.fixes.push([id, w, label]),
+    onMenu: (at) => log.menus.push(at),
   });
   t.render();
   const spans = (part) => { // the words of a part, through its blocks
@@ -295,5 +297,70 @@ test('panel: ← → move the selection one word, ⇧ extends, and the keys stop
   assert.equal(stopped, 2);
   key('Backspace');
   assert.equal(stopped, 2, '⌫ goes on to the app (cut)');
+  delete globalThis.document;
+});
+
+const fieldIn = (n) => {
+  if (typeof n !== 'object') return null;
+  if (n.contentEditable) return n;
+  for (const c of n.children) { const f = fieldIn(c); if (f) return f; }
+  return null;
+};
+const enter = (f) => f.fire('keydown', { key: 'Enter', stopPropagation() {}, preventDefault() {} });
+
+test('panel: typing on a selected pause opens an empty field before the next word; Return adds the word in that time', () => {
+  let edit = { cuts: [], words: { 1: words, 2: [] } };
+  const p = panel(() => edit, { now: { part: 1, s: 2.05, e: 2.35, pause: true } });
+  p.t.write('n');
+  const field = fieldIn(p.box);
+  assert.ok(field, 'a field opens');
+  assert.equal(field.attrs['aria-label'], 'Write words here');
+  const say = p.spans(0)[4];
+  assert.equal(say.parent.children.indexOf(field), say.parent.children.indexOf(say) - 1, 'right before “say”');
+  assert.ok(!p.spans(0).some((s) => s.classes.has('hidden')), 'no word is hidden');
+  field.textContent = 'not';
+  enter(field);
+  const [id, w, label] = p.log.fixes.at(-1);
+  assert.equal(id, 1);
+  assert.equal(label, 'Added “not”');
+  const k = w.findIndex((x) => x.w === 'not');
+  assert.equal(k, 4);
+  assert.ok(w[k].s >= 2.05 - 1e-9 && w[k].e <= 2.35 + 1e-9, 'inside the selected time');
+  assert.deepEqual(w.filter((x) => x.w !== 'not'), words, 'the neighbours keep their times');
+  delete globalThis.document;
+});
+
+test('panel: a selection with no room between words opens the field over the words it overlaps', () => {
+  let edit = { cuts: [], words: { 1: words, 2: [] } };
+  const p = panel(() => edit, { now: { part: 1, s: 1.6, e: 1.75 } });
+  p.t.write('g');
+  const field = fieldIn(p.box);
+  assert.equal(field.attrs['aria-label'], 'Fix words, gonna');
+  assert.ok(p.spans(0)[3].classes.has('hidden'));
+  field.fire('keydown', { key: 'Escape', stopPropagation() {}, preventDefault() {} });
+  assert.equal(p.log.fixes.length, 0, 'Esc changes nothing');
+  delete globalThis.document;
+});
+
+test('panel: a cut selection never opens the field', () => {
+  let edit = { cuts: [], words: { 1: words, 2: [] } };
+  const p = panel(() => edit, { now: { part: 1, s: 2.05, e: 2.35, cut: true } });
+  p.t.write('n');
+  assert.equal(fieldIn(p.box), null);
+  delete globalThis.document;
+});
+
+test('panel: right-click on a word outside the selection selects it, then opens the menu', () => {
+  let edit = { cuts: [], words: { 1: words, 2: [] } };
+  const p = panel(() => edit);
+  p.fire('pointerdown', p.spans(0)[1]);
+  p.fire('contextmenu', p.spans(0)[4], { clientX: 10, clientY: 20 });
+  assert.deepEqual(wordsIn(p.sel.now, words), { from: 4, to: 4 });
+  assert.deepEqual(p.log.menus.at(-1), { x: 10, y: 20 });
+  p.fire('pointerdown', p.spans(0)[2]);
+  p.fire('pointerdown', p.spans(0)[3], { shiftKey: true });
+  p.fire('contextmenu', p.spans(0)[3], { clientX: 1, clientY: 2 });
+  assert.deepEqual(wordsIn(p.sel.now, words), { from: 2, to: 3 }, 'inside: the selection stays');
+  assert.equal(p.log.menus.length, 2);
   delete globalThis.document;
 });

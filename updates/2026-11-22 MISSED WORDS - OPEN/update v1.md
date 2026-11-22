@@ -106,8 +106,20 @@ Tests: none new; `npm run test:ui` and `npm run test:rust` green.
 
 ## Status (2026-11-22)
 - Design and roadmap written (Jony): `design/missed-words.md`, this file. Edit model, transcript and strip specs
-  point to it. Nothing built yet.
-- Next: Phase 1 (can start now) and AUDIO PAUSES Phases 1–3 in parallel.
+  point to it.
+- Built in code (branch `studio/build-inserting-and-editing-words-in-the-01b6bfea`), tests pass (`npm run test:ui`,
+  153 tests):
+  - **Phase 3, the write rule**: `src/ui/fix.js` (`writeWords`, `writeTarget`), `src/ui/unheard.js`. Unchanged
+    words keep their time; new words fill only free time (unheard first); one undo step; cuts never move.
+  - **Phase 4, typing**: a selected pause or timeline range opens an empty field between the neighbouring words; a
+    selection with no free time opens it over the words it overlaps. Cut selections don't open it. No `…` pills or
+    strip blocks yet: those are Phase 2, which isn't built, so writing into unheard speech only works through a
+    pause or range selection for now.
+  - **Phase 6, right-click**: `src/ui/context-menu.js` (native menu, items from `menuFor`), in the transcript and on
+    the timeline, ⇧F10 from the keyboard; Remove Text.
+- **Not checked in the window** (agents can't see the screen). Also check by hand that the native menu pops up:
+  Tauri's `core:default` permission must allow `menu` popup; if nothing appears on right-click, that's the cause.
+- Not built: Phase 1–2 (speech runs, unheard pills and blocks), Phase 5 (hear again), Phase 7.
 
 ## Decisions
 - **Unheard speech is derived, not stored**: speech runs minus words, recomputed when words change (like pauses).
