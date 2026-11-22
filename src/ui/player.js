@@ -1,15 +1,22 @@
-// PlayerView: one <video> that plays the parts back to back (part 1 runs into part 2).
+// PlayerView: one <video> that plays the parts back to back (part 1 runs into part 2), skipping the cuts.
 // No controls on the video itself; the transport row is the only one.
+// Skipping is checked every frame (requestVideoFrameCallback; timeupdate's 4×/s would run into a cut).
 import { clock } from './dom.js';
+import { skipTarget, cutHere, firstKept, editedTime, editedLength } from './playback.js';
 
 /**
  * @param {HTMLVideoElement} video
- * @param {{parts: () => Array<{path:string,name:string,duration:number}>,
+ * @param {{parts: () => Array<{id:number,path:string,name:string,duration:number}>, cuts: () => Array,
  *          onTime: (i:number, t:number)=>void, onPart: (i:number)=>void, onError: (name:string)=>void}} on
  */
 export function createPlayer(video, on) {
   const { convertFileSrc } = window.__TAURI__.core;
   let current = 0;
+  let through = null; // a cut you chose to play from inside: it plays, the next ones skip
+  let selfSeek = false; // our own jump over a cut, not the user's seek
+
+  const part = () => on.parts()[current];
+  const len = () => video.duration || part()?.duration || 0;
 
   function show(i, at = 0, play = false) {
     const p = on.parts()[i];
@@ -27,23 +34,60 @@ export function createPlayer(video, on) {
     on.onPart(i);
   }
 
+  /** The next part from its first kept moment, or stop: the rest is all cut. */
+  function next(play) {
+    const parts = on.parts();
+    for (let i = current + 1; i < parts.length; i++) {
+      const at = firstKept(on.cuts(), parts[i].id, parts[i].duration || Infinity);
+      if (at != null) return show(i, at, play);
+    }
+    video.pause();
+  }
+
+  /** Every frame while playing: jump over the cut ahead (and any cut touching it). */
+  function tick() {
+    if (video.paused || !part()) return;
+    const id = part().id, cuts = on.cuts(), t = video.currentTime;
+    if (through && !(through.s <= t && t < through.e)) through = null;
+    let to = t, r = skipTarget(id, t, cuts, len(), through);
+    for (let n = 0; r?.t != null && n < 1000; n++) { to = r.t; r = skipTarget(id, to, cuts, len(), through); }
+    if (r?.end) next(true);
+    else if (to !== t) { selfSeek = true; video.currentTime = to; }
+  }
+
+  const frames = typeof video.requestVideoFrameCallback === 'function';
+  function loop() {
+    if (video.paused) return;
+    tick();
+    frames ? video.requestVideoFrameCallback(loop) : requestAnimationFrame(loop);
+  }
+
+  /** You start (or seek) inside a cut: you asked to hear it. */
+  const meant = () => { through = part() ? cutHere(on.cuts(), part().id, video.currentTime) ?? null : null; };
+
   video.addEventListener('loadedmetadata', () => {
-    const p = on.parts()[current];
+    const p = part();
     if (p) p.duration = video.duration;
     on.onTime(current, video.currentTime);
     on.onPart(current);
   });
   video.addEventListener('timeupdate', () => on.onTime(current, video.currentTime));
-  video.addEventListener('play', () => paintPlay(true));
+  video.addEventListener('seeked', () => {
+    if (!selfSeek) meant();
+    selfSeek = false;
+    on.onTime(current, video.currentTime);
+  });
+  video.addEventListener('play', () => { meant(); paintPlay(true); loop(); });
   video.addEventListener('pause', () => paintPlay(false));
-  video.addEventListener('ended', () => current + 1 < on.parts().length && show(current + 1, 0, true));
+  video.addEventListener('ended', () => next(true));
   video.addEventListener('error', () => {
-    const p = on.parts()[current];
+    const p = part();
     if (p && video.getAttribute('src')) on.onError(p.name);
   });
 
   function paintPlay(playing) {
     const btn = document.getElementById('play');
+    if (!btn) return;
     btn.textContent = playing ? '❚❚' : '▶';
     btn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
   }
@@ -60,7 +104,10 @@ export function createPlayer(video, on) {
   return {
     show,
     step,
+    tick, // for tests
     get current() { return current; },
+    get time() { return video.currentTime || 0; },
+    get playing() { return !video.paused; },
     toggle: () => (video.paused ? video.play() : video.pause()),
     play: () => video.play(),
     pause: () => video.pause(),
@@ -81,12 +128,14 @@ export function createPlayer(video, on) {
       } else if (i === current) show(0);
       else if (i < current) current--;
     },
-    /** Readout across all parts: "01:12" / "24:10". */
+    /** Readout in edited time (cuts out, parts back to back): "01:12" / "23:40"; `original` is the uncut length. */
     times() {
-      const parts = on.parts();
-      const before = parts.slice(0, current).reduce((s, p) => s + (p.duration || 0), 0);
-      const total = parts.reduce((s, p) => s + (p.duration || 0), 0);
-      return { at: clock(before + (video.currentTime || 0)), total: clock(total) };
+      const parts = on.parts(), cuts = on.cuts();
+      return {
+        at: clock(editedTime(parts, cuts, current, video.currentTime || 0)),
+        total: clock(editedLength(parts, cuts)),
+        original: clock(parts.reduce((s, p) => s + (p.duration || 0), 0)),
+      };
     },
   };
 }

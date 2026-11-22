@@ -1,0 +1,316 @@
+// The timeline and playback: pure rules (playback.js, timeline-geometry.js, edge-drag.js, cut-view.js labels,
+// waveform-view.js columns) and the player against a fake <video>.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { keptSpans, skipTarget, firstKept, editedTime, editedLength, cutHere } from '../src/ui/playback.js';
+import { layout, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap, snapTargets, tickStep, tickLabel, PAD, GAP, MAX_PPS } from '../src/ui/timeline-geometry.js';
+import { startEdgeDrag } from '../src/ui/edge-drag.js';
+import { cutLabel, cutHover, edgeText, cutView, MIN_W } from '../src/ui/cut-view.js';
+import { bars, ticks } from '../src/ui/waveform-view.js';
+import { toggleRange } from '../src/ui/cuts.js';
+import { FRAME } from '../src/ui/bit.js';
+
+const you = (s, e, part = 1) => ({ part, s, e, by: 'you' });
+const magic = (s, e, reason = 'earlier take', part = 1) => ({ part, s, e, by: 'magic', reason });
+const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg ?? ''} ${a} ≈ ${b}`);
+const two = [{ id: 1, duration: 10 }, { id: 2, duration: 5 }];
+
+// ---------- playback.js ----------
+
+test('keptSpans: what plays, in order, across two parts', () => {
+  const cuts = [you(0, 1), you(4, 6), you(3, 5, 2)];
+  assert.deepEqual(keptSpans(two, cuts), [
+    { part: 1, s: 1, e: 4 }, { part: 1, s: 6, e: 10 },
+    { part: 2, s: 0, e: 3 },
+  ]);
+  assert.deepEqual(keptSpans(two, []), [{ part: 1, s: 0, e: 10 }, { part: 2, s: 0, e: 5 }]);
+});
+
+test('skipTarget: a cut ahead → its end; to the part end → end; inside the one you chose → keep playing', () => {
+  const cuts = [you(2, 3), you(8, 10)];
+  assert.equal(skipTarget(1, 1.5, cuts, 10), null, 'nothing near');
+  assert.deepEqual(skipTarget(1, 2 - FRAME / 2, cuts, 10), { t: 3 }, 'the next frame would be in the cut');
+  assert.deepEqual(skipTarget(1, 2.5, cuts, 10), { t: 3 }, 'already inside');
+  assert.deepEqual(skipTarget(1, 7.99, cuts, 10), { end: true }, 'cut to the end of the part');
+  assert.equal(skipTarget(1, 2.5, cuts, 10, you(2, 3)), null, 'started inside it: it plays');
+  assert.deepEqual(skipTarget(1, 7.99, cuts, 10, you(2, 3)), { end: true }, '…and the next one still skips');
+  assert.equal(skipTarget(2, 2.5, cuts, 5), null, 'other parts are not touched');
+});
+
+test('firstKept: a part starts after a cut at 0; all cut → null', () => {
+  assert.equal(firstKept([you(0, 2, 2)], 2, 5), 2);
+  assert.equal(firstKept([magic(0, 1, 'x', 2), you(1, 2, 2)], 2, 5), 2, 'touching cuts chain');
+  assert.equal(firstKept([you(0, 5, 2)], 2, 5), null);
+  assert.equal(firstKept([], 2, 5), 0);
+});
+
+test('editedTime / editedLength: the finished video clock; inside a cut it is the join', () => {
+  const cuts = [you(2, 4), you(0, 1, 2)];
+  near(editedLength(two, cuts), 8 + 4);
+  near(editedTime(two, cuts, 0, 1), 1);
+  near(editedTime(two, cuts, 0, 3), 2, 'inside the cut: the join');
+  near(editedTime(two, cuts, 0, 5), 3);
+  near(editedTime(two, cuts, 1, 0.5), 8, 'part 2 inside its first cut');
+  near(editedTime(two, cuts, 1, 3), 10);
+  assert.equal(cutHere(cuts, 1, 3)?.s, 2);
+});
+
+// ---------- timeline-geometry.js ----------
+
+test('geometry: time ↔ x round trip at several zooms, parts in order with a gap', () => {
+  for (const pps of [0.5, 10, 120]) {
+    const boxes = layout(two, pps);
+    assert.equal(boxes[0].x, PAD);
+    near(boxes[1].x, PAD + 10 * pps + GAP);
+    for (const [i, t] of [[0, 0], [0, 7.25], [1, 3.5]]) {
+      const hit = timeAt(boxes, xAt(boxes, i, t));
+      assert.equal(hit.i, i);
+      near(hit.t, t, `pps ${pps}`);
+    }
+  }
+});
+
+test('geometry: x is clamped to the part; a drag pins its part', () => {
+  const boxes = layout(two, 10);
+  assert.deepEqual(timeAt(boxes, 0), { i: 0, part: 1, t: 0 });
+  assert.equal(timeAt(boxes, 1e6).t, 5);
+  assert.deepEqual(timeAt(boxes, 1e6, 0), { i: 0, part: 1, t: 10 }, 'pinned to part 1');
+});
+
+test('geometry: fit fills the width; zoom anchored keeps the moment under the same point', () => {
+  const pps = fitPps(two, 1000);
+  const boxes = layout(two, pps);
+  near(boxes[1].x + boxes[1].w + PAD, 1000);
+  assert.ok(fitPps([{ id: 1, duration: 1 }], 1e6) <= MAX_PPS, 'never past the max');
+  // the playhead at 12 pt on screen stays at 12 pt after zooming in
+  const zoomed = layout(two, pps * 4);
+  const scroll = anchoredScroll(12, xAt(zoomed, 0, 6));
+  near(xAt(zoomed, 0, 6) - scroll, 12);
+});
+
+test('geometry: a bit is the time under 4 pt, never under a frame', () => {
+  near(bitFor(4), 1);
+  near(bitFor(40), 0.1);
+  assert.equal(bitFor(10000), FRAME);
+});
+
+test('snap: nearest target within 8 pt; ⌥ moves free; no transcript → only playhead and ends', () => {
+  const targets = snapTargets([{ s: 1, e: 1.4 }, { s: 1.5, e: 2 }], 10, 5);
+  assert.equal(snap(1.44, targets, 100), 1.4, 'nearest of two within reach');
+  assert.equal(snap(1.46, targets, 100), 1.5, 'nearest of two within reach');
+  assert.equal(snap(1.2, targets, 100), 1.2, 'nothing within 8 pt');
+  assert.equal(snap(1.39, targets, 100, true), 1.39, 'free');
+  assert.deepEqual(snapTargets(undefined, 10, null), [0, 10]);
+  assert.equal(snap(4.97, snapTargets([], 10, 5), 100), 5, 'the playhead');
+});
+
+test('ruler: ticks at least 64 pt apart, plain labels', () => {
+  assert.equal(tickStep(1), 120);
+  assert.equal(tickStep(100), 1);
+  assert.equal(tickLabel(90), '1:30');
+  assert.equal(tickLabel(5.5), '0:05.5');
+  const [box] = layout([{ id: 1, duration: 60 }], 10);
+  const t = ticks(box, 0, 400, 10);
+  assert.equal(t[0].label, '0:00');
+  near(t[1].x - t[0].x, 100);
+});
+
+// ---------- edge-drag.js: one drag = one step ----------
+
+const lengths = { 1: 10, 2: 5 };
+
+test('drag: down / move / move / up → one change, the final cut, from the drag-start list', () => {
+  const start = [you(2, 4), you(6, 7)];
+  const d = startEdgeDrag({ cuts: start, cut: start[0], part: 1, side: 'e', lengths, pps: 100 });
+  d.move(4.5);
+  d.move(5);
+  const r = d.end();
+  assert.equal(r.changed, true);
+  assert.equal(r.label, 'Changed a cut');
+  assert.deepEqual(r.cuts, [you(2, 5), you(6, 7)]);
+  assert.equal(r.join, 2, 'the playhead waits before the join');
+  assert.deepEqual(start, [you(2, 4), you(6, 7)], 'nothing accumulates in the start list');
+});
+
+test('drag into a neighbour merges; through the other edge closes it (restored)', () => {
+  const start = [you(2, 4), you(6, 7)];
+  const into = startEdgeDrag({ cuts: start, cut: start[0], part: 1, side: 'e', lengths, pps: 100 });
+  into.move(6.5);
+  assert.deepEqual(into.end().cuts, [you(2, 7)]);
+  const shut = startEdgeDrag({ cuts: start, cut: start[0], part: 1, side: 'e', lengths, pps: 100 });
+  shut.move(2);
+  assert.equal(shut.cut, undefined, 'the chip says 0.0 s');
+  assert.deepEqual(shut.end().cuts, [you(6, 7)]);
+});
+
+test('dragging a Magic cut makes it yours (the reason stays for the hover)', () => {
+  const start = [magic(2, 4)];
+  const d = startEdgeDrag({ cuts: start, cut: start[0], part: 1, side: 's', lengths, pps: 100 });
+  d.move(1.5);
+  assert.deepEqual(d.end().cuts, [{ part: 1, s: 1.5, e: 4, by: 'you', reason: 'earlier take' }]);
+});
+
+test('drag snaps to word edges; ⌥ drags free; clamped to the part', () => {
+  const start = [you(2, 4)];
+  const d = startEdgeDrag({ cuts: start, cut: start[0], part: 1, side: 'e', lengths, targets: [4.5], pps: 100 });
+  d.move(4.47);
+  assert.equal(d.t, 4.5);
+  d.move(4.47, true);
+  assert.equal(d.t, 4.47);
+  d.move(99);
+  assert.equal(d.t, 10);
+});
+
+test('trim: a part edge with no cut there, dragged inward, makes a cut from the start (or to the end)', () => {
+  const head = startEdgeDrag({ cuts: [], part: 1, side: 's', lengths, pps: 100 });
+  head.move(1.5);
+  const r = head.end();
+  assert.deepEqual(r.cuts, [you(0, 1.5)]);
+  assert.equal(r.label, 'Trimmed a part');
+  const tail = startEdgeDrag({ cuts: [you(0, 1)], part: 1, side: 'e', lengths, pps: 100 });
+  tail.move(8);
+  assert.deepEqual(tail.end().cuts, [you(0, 1), you(8, 10)]);
+});
+
+test('a drag that comes back where it started is no step; keyboard nudges add up to one step', () => {
+  const start = [you(2, 4)];
+  const back = startEdgeDrag({ cuts: start, cut: start[0], part: 1, side: 'e', lengths, pps: 100 });
+  back.move(5);
+  back.move(4);
+  assert.equal(back.end().changed, false);
+  const keys = startEdgeDrag({ cuts: start, cut: start[0], part: 1, side: 'e', lengths, pps: 100 });
+  keys.nudge(0.1); keys.nudge(0.1); keys.nudge(0.1);
+  near(keys.end().cuts[0].e, 4.3);
+});
+
+test('a range ⌫ uses the same rule as words: cut it, then all cut → restore it', () => {
+  const range = { part: 1, s: 2, e: 3 };
+  const cut = toggleRange([], range, lengths);
+  assert.equal(cut.label, 'Cut 1.0 s');
+  assert.deepEqual(toggleRange(cut.cuts, range, lengths).cuts, []);
+});
+
+// ---------- cut-view.js: labels, colours, handles ----------
+
+test('a cut reads its times, length and owner; an edge reads its time', () => {
+  assert.equal(cutLabel(magic(42, 44.4)), 'Cut, 0:42.0 to 0:44.4, 2.4 seconds, by Magic Cut: earlier take. Backspace restores.');
+  assert.equal(cutLabel(you(42, 44.4)), 'Cut, 0:42.0 to 0:44.4, 2.4 seconds, yours. Backspace restores.');
+  assert.equal(edgeText('s', 42.3), 'Start of cut, 0:42.3');
+  assert.equal(cutHover({ ...you(1, 2), reason: 'earlier take' }, true), 'Magic Cut: earlier take', 'a Magic cut you changed still says why');
+  assert.equal(cutHover(you(1, 3.4), false), 'Cut · 2.4 s · Zoom in to drag');
+});
+
+/** Just enough DOM for cut-view. */
+function fakeDocument() {
+  const make = (tag) => ({
+    tag, className: '', style: {}, dataset: {}, attrs: {}, children: [],
+    setAttribute(k, v) { this.attrs[k] = v; }, append(...c) { this.children.push(...c); },
+  });
+  return { createElement: make };
+}
+
+test('cut view: hatch in its owner colour, handles only with room, never invisible', () => {
+  globalThis.document = fakeDocument();
+  const wide = cutView(magic(2, 4), { left: 20, width: 40, selected: true, index: 3 });
+  assert.match(wide.style.cssText, /255 106 61/, 'Magic is coral');
+  assert.match(wide.className, /ring-accent/, 'selected');
+  assert.equal(wide.dataset.cut, 3);
+  assert.deepEqual(wide.children.map((h) => h.attrs.role), ['slider', 'slider']);
+  assert.equal(wide.children[0].attrs['aria-valuetext'], 'Start of cut, 0:02.0');
+  const thin = cutView(you(2, 2.05), { left: 20, width: 0.5, selected: false, index: 0 });
+  assert.match(thin.style.cssText, /158 161 168/, 'yours is grey');
+  assert.match(thin.style.cssText, new RegExp(`width:${MIN_W}px`));
+  assert.equal(thin.children.length, 0, 'too small to drag: zoom in');
+  delete globalThis.document;
+});
+
+// ---------- waveform-view.js ----------
+
+test('waveform: scaled to the loudest moment, dimmed inside cuts, only what is in view', () => {
+  const [box] = layout([{ id: 1, duration: 2 }], 100); // 200 pt wide, 2 pt per bar = 1 peak per bar
+  const wf = { perSecond: 100, peaks: Array.from({ length: 200 }, (_, i) => (i < 100 ? 64 : 128)) };
+  const cols = bars(box, wf, [you(1, 2)], 0, 1000);
+  assert.equal(cols.length, 100);
+  near(cols[0].h, 0.5);
+  near(cols.at(-1).h, 1);
+  assert.equal(cols[0].cut, false);
+  assert.equal(cols.at(-1).cut, true);
+  assert.equal(bars(box, wf, [], 116, 50).length, 25, 'only the visible range');
+  assert.deepEqual(bars(box, undefined, [], 0, 1000), [], 'no waveform yet: the flat line');
+});
+
+// ---------- player.js against a fake <video> ----------
+
+function fakeVideo() {
+  const on = {};
+  return {
+    on, paused: true, currentTime: 0, duration: 10, readyState: 1, dataset: {}, src: '',
+    addEventListener(k, f) { (on[k] ??= []).push(f); },
+    emit(k) { (on[k] ?? []).forEach((f) => f()); },
+    play() { this.paused = false; this.emit('play'); },
+    pause() { this.paused = true; this.emit('pause'); },
+    getAttribute: () => 'x', removeAttribute() {}, load() {},
+    requestVideoFrameCallback() {},
+  };
+}
+
+async function rigPlayer(cuts) {
+  globalThis.window = { __TAURI__: { core: { convertFileSrc: (p) => p } } };
+  globalThis.document = { getElementById: () => null };
+  const { createPlayer } = await import('../src/ui/player.js');
+  const video = fakeVideo();
+  const parts = [{ id: 1, path: 'a', duration: 10 }, { id: 2, path: 'b', duration: 5 }];
+  const player = createPlayer(video, { parts: () => parts, cuts: () => cuts, onTime() {}, onPart() {}, onError() {} });
+  return { video, player };
+}
+
+test('player: playing skips each cut on the frame before it, and cuts that touch in one jump', async () => {
+  const { video, player } = await rigPlayer([you(2, 3), magic(3, 4)]);
+  player.show(0, 1);
+  video.play();
+  video.currentTime = 1.99;
+  player.tick();
+  assert.equal(video.currentTime, 4, 'straight past both');
+  video.emit('seeked');
+  video.currentTime = 4.5;
+  player.tick();
+  assert.equal(video.currentTime, 4.5);
+});
+
+test('player: started inside a cut, that cut plays; a cut to the part end goes on to the next part', async () => {
+  const { video, player } = await rigPlayer([you(2, 3), you(8, 10), you(0, 1, 2)]);
+  player.show(0, 2.5);
+  video.play();
+  player.tick();
+  assert.equal(video.currentTime, 2.5, 'you asked to hear it');
+  video.currentTime = 7.99;
+  player.tick();
+  assert.equal(player.current, 1, 'on to part 2');
+  assert.equal(video.currentTime, 1, "from part 2's first kept moment");
+});
+
+test('player: a cut to the very end stops there; paused never jumps; readout is edited time', async () => {
+  const { video, player } = await rigPlayer([you(3, 5, 2)]);
+  player.show(1, 2.99);
+  video.duration = 5; // part 2's file
+  video.play();
+  player.tick();
+  assert.equal(video.paused, true, 'stopped');
+  video.currentTime = 4;
+  player.tick();
+  assert.equal(video.currentTime, 4, 'paused: no skipping');
+  assert.deepEqual(player.times(), { at: '00:13', total: '00:13', original: '00:15' });
+  delete globalThis.window;
+  delete globalThis.document;
+});
+
+// ---------- wiring ----------
+
+test('the timeline only calls commands Rust registers', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const root = new URL('../', import.meta.url);
+  const handlers = (await readFile(new URL('src-tauri/src/main.rs', root), 'utf8')).match(/generate_handler!\[([^\]]*)\]/)[1];
+  const main = await readFile(new URL('src/main.js', root), 'utf8');
+  for (const cmd of [...main.matchAll(/invoke\('(\w+)'/g)].map((m) => m[1])) assert.match(handlers, new RegExp(`\\b${cmd}\\b`), cmd);
+  assert.match(main, /invoke\('waveform'/);
+});

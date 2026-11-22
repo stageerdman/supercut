@@ -76,14 +76,17 @@
           </aside>
         </div>
 
-        <!-- Transport row: play, time -->
+        <!-- Transport row: play, edited time; zoom far right (its only job) -->
         <div class="flex h-10 shrink-0 items-center gap-3 border-t border-hairline px-4">
           <button id="play" aria-label="Play" class="w-6 text-text hover:text-accent">▶</button>
-          <span id="time" class="tabular-nums text-text-secondary">00:00 / 00:00</span>
+          <span id="time" class="flex-1 tabular-nums text-text-secondary">00:00 / 00:00</span>
+          <button id="zoom-out" aria-label="Zoom out" title="Zoom out (⌘−)" class="flex size-7 items-center justify-center rounded-md text-text-secondary hover:text-text">−</button>
+          <input id="zoom" type="range" min="0" max="100" value="0" aria-label="Timeline zoom" class="w-24 accent-accent" />
+          <button id="zoom-in" aria-label="Zoom in" title="Zoom in (⌘+)" class="flex size-7 items-center justify-center rounded-md text-text-secondary hover:text-text">+</button>
         </div>
 
-        <!-- Timeline: parts in order, then the add-slot while fewer than two -->
-        <div id="timeline" class="flex h-[120px] shrink-0 items-stretch gap-2 border-t border-hairline p-4"></div>
+        <!-- Timeline: ruler, one track per part (waveform, cuts), playhead, then the add-slot (src/ui/timeline.js) -->
+        <div id="timeline" aria-label="Timeline" class="relative h-[128px] shrink-0 overflow-x-auto overflow-y-hidden border-t border-hairline"></div>
       </main>
     </div>
     <script type="module" src="main.js"></script>

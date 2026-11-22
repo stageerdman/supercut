@@ -16,10 +16,15 @@ pub fn bundled_ffmpeg() -> PathBuf {
 }
 
 pub fn decode(ffmpeg: &Path, input: &Path) -> Result<Vec<f32>, AppError> {
+    decode_at(ffmpeg, input, RATE)
+}
+
+/// Mono f32 samples at `rate` Hz (the waveform uses a lower rate than speech).
+pub fn decode_at(ffmpeg: &Path, input: &Path, rate: usize) -> Result<Vec<f32>, AppError> {
     let out = Command::new(ffmpeg)
         .args(["-hide_banner", "-loglevel", "error", "-nostdin", "-i"])
         .arg(input)
-        .args(["-vn", "-ac", "1", "-ar", "16000", "-f", "f32le", "-"])
+        .args(["-vn", "-ac", "1", "-ar", &rate.to_string(), "-f", "f32le", "-"])
         .stdin(Stdio::null())
         // .output() drains stdout and stderr together, so a chatty stderr can't block the pipe.
         .output()

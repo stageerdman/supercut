@@ -14,6 +14,7 @@ mod project;
 mod recognizer;
 mod rules;
 mod transcribe;
+mod waveform;
 mod words;
 
 use error::AppError;
@@ -85,6 +86,15 @@ fn remove_part(project: State<Shared>, id: u32) -> Result<(), AppError> {
     project.lock().unwrap().remove(id)
 }
 
+/// The timeline's waveform for one part. Runs right after the part is added, beside transcription.
+#[tauri::command]
+async fn waveform(project: State<'_, Shared>, id: u32) -> Result<waveform::Waveform, AppError> {
+    let path = project.lock().unwrap().get(id)?.path.clone();
+    tauri::async_runtime::spawn_blocking(move || waveform::of_file(&audio::bundled_ffmpeg(), &path))
+        .await
+        .map_err(|e| AppError::Unreadable { file: String::new(), why: e.to_string() })?
+}
+
 /// Downloads the model first if needed, then transcribes. Emits `progress` (see `Progress`).
 #[tauri::command]
 async fn transcribe_part(app: tauri::AppHandle, project: State<'_, Shared>, id: u32) -> Result<transcribe::Transcript, AppError> {
@@ -146,7 +156,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Shared::default())
-        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, get_rules, save_rules, add_video, remove_part, transcribe_part])
+        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, get_rules, save_rules, add_video, remove_part, transcribe_part, waveform])
         .run(tauri::generate_context!())
         .expect("error while running Magic Cut");
 }

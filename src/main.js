@@ -4,11 +4,11 @@ import { $ } from './ui/dom.js';
 import { VIDEO, paintDrag } from './ui/dropzone.js';
 import { showBanner, hideBanner } from './ui/banner.js';
 import { workText, makeEta, createStatusLine } from './ui/status.js';
-import { renderTimeline } from './ui/timeline.js';
-import { renderTranscript, paintCuts, selectedWords, highlightWord } from './ui/transcript.js';
-import { toggleWords, withMagic } from './ui/cuts.js';
+import { createTimeline } from './ui/timeline.js';
+import { renderTranscript, paintCuts as paintStruck, selectedWords, highlightWord } from './ui/transcript.js';
+import { toggleWords, toggleRange, withMagic } from './ui/cuts.js';
 import { withWords, withoutPart } from './ui/edit.js';
-import { createHistory } from './ui/history.js';
+import { createHistory, changed } from './ui/history.js';
 import { bit } from './ui/bit.js';
 import { createMagic, claudeBanner } from './ui/magic.js';
 import { paintMagic } from './ui/magic-button.js';
@@ -34,9 +34,23 @@ const lengths = () => Object.fromEntries(parts.map((p) => [p.id, p.transcript?.s
 /** The parts as the views and Magic see them: with the edit's words (fixes included). */
 const edited = () => parts.map((p) => (p.transcript ? { ...p, transcript: { ...p.transcript, words: history.edit.words[p.id] ?? [] } } : p));
 
+/** Each part's waveform ({ perSecond, peaks }), by part id, once Rust has read it. */
+const waveforms = new Map();
+/** The cuts while an edge is being dragged or nudged (not an undo step yet); null otherwise. */
+let live = null;
+const cutsNow = () => live ?? history.edit.cuts;
+
+/** Repaint everything that shows the cuts: transcript strikes, timeline, readout. */
+function paintEdit() {
+  paintStruck(cutsNow());
+  timeline.paintCuts();
+  renderTime();
+}
+
 /** Record one user gesture as one undo step and repaint the cuts. */
 function commit(edit, label, extra) {
-  if (history.push(edit, label, extra)) paintCuts(history.edit.cuts);
+  history.push(edit, label, extra);
+  paintEdit();
 }
 
 // ---------- Claude: checked once when the first video loads, so there's time to fix it ----------
@@ -59,10 +73,43 @@ const status = createStatusLine({ box: $('work'), text: $('status'), track: $('p
 
 const player = createPlayer($('player'), {
   parts: () => parts,
-  onTime: (i, t) => { renderTime(); highlightWord(i, t); },
-  onPart: () => paintTimeline(),
+  cuts: cutsNow,
+  onTime: (i, t) => { renderTime(); highlightWord(i, t); timeline.paintPlayhead(player.playing); },
+  onPart: () => timeline.render(),
   onError: (name) => showBanner(`${name} can't be played here. Its transcript still works.`),
 });
+
+const timeline = createTimeline($('timeline'), {
+  parts: () => parts,
+  cuts: cutsNow,
+  words: (id) => history.edit.words[id] ?? [],
+  waveform: (id) => waveforms.get(id),
+  lengths,
+  playhead: () => ({ i: player.current, t: player.time }),
+  current: () => player.current,
+  max: MAX_PARTS,
+  onSeek: (i, t) => player.show(i, t, player.playing), // keeps play/pause
+  onLive: (c) => { live = c; paintEdit(); },
+  onCommit: (c, label) => { live = null; commit({ ...history.edit, cuts: c }, label); },
+  onToggle: () => cutSelection(),
+  onRemove: removePart,
+  onDragStart: () => player.pause(),
+  onZoom: (z) => ($('zoom').value = Math.round(z * 100)),
+});
+$('zoom').oninput = (e) => timeline.zoomTo(e.target.value / 100);
+$('zoom-out').onclick = () => timeline.zoomBy(-0.1);
+$('zoom-in').onclick = () => timeline.zoomBy(0.1);
+
+/** The waveform comes right after the part is added, beside transcription. A failure leaves the flat line. */
+function loadWaveform(id) {
+  invoke('waveform', { id }).then((w) => {
+    waveforms.set(id, w);
+    const p = parts.find((x) => x.id === id);
+    if (p && !p.duration) p.duration = w.seconds;
+    timeline.render();
+    renderTime();
+  }, () => {});
+}
 
 const magic = createMagic({
   runner,
@@ -113,6 +160,7 @@ async function addVideos(paths) {
         if (runner) claude().then((s) => s.state !== 'ready' && showBanner(...claudeBanner(s)));
       }
       render();
+      loadWaveform(part.id);
       queue = queue.then(() => transcribe(part.id));
     } catch (e) {
       showBanner(String(e));
@@ -132,14 +180,20 @@ async function removePart(id) {
 
 /** ⌘Z / ⇧⌘Z. A "Removed part" step also puts the file back (undo) or takes it out again (redo). */
 async function undoRedo(redo) {
+  if (live) return; // mid-drag: the drag ends first
   const before = history.edit;
   const step = redo ? history.redo() : history.undo();
   if (!step) return;
+  timeline.clearSelection();
   if (step.removed) {
     await (redo ? takeOutAgain(step.removed) : putBack(step.removed));
-    render();
-  } else if (before.words !== history.edit.words) paintTranscript();
-  else paintCuts(history.edit.cuts);
+    return render();
+  }
+  if (before.words !== history.edit.words) paintTranscript();
+  paintEdit();
+  const what = changed(before, history.edit); // bring the change into view
+  const i = parts.findIndex((p) => p.id === what?.part);
+  if (i >= 0) timeline.reveal(i, what.s);
 }
 
 /** Undo of a removal: same file, new id (renamed through the history), same place. No re-transcribing. */
@@ -147,6 +201,8 @@ async function putBack({ part, index }) {
   try {
     const { id } = await invoke('add_video', { path: part.path });
     history.rename(part.id, id);
+    if (waveforms.has(part.id)) waveforms.set(id, waveforms.get(part.id));
+    else loadWaveform(id);
     parts.splice(index, 0, { ...part, id });
     player.added(index);
     if (!part.transcript && !part.error) queue = queue.then(() => transcribe(id));
@@ -205,19 +261,35 @@ document.addEventListener('keydown', (e) => {
   if (e.metaKey && e.key === 'Enter') { e.preventDefault(); pressMagic(); return; }
   if (typing) return;
   if (e.metaKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undoRedo(e.shiftKey); return; }
+  if (e.metaKey && (e.key === '=' || e.key === '+')) { e.preventDefault(); timeline.zoomBy(0.1); return; }
+  if (e.metaKey && e.key === '-') { e.preventDefault(); timeline.zoomBy(-0.1); return; }
+  if (e.metaKey && e.key === '0') { e.preventDefault(); timeline.zoomTo(0); return; }
   if (e.metaKey || e.ctrlKey || e.altKey || !parts.length) return;
   if (e.key === ' ' && !e.target.closest('button, [role=button]')) { e.preventDefault(); player.toggle(); }
+  else if (e.key === 'ArrowLeft' && e.shiftKey) { e.preventDefault(); timeline.grow(-1); }
+  else if (e.key === 'ArrowRight' && e.shiftKey) { e.preventDefault(); timeline.grow(1); }
   else if (e.key === 'ArrowLeft') { e.preventDefault(); player.step(-bit()); }
   else if (e.key === 'ArrowRight') { e.preventDefault(); player.step(bit()); }
   else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); cutSelection(); }
+  else if (e.key === 'Escape') timeline.clearSelection();
 });
 $('play').onclick = () => player.toggle();
 
-/** Backspace: cut the selected words, or bring them back if they're all cut already. */
+/**
+ * Backspace, the one toggle rule: the timeline's range (or selected cut), else the selected words.
+ * All of it cut already → restore it, else cut it.
+ */
 function cutSelection() {
+  if (live) return;
+  const { edit } = history;
+  const range = timeline.selection;
+  if (range) {
+    const { cuts, label } = toggleRange(edit.cuts, range, lengths());
+    timeline.clearSelection();
+    return commit({ ...edit, cuts }, label);
+  }
   const [picked] = selectedWords(); // a selection stays in the part it began in (design/edit-model.md)
   if (!picked) return;
-  const { edit } = history;
   const { cuts, label } = toggleWords(edit.cuts, picked.part, picked.words, edit.words[picked.part] ?? [], lengths());
   commit({ ...edit, cuts }, label);
 }
@@ -230,30 +302,26 @@ function render() {
   $('editor').classList.toggle('hidden', !has);
   $('editor').classList.toggle('flex', has);
   $('title').textContent = has ? parts[0].name.replace(/\.[^.]+$/, '') : '';
-  paintTimeline();
+  timeline.render();
   paintTranscript();
   renderTime();
   magic.update();
   status.render();
 }
 
+/** Edited time: what the finished video will be ("01:12 / 23:40"); hover shows the original length. */
 function renderTime() {
-  const { at, total } = player.times();
+  const { at, total, original } = player.times();
   $('time').textContent = `${at} / ${total}`;
-}
-
-function paintTimeline() {
-  renderTimeline($('timeline'), {
-    parts,
-    current: player.current,
-    max: MAX_PARTS,
-    onPick: (i) => player.show(i),
-    onRemove: removePart,
-  });
+  $('time').title = `Original ${original}`;
 }
 
 function paintTranscript() {
-  renderTranscript({ parts: edited(), cuts: history.edit.cuts, onSeek: (i, t) => player.show(i, t, true) });
+  renderTranscript({
+    parts: edited(),
+    cuts: cutsNow(),
+    onSeek: (i, t) => { timeline.clearSelection(); player.show(i, t, player.playing); timeline.reveal(i, t); },
+  });
 }
 
 render();
