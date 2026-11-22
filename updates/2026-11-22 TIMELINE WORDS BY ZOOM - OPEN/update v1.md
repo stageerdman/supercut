@@ -76,7 +76,18 @@ mid-letter or overlapping, no flicker at the two thresholds; a Magic run's cuts 
 ## Status (2026-11-22)
 - Roadmap and design written (Jony): this file, `design/timeline-words-by-zoom.md`; `design/timeline-strip.md`,
   `design/timeline.md` and `design/user-model.md` point to it.
-- Next: Phase 1.
+- **Phase 1 done** (`src/ui/word-levels.js`, `test/word-levels.test.mjs`): levels by points per word with
+  hysteresis, phrase starts (reuses `endsSentence` from `blocks.js`), greedy whole-word layout with obstacles
+  (next label, pause blocks, cuts, part end; 6 pt gap). Cut words are not laid out.
+- **Phase 2 done** (`stripPainter()` in `src/ui/strip-view.js`; `drawTimeline` returns "still fading" and the
+  timeline asks for another frame): per-key 120 ms fade-in, 150 ms level crossfade, Reduce Motion instant, Increase
+  Contrast text 100 %, width cache per string. No `clip()` and no strike lines left. Labels are laid out a screen
+  beyond each side, so scrolling never fades in a label we already had.
+- Cost per frame on a 20-minute, 3000-word part with 60 cuts: ≤ 0.4 ms at every level (measured in node).
+- Not yet checked in the window (agents can't see the screen): the pinch from fit to full zoom and back.
+- Until Phase 3 lands, cut words simply vanish from the strip (the cut is still drawn in the track); the cut
+  block over strip + track replaces that.
+- Next: Phase 3 (cut blocks).
 
 ## Decisions
 - **Levels by points per word, not seconds on screen.** A fast talker needs more room; ppw follows the talk.

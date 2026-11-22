@@ -7,7 +7,7 @@ export const LOOSE_WORDS = 80; // after this many, any pause of LOOSE_PAUSE will
 export const LOOSE_PAUSE = 0.4;
 export const MAX_WORDS = 120; // no punctuation, no pauses: break anyway
 
-const endsSentence = (w) => /[.?!…]["'”’)]*$/.test(w);
+export const endsSentence = (w) => /[.?!…]["'”’)]*$/.test(w);
 
 /**
  * @param {Array<{w:string,s:number,e:number}>} words

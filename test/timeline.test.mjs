@@ -9,7 +9,7 @@ import { cutLabel, cutHover, edgeText, cutView, MIN_W } from '../src/ui/cut-view
 import { bars, ticks } from '../src/ui/waveform-view.js';
 import { toggleRange, isCut } from '../src/ui/cuts.js';
 import { pauses, pauseCut, MIN_PAUSE } from '../src/ui/pauses.js';
-import { stripWords, pauseView, pauseLabel } from '../src/ui/strip-view.js';
+import { pauseView, pauseLabel } from '../src/ui/strip-view.js';
 import { toggleSelection } from '../src/ui/selection.js';
 import { FRAME } from '../src/ui/bit.js';
 
@@ -324,19 +324,6 @@ test('a pause half inside a word cut is not cut: ⌫ cuts the rest; touching cut
   assert.deepEqual(r.cuts, [you(0.825, 2.1)]);
   assert.equal(pauseCut(p, 1, [you(1, 1.7), magic(1.7, 2.5)])?.by, 'magic', 'two owners, all covered: the middle decides');
   assert.equal(pauseCut(p, 1, [you(1.3, 2.1, 2)]), undefined, 'other parts are not touched');
-});
-
-test('strip words: at their times, clipped to their slot, struck by the owner of their cut, only what is in view', () => {
-  const [box] = layout([{ id: 1, duration: 5 }], 100); // 100 pt per second
-  const ws = stripWords(box, said, [magic(2.1, 2.5)], 0, 1000);
-  assert.deepEqual(ws.map((w) => w.text), ['Hi', 'there', 'so', 'yes']);
-  near(ws[0].x, PAD + 50);
-  near(ws[0].w, 35, '"Hi" reaches to "there"');
-  near(ws[1].w, 45, '"there" gets a breath before the pause');
-  assert.deepEqual(ws.map((w) => w.by), [null, null, 'magic', null]);
-  assert.deepEqual(stripWords(box, said, [], PAD + 200, 50).map((w) => w.text), ['so'], 'only the visible range');
-  const [far] = layout([{ id: 1, duration: 5 }], 2); // zoomed out: words too narrow to draw
-  assert.deepEqual(stripWords(far, said, [], 0, 1000), []);
 });
 
 test('pause view: grey block with its length, the cut hatch when cut, selectable by Tab, says what ⌫ does', () => {

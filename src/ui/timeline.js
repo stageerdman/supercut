@@ -9,7 +9,7 @@ import { layout, contentWidth, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap
 import { cutView, edgeHandle, secs, MIN_W } from './cut-view.js';
 import { drawTimeline, RULER, STRIP, TRACK } from './waveform-view.js';
 import { pauses, pauseCut } from './pauses.js';
-import { pauseView } from './strip-view.js';
+import { pauseView, stripPainter } from './strip-view.js';
 import { startEdgeDrag } from './edge-drag.js';
 import { cutsOf } from './cuts.js';
 import { toggleSelection } from './selection.js';
@@ -231,6 +231,7 @@ export function createTimeline(root, o) {
   }
 
   let frameReq = 0;
+  const strip = stripPainter(); // keeps the word level shown and the fades
   function draw() {
     if (frameReq) return;
     const paint = () => {
@@ -239,7 +240,11 @@ export function createTimeline(root, o) {
       canvas.style.left = `${root.scrollLeft}px`;
       canvas.style.width = `${width}px`;
       canvas.style.height = `${HEIGHT}px`;
-      drawTimeline(canvas, { boxes, scroll: root.scrollLeft, width, height: HEIGHT, pps, waveforms: o.waveform, words: o.words, cuts: o.cuts() });
+      const fading = drawTimeline(canvas, {
+        boxes, scroll: root.scrollLeft, width, height: HEIGHT, pps, waveforms: o.waveform, words: o.words, cuts: o.cuts(),
+        lengths: o.lengths(), strip,
+      });
+      if (fading && globalThis.requestAnimationFrame) draw(); // the next frame of a word fade
     };
     globalThis.requestAnimationFrame ? (frameReq = requestAnimationFrame(paint)) : paint();
   }

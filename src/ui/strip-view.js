@@ -1,66 +1,95 @@
-// The transcript strip on top of the timeline: each word at its time (drawn on the timeline's canvas, clipped to its
-// slot, so zoomed out you see fragments) and each pause as a block you can select (a DOM element: click, Tab, ⌫).
-// Spec: design/timeline-strip.md. Layout and labels are pure and tested in test/timeline.test.mjs.
+// The transcript strip on top of the timeline: the words that fit this zoom (drawn on the timeline's canvas: every
+// word, the first words of each phrase, or none; always whole, never overlapping) and each pause as a block you can
+// select (a DOM element: click, Tab, ⌫). Spec: design/timeline-words-by-zoom.md (words), design/timeline-strip.md
+// (pauses). Which words go where: word-levels.js. Tested in test/word-levels.test.mjs and test/timeline.test.mjs.
 import { el } from './dom.js';
-import { cutAt, cutsOf } from './cuts.js';
 import { cutStyle, at } from './cut-view.js';
-import { BREATH } from './pauses.js';
+import { pauses } from './pauses.js';
+import { secondsPerWord, levelFor, layoutLabels } from './word-levels.js';
 
 export const STRIP = { top: 32, h: 20 };
 const TEXT = '242, 242, 243';
 const GREY = '158, 161, 168';
-const LINE = { you: `rgba(${GREY}, 0.9)`, magic: 'rgba(255, 106, 61, 0.9)' };
-const MIN_SLOT = 4; // narrower than this, a word draws nothing (the pauses still show where speech is)
 const LABEL_W = 36; // a pause this wide says its length
-
-/** Index of the first word that ends after t (words in order). */
-function firstAfter(words, t) {
-  let lo = 0, hi = words.length;
-  while (lo < hi) {
-    const m = (lo + hi) >> 1;
-    if (words[m].e <= t) lo = m + 1; else hi = m;
-  }
-  return lo;
-}
+export const FADE_IN = 120; // ms: a label that appears inside a level
+export const CROSSFADE = 150; // ms: the old level's labels out, the new one's in
+const easeOut = (p) => 1 - (1 - Math.min(1, Math.max(0, p))) ** 3;
+const media = (q) => () => !!globalThis.matchMedia?.(q).matches;
 
 /**
- * The words of one part in view: [{ x, w, text, by }] in view points. `w` is the word's slot (to the next word, or a
- * breath past its end before a pause); `by` is the owner of the cut it's in, or null. Pure.
+ * The strip's word painter. It keeps the level shown (for the hysteresis) and when each label appeared (for the
+ * fades), so make one per timeline. `now`, `reduceMotion` and `moreContrast` are passed in by tests.
  */
-export function stripWords(box, words = [], cuts, scroll, width) {
-  const k = box.w / box.len;
-  const mine = cutsOf(cuts, box.id);
-  const out = [];
-  for (let i = firstAfter(words, (scroll - box.x) / k); i < words.length; i++) {
-    const wd = words[i];
-    const x = box.x + wd.s * k - scroll;
-    if (x > width) break;
-    const end = Math.min(words[i + 1]?.s ?? box.len, wd.e + BREATH, box.len);
-    const w = (end - wd.s) * k;
-    if (w >= MIN_SLOT) out.push({ x, w, text: wd.w, by: cutAt(wd, mine)?.by ?? null });
-  }
-  return out;
-}
+export function stripPainter({
+  now = () => globalThis.performance?.now() ?? Date.now(),
+  reduceMotion = media('(prefers-reduced-motion: reduce)'),
+  moreContrast = media('(prefers-contrast: more)'),
+} = {}) {
+  let level; // the level shown
+  let from = null; // { level, at }: the level fading out
+  let born = new Map(); // key → when it appeared (ms)
+  const widths = new Map(); // text → drawn width, per word string (one font)
 
-/** Paint the strip's words for every part in view. `g` is the timeline canvas' context, already scaled. */
-export function drawStrip(g, { boxes, scroll, width, words, cuts }) {
-  const y = STRIP.top + STRIP.h / 2;
-  for (const box of boxes) {
-    if (box.x + box.w < scroll || box.x > scroll + width) continue;
-    for (const { x, w, text, by } of stripWords(box, words(box.id), cuts, scroll, width)) {
-      g.save();
-      g.beginPath();
-      g.rect(x, STRIP.top, w - 1, STRIP.h);
-      g.clip();
-      g.fillStyle = by ? `rgba(${GREY}, 0.5)` : `rgba(${TEXT}, 0.9)`;
-      g.fillText(text, x + 1, y);
-      if (by) {
-        g.fillStyle = LINE[by];
-        g.fillRect(x, y, Math.min(w - 1, g.measureText(text).width + 2), 1);
+  /**
+   * Paint the words of every part in view. `g` is the timeline canvas' context, already scaled, font set.
+   * `words(id)` a part's words, `lengths` { [id]: seconds } where known, `pps` points per second.
+   * @returns {boolean} still fading: paint again next frame
+   */
+  function draw(g, { boxes, scroll, width, pps, words, cuts, lengths = {} }) {
+    const t = now();
+    const still = reduceMotion();
+    const measure = (s) => {
+      let w = widths.get(s);
+      if (w == null) {
+        if (widths.size > 20000) widths.clear();
+        widths.set(s, (w = g.measureText(s).width));
       }
-      g.restore();
+      return w;
+    };
+    const spw = secondsPerWord(boxes.map((b) => words(b.id)));
+    const next = levelFor(spw == null ? null : pps * spw, level);
+    if (level !== undefined && next !== level && !still) from = { level, at: t };
+    level = next;
+    const p = from && !still ? easeOut((t - from.at) / CROSSFADE) : 1;
+    if (p >= 1) from = null;
+
+    // Lay out a screen beyond each side too, so a label scrolling into view is one we already know (no fade).
+    const lay = (lvl) => boxes.flatMap((box) => {
+      if (box.x + box.w < scroll - width || box.x > scroll + 2 * width) return [];
+      const ws = words(box.id);
+      return layoutLabels({
+        box, words: ws, cuts, pauses: pauses(ws, lengths[box.id] ?? box.len),
+        scroll: scroll - width, width: 3 * width, level: lvl, measure,
+      }).map((l) => ({ ...l, x: l.x - width }));
+    });
+
+    const alpha = moreContrast() ? 1 : 0.9;
+    const y = STRIP.top + STRIP.h / 2;
+    const paint = (labels, a) => {
+      for (const l of labels) {
+        if (a <= 0 || l.x > width || l.x + measure(l.text) < 0) continue;
+        g.fillStyle = `rgba(${TEXT}, ${+(alpha * a).toFixed(3)})`;
+        g.fillText(l.text, l.x, y);
+      }
+    };
+
+    let fading = !!from;
+    if (from) paint(lay(from.level), 1 - p);
+    const shown = lay(level);
+    const seen = new Map();
+    for (const l of shown) {
+      // During a crossfade the new set fades in together; after it, they count as shown.
+      const b = still || from ? -Infinity : born.get(l.key) ?? t;
+      seen.set(l.key, b);
+      const a = from ? p : easeOut((t - b) / FADE_IN);
+      if (a < 1) fading = true;
+      paint([l], a);
     }
+    born = seen; // a label that no longer fits goes at once
+    return fading;
   }
+
+  return { draw, level: () => level };
 }
 
 const spoken = (p) => `${(p.e - p.s).toFixed(1)} seconds`;

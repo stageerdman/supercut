@@ -2,7 +2,7 @@
 // One canvas the size of the view, moved with the scroll (a 30-minute part zoomed in is far wider than a canvas can be).
 import { tickStep, tickLabel } from './timeline-geometry.js';
 import { cutsOf } from './cuts.js';
-import { STRIP, drawStrip } from './strip-view.js';
+import { STRIP, stripPainter } from './strip-view.js';
 
 export const RULER = { top: 8, h: 20 };
 export { STRIP };
@@ -42,8 +42,13 @@ export function ticks(box, scroll, width, pps) {
   return out;
 }
 
-/** Paint the view. `canvas` is moved to `scroll` and sized to `width` by the caller. */
-export function drawTimeline(canvas, { boxes, scroll, width, height, pps, waveforms, words, cuts }) {
+let fallback;
+
+/**
+ * Paint the view. `canvas` is moved to `scroll` and sized to `width` by the caller. `strip` is the timeline's word
+ * painter (stripPainter()). Returns true while the words are still fading: paint again next frame.
+ */
+export function drawTimeline(canvas, { boxes, scroll, width, height, pps, waveforms, words, cuts, lengths, strip }) {
   const dpr = globalThis.devicePixelRatio || 1;
   if (canvas.width !== Math.round(width * dpr)) canvas.width = Math.round(width * dpr);
   if (canvas.height !== Math.round(height * dpr)) canvas.height = Math.round(height * dpr);
@@ -76,5 +81,5 @@ export function drawTimeline(canvas, { boxes, scroll, width, height, pps, wavefo
       g.fillRect(x, mid - y, BAR - 1, y * 2);
     }
   }
-  if (words) drawStrip(g, { boxes, scroll, width, words, cuts });
+  return words ? (strip ?? (fallback ??= stripPainter())).draw(g, { boxes, scroll, width, pps, words, cuts, lengths }) : false;
 }
