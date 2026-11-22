@@ -50,7 +50,7 @@ One window, three zones. Nothing else.
   The **status line** sits left of the actions: a label ("Transcribing… 42 % · about 3 min") and its own 96 pt bar on a track. It's gone when there's nothing to say.
   (It used to be a bare 2 pt bar on the transport row; the user read it as the video's own progress.)
 - **Player:** fills the space, video letterboxed on pure black. No controls on the video itself — the transport row is the only one.
-- **Transcript panel** (Phase 3 on): 320 pt, right of the player. Before Phase 3, or before a video loads, **it does not exist** — the player takes the full width. No empty panels, ever.
+- **Transcript panel** (Phase 3 on): 320 pt by default, right of the player; drag its left edge to resize (remembered; `design/transcript-panel.md`). Before Phase 3, or before a video loads, **it does not exist** — the player takes the full width. No empty panels, ever.
 - **Transport row:** play/pause, time (current / edited length), zoom slider (far right). Nothing here that isn't about the video's own time.
 - **Timeline:** one video track (thumbnails + waveform in the same clip, like CapCut). Clips sit in order with an 8 pt gap. The add-slot sits after the last clip while there are fewer than two.
 
@@ -157,6 +157,7 @@ A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, o
 | Esc | Clear the selection (in the fix field: cancel) |
 | ⌘Z / ⇧⌘Z | Undo / redo (every edit: cuts, edges, fixes, a Magic run). The status line says what it undid |
 | ⌘O | Choose video |
+| ⌘F | Search the transcript (↩ / ⇧↩ step, Esc clears) |
 | ⌘ + / ⌘ − / ⌘0 | Zoom timeline / fit |
 | ⌘↩ | Magic (⌘M is taken by macOS Minimize) |
 | ⌘E | Export |

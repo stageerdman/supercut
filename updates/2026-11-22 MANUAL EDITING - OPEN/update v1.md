@@ -162,6 +162,12 @@ Check in the window: one full edit of a real recording, keyboard only, then with
   128 → 152 pt. Files: `src/ui/pauses.js`, `src/ui/strip-view.js`; `timeline.js`, `waveform-view.js` (TRACK moves
   down), `selection.js` (pause label). Tests: 5 new in `test/timeline.test.mjs`, `npm run test:ui` 95/95.
   **Not checked in the window**: text legibility at each zoom, click/Tab on pauses in WebKit.
+- **Transcript panel done (Jony)**, spec `design/transcript-panel.md`: blocks with start times (`blocks.js`),
+  a draggable, remembered width (`divider.js`), a rail mini-timeline beside the words that replaces the scrollbar
+  (`rail.js`), search with 2/5, arrows, Enter / ⇧Enter, Esc, ⌘F (`search.js`, `transcript-search.js`), and every
+  seek (timeline click/scrub, rail, ← →) scrolls the transcript there via `transcript.goTo` (`main.js` `seekTo`).
+  Tests: `test/panel.test.mjs` (16), `npm run test:ui` 115/115.
+  **Not checked in the window**: divider drag feel, the rail's look at real lengths, block sizes on a real talk (A11).
 - Next: Phase 7.
 
 ## Decisions

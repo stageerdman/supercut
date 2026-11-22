@@ -1,6 +1,7 @@
 # Editing in the transcript
 
-Author: Jony · 2026-11-22 · Status: ready to build (Phase 6). Model: `design/edit-model.md`. Panel layout: `design/main-screen.md` (320 pt, right of the player).
+Author: Jony · 2026-11-22 · Status: built. The panel around the words (blocks, width, rail, search, following
+seeks) is `design/transcript-panel.md`. Model: `design/edit-model.md`. Panel layout: `design/main-screen.md` (320 pt, right of the player).
 Checked against `design/user-model.md`: the first thing people try with a transcript is select + Backspace (observed);
 Descript habit "text = video".
 
