@@ -9,6 +9,8 @@ where the person is still talking. And the transcript misses fewer words in the 
 - [x] Phase 1 — `vad.rs`: Silero VAD v5 in Rust. Done 2026-11-22 (`speech.rs`, `vad.rs`, `onnx.rs`).
 - [x] Phase 2 — transcribe in silence-split pieces (root cause of missed words). Done 2026-11-22 (`pieces.rs`).
 - [x] Phase 3 — pauses from speech runs, not words. Done 2026-11-22 (`timeline.js` `pausesFor`, strip uses the same).
+- [x] Installed 2026-11-22 into `/Applications/Magic Cut.app` (commit 84a664b, with word inserting/editing) for the
+  user to try on a real recording. Old transcripts keep word-gap pauses until re-transcribed.
 - [ ] Phase 4 — what's still unheard: mark it, re-recognize it on request (moved to MISSED WORDS)
 
 ## Build plan (Uncle Bob, 2026-11-22)
