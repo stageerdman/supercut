@@ -14,7 +14,8 @@
   --color-danger: #ff5a5f;
 }
 
-/* Selected words in the transcript: accent tint (design/visual-system.md: accent = selection). */
-#transcript ::selection {
-  background: rgb(255 106 61 / 0.32);
+/* The fix field is the one place in the transcript where text can be selected. */
+#transcript [contenteditable] {
+  user-select: text;
+  -webkit-user-select: text;
 }

@@ -5,9 +5,10 @@ import { VIDEO, paintDrag } from './ui/dropzone.js';
 import { showBanner, hideBanner } from './ui/banner.js';
 import { workText, makeEta, createStatusLine } from './ui/status.js';
 import { createTimeline } from './ui/timeline.js';
-import { renderTranscript, paintCuts as paintStruck, selectedWords, highlightWord } from './ui/transcript.js';
-import { toggleWords, toggleRange, withMagic } from './ui/cuts.js';
-import { withWords, withoutPart } from './ui/edit.js';
+import { createTranscript } from './ui/transcript.js';
+import { withMagic } from './ui/cuts.js';
+import { toggleSelection } from './ui/selection.js';
+import { withWords, withoutPart, partsWithWords } from './ui/edit.js';
 import { createHistory, changed } from './ui/history.js';
 import { bit } from './ui/bit.js';
 import { createMagic, claudeBanner } from './ui/magic.js';
@@ -32,7 +33,7 @@ const transcribing = () => parts.some((p) => !p.transcript && !p.error);
 /** Each part's length where known, so cuts stay inside it. */
 const lengths = () => Object.fromEntries(parts.map((p) => [p.id, p.transcript?.seconds || p.duration || undefined]));
 /** The parts as the views and Magic see them: with the edit's words (fixes included). */
-const edited = () => parts.map((p) => (p.transcript ? { ...p, transcript: { ...p.transcript, words: history.edit.words[p.id] ?? [] } } : p));
+const edited = () => partsWithWords(parts, history.edit);
 
 /** Each part's waveform ({ perSecond, peaks }), by part id, once Rust has read it. */
 const waveforms = new Map();
@@ -42,7 +43,7 @@ const cutsNow = () => live ?? history.edit.cuts;
 
 /** Repaint everything that shows the cuts: transcript strikes, timeline, readout. */
 function paintEdit() {
-  paintStruck(cutsNow());
+  transcript.paintCuts();
   timeline.paintCuts();
   renderTime();
 }
@@ -74,7 +75,7 @@ const status = createStatusLine({ box: $('work'), text: $('status'), track: $('p
 const player = createPlayer($('player'), {
   parts: () => parts,
   cuts: cutsNow,
-  onTime: (i, t) => { renderTime(); highlightWord(i, t); timeline.paintPlayhead(player.playing); },
+  onTime: (i, t) => { renderTime(); transcript.highlight(i, t); timeline.paintPlayhead(player.playing); },
   onPart: () => timeline.render(),
   onError: (name) => showBanner(`${name} can't be played here. Its transcript still works.`),
 });
@@ -95,6 +96,20 @@ const timeline = createTimeline($('timeline'), {
   onRemove: removePart,
   onDragStart: () => player.pause(),
   onZoom: (z) => ($('zoom').value = Math.round(z * 100)),
+  onSelect: () => transcript.paintSelection(), // one selection, shown in both views
+});
+
+const transcript = createTranscript($('transcript'), $('transcript-panel'), {
+  parts: edited,
+  cuts: cutsNow,
+  selection: () => timeline.selection,
+  onSelect: (sel) => timeline.select(sel),
+  onSeek: (i, t) => { player.show(i, t, player.playing); timeline.reveal(i, t); }, // keeps play/pause
+  onFix: (id, words, label) => {
+    timeline.clearSelection();
+    commit(withWords(history.edit, id, words), label); // one undo step; Magic reads these words next run
+    transcript.render();
+  },
 });
 $('zoom').oninput = (e) => timeline.zoomTo(e.target.value / 100);
 $('zoom-out').onclick = () => timeline.zoomBy(-0.1);
@@ -189,11 +204,11 @@ async function undoRedo(redo) {
     await (redo ? takeOutAgain(step.removed) : putBack(step.removed));
     return render();
   }
-  if (before.words !== history.edit.words) paintTranscript();
+  if (before.words !== history.edit.words) transcript.render();
   paintEdit();
-  const what = changed(before, history.edit); // bring the change into view
+  const what = changed(before, history.edit); // bring the change into view, in both views
   const i = parts.findIndex((p) => p.id === what?.part);
-  if (i >= 0) timeline.reveal(i, what.s);
+  if (i >= 0) { timeline.reveal(i, what.s); transcript.reveal(what.part, what.s); }
 }
 
 /** Undo of a removal: same file, new id (renamed through the history), same place. No re-transcribing. */
@@ -276,21 +291,16 @@ document.addEventListener('keydown', (e) => {
 $('play').onclick = () => player.toggle();
 
 /**
- * Backspace, the one toggle rule: the timeline's range (or selected cut), else the selected words.
+ * Backspace, the one toggle rule, on the one selection (words, a time range or a cut, from either view).
  * All of it cut already → restore it, else cut it.
  */
 function cutSelection() {
-  if (live) return;
+  const sel = timeline.selection;
+  if (live || !sel) return;
   const { edit } = history;
-  const range = timeline.selection;
-  if (range) {
-    const { cuts, label } = toggleRange(edit.cuts, range, lengths());
-    timeline.clearSelection();
-    return commit({ ...edit, cuts }, label);
-  }
-  const [picked] = selectedWords(); // a selection stays in the part it began in (design/edit-model.md)
-  if (!picked) return;
-  const { cuts, label } = toggleWords(edit.cuts, picked.part, picked.words, edit.words[picked.part] ?? [], lengths());
+  const { cuts, label } = toggleSelection(edit.cuts, sel, edit.words[sel.part] ?? [], lengths());
+  if (!label) return;
+  timeline.clearSelection();
   commit({ ...edit, cuts }, label);
 }
 
@@ -303,7 +313,7 @@ function render() {
   $('editor').classList.toggle('flex', has);
   $('title').textContent = has ? parts[0].name.replace(/\.[^.]+$/, '') : '';
   timeline.render();
-  paintTranscript();
+  transcript.render();
   renderTime();
   magic.update();
   status.render();
@@ -314,14 +324,6 @@ function renderTime() {
   const { at, total, original } = player.times();
   $('time').textContent = `${at} / ${total}`;
   $('time').title = `Original ${original}`;
-}
-
-function paintTranscript() {
-  renderTranscript({
-    parts: edited(),
-    cuts: cutsNow(),
-    onSeek: (i, t) => { timeline.clearSelection(); player.show(i, t, player.playing); timeline.reveal(i, t); },
-  });
 }
 
 render();

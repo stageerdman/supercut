@@ -7,6 +7,10 @@ export const emptyEdit = () => ({ cuts: [], words: {} });
 /** A part's transcript arrived (or its words were fixed). */
 export const withWords = (edit, part, words) => ({ ...edit, words: { ...edit.words, [part]: words } });
 
+/** The parts as the views and Magic see them: each transcript with the edit's words (fixes included). */
+export const partsWithWords = (parts, edit) =>
+  parts.map((p) => (p.transcript ? { ...p, transcript: { ...p.transcript, words: edit.words[p.id] ?? [] } } : p));
+
 /** The edit with one part's cuts and words gone. */
 export function withoutPart(edit, part) {
   const { [part]: _gone, ...words } = edit.words;
