@@ -96,6 +96,10 @@ mid-letter or overlapping, no flicker at the two thresholds; a Magic run's cuts 
 - Not built (small, left for later): the 120 ms fade-out of a restored block, the 200 ms fade-in of Magic's new
   blocks, and the Increase Contrast variant of the block.
 - Not yet checked in the window: click a cut, ⌫, ⌫, ⌘Z on a real recording.
+- **Installed** (`npm run install-app` from main at c4f7c14): `/Applications/Magic Cut.app` embeds frontend
+  `9f15272e1708ba57` = `frontendId(src)` of this checkout, which holds both phases; Spotlight lists it, it opened.
+  The install used to fail after copying when the build output was never registered with Launch Services
+  (`lsregister -u` → -10814); unregistering it is now best-effort.
 - Next: Phase 4 (docs, check in the window).
 
 ## Decisions

@@ -56,11 +56,19 @@ function removeOld(dest) {
   if (existsSync(dest)) throw new Error(`could not remove ${dest}`);
 }
 
+function unregister(app) {
+  try {
+    execFileSync(LSREGISTER, ['-u', app], { stdio: 'ignore' });
+  } catch {
+    // lsregister fails (-10814) when the app was never registered: already the state we want.
+  }
+}
+
 function indexForSpotlight(dest, built) {
   // Only the installed copy should be known to Launch Services, so Spotlight, the Dock and
   // `open` never pick the build output. Then hand the bundle to Spotlight right away,
   // instead of waiting for the background indexer to notice the copy.
-  run(LSREGISTER, ['-u', built]);
+  unregister(built);
   run(LSREGISTER, ['-f', dest]);
   run('mdimport', [dest]);
 }
