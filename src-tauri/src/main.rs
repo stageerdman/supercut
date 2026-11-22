@@ -138,9 +138,14 @@ fn auto_cut_file(file: &Path) -> Result<Vec<autocut::decide::Cut>, AppError> {
 fn main() {
     // CLI modes let `npm run smoke` prove the packaged app really works:
     // `--transcribe <file>` (bundled ffmpeg + ONNX Runtime), `--claude-test` (the user's Claude Code)
-    // and `--auto-cut <file>` (both, through Magic's engine).
+    // and `--auto-cut <file>` (both, through Magic's engine). `--build-id` lets
+    // `npm run install-app` prove which frontend this binary embeds (see build.rs).
     let args: Vec<String> = std::env::args().collect();
     match args.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
+        [_, "--build-id"] => {
+            println!("{}", env!("MAGIC_CUT_FRONTEND_ID"));
+            std::process::exit(0)
+        }
         [_, "--transcribe", file] => print_and_exit(transcribe::transcribe_file(
             &parakeet::model_dir(),
             &audio::bundled_ffmpeg(),
