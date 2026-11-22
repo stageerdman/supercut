@@ -5,7 +5,7 @@
 // waveform-view.js · strip: strip-view.js, pauses.js · edge drags: edge-drag.js. It keeps no cuts of its own: it reads
 // `cuts()` and reports changes.
 import { el, clock } from './dom.js';
-import { layout, contentWidth, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap, snapTargets, MAX_PPS, GAP } from './timeline-geometry.js';
+import { layout, contentWidth, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap, snapTargets, zoomScaled, pinchFactor, wheelFactor, MAX_PPS, GAP } from './timeline-geometry.js';
 import { cutView, edgeHandle, secs } from './cut-view.js';
 import { drawTimeline, RULER, STRIP, TRACK } from './waveform-view.js';
 import { pauses, pauseCut } from './pauses.js';
@@ -32,6 +32,7 @@ const EPS = 1e-6;
 export function createTimeline(root, o) {
   let z = 0; // zoom: 0 = fit … 1 = MAX_PPS, on a log scale (so each step feels the same)
   let pps = 1;
+  let fit = 1; // pps at z = 0
   let boxes = [];
   let frames = [];
   let lanes = [];
@@ -49,7 +50,7 @@ export function createTimeline(root, o) {
   chip.style.top = `${RULER.top}px`;
   chip.onclick = () => o.onToggle();
   const head = el('div', 'pointer-events-none absolute z-[5] w-px bg-accent');
-  head.style.cssText = `top:${RULER.top}px;height:${TRACK.top + TRACK.h - RULER.top}px`;
+  head.style.cssText = `left:0;will-change:transform;top:${RULER.top}px;height:${TRACK.top + TRACK.h - RULER.top}px`;
   const tip = el('div', 'absolute -top-px -left-1 h-0 w-0');
   tip.style.cssText += 'border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-top:9px solid var(--color-accent)';
   head.append(tip);
@@ -62,7 +63,7 @@ export function createTimeline(root, o) {
 
   function render() {
     const parts = o.parts();
-    const fit = fitPps(parts, root.clientWidth || 800, extra());
+    fit = fitPps(parts, root.clientWidth || 800, extra());
     pps = fit >= MAX_PPS ? fit : fit * (MAX_PPS / fit) ** z;
     setBit(bitFor(pps));
     boxes = layout(parts, pps);
@@ -169,14 +170,15 @@ export function createTimeline(root, o) {
     o.onSelect?.(s); // the transcript highlights the same words
   }
 
-  /** Move the playhead line. While playing, page the view when it passes 90 % (so it sits at 10 %). */
-  function paintPlayhead(playing) {
-    const { i, t } = o.playhead();
+  /** Move the playhead line (to `at`, the smooth play clock's { i, t }, else the player's time). While playing, page
+   *  the view when it passes 90 % (so it sits at 10 %). A transform, at sub-pixel x: it glides, and nothing re-lays out. */
+  function paintPlayhead(playing, at = o.playhead()) {
+    const { i, t } = at;
     const b = boxes[i];
     head.classList.toggle('hidden', !b);
     if (!b) return;
     const x = xAt(boxes, i, Math.min(t, b.len));
-    head.style.left = `${Math.round(x)}px`;
+    head.style.transform = `translateX(${x.toFixed(2)}px)`;
     const v = x - root.scrollLeft, w = root.clientWidth;
     if (playing && (v > 0.9 * w || v < 0)) root.scrollLeft = x - 0.1 * w;
   }
@@ -347,13 +349,42 @@ export function createTimeline(root, o) {
     o.onZoom?.(z);
   }
 
+  // Pinch and ⌘-scroll zoom in proportion to the gesture, on the pointer. Many events arrive per frame: the last
+  // level wins and the view re-lays out once per frame.
+  let pending = null; // { z, anchor, sx }
+  let zoomReq = 0;
+  function zoomSoon(nz, e) {
+    if (!boxes.length) return;
+    const { x } = local(e);
+    pending = { z: nz, anchor: pending?.anchor ?? timeAt(boxes, x), sx: pending?.sx ?? x - root.scrollLeft };
+    if (zoomReq) return;
+    const go = () => {
+      zoomReq = 0;
+      const p = pending;
+      pending = null;
+      if (p && Math.abs(p.z - z) > 1e-4) zoomTo(p.z, p.anchor, p.sx);
+    };
+    globalThis.requestAnimationFrame ? (zoomReq = requestAnimationFrame(go)) : go();
+  }
+  const zoomGoal = () => pending?.z ?? z;
+
+  // WebKit (the app's window) reports a trackpad pinch as gesture events with a cumulative `scale`.
+  let pinch = null; // { z0 } while a gesture is on
+  let pinchEnd = 0;
+  root.addEventListener('gesturestart', (e) => { e.preventDefault(); pinch = { z0: zoomGoal() }; });
+  root.addEventListener('gesturechange', (e) => {
+    if (!pinch) return;
+    e.preventDefault();
+    zoomSoon(zoomScaled(pinch.z0, pinchFactor(e.scale), fit), e);
+  });
+  root.addEventListener('gestureend', (e) => { e.preventDefault(); pinch = null; pinchEnd = e.timeStamp || performance.now(); });
+
   root.addEventListener('scroll', draw);
   root.addEventListener('wheel', (e) => {
-    if (e.ctrlKey) { // pinch: zoom on the pointer
+    if (e.ctrlKey || e.metaKey) { // Chromium's pinch (⌃-wheel), or ⌘-scroll: zoom on the pointer
       e.preventDefault();
-      const { x } = local(e);
-      const { i, t } = timeAt(boxes, x);
-      zoomTo(z - e.deltaY * 0.01, { i, t }, x - root.scrollLeft);
+      if (pinch || (e.timeStamp || performance.now()) - pinchEnd < 150) return; // the gesture events have it
+      zoomSoon(zoomScaled(zoomGoal(), wheelFactor(e.deltaY, e.deltaMode), fit), e);
     } else if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { // a mouse wheel scrolls sideways
       e.preventDefault();
       root.scrollLeft += e.deltaY;

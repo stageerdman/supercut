@@ -75,7 +75,8 @@ const status = createStatusLine({ box: $('work'), text: $('status'), track: $('p
 const player = createPlayer($('player'), {
   parts: () => parts,
   cuts: cutsNow,
-  onTime: (i, t) => { renderTime(); transcript.highlight(i, t); timeline.paintPlayhead(player.playing); },
+  onTime: (i, t) => { renderTime(); transcript.highlight(i, t); if (!player.playing) timeline.paintPlayhead(false); },
+  onFrame: (i, t) => timeline.paintPlayhead(true, { i, t }), // while playing: every display frame, smooth
   onPart: () => timeline.render(),
   onError: (name) => showBanner(`${name} can't be played here. Its transcript still works.`),
 });

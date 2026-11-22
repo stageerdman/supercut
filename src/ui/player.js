@@ -3,11 +3,12 @@
 // Skipping is checked every frame (requestVideoFrameCallback; timeupdate's 4×/s would run into a cut).
 import { clock } from './dom.js';
 import { skipTarget, cutHere, firstKept, editedTime, editedLength } from './playback.js';
+import { createPlayClock } from './play-clock.js';
 
 /**
  * @param {HTMLVideoElement} video
  * @param {{parts: () => Array<{id:number,path:string,name:string,duration:number}>, cuts: () => Array,
- *          onTime: (i:number, t:number)=>void, onPart: (i:number)=>void, onError: (name:string)=>void}} on
+ *          onTime: (i:number, t:number)=>void, onFrame?: (i:number, t:number)=>void, onPart: (i:number)=>void, onError: (name:string)=>void}} on
  */
 export function createPlayer(video, on) {
   const { convertFileSrc } = window.__TAURI__.core;
@@ -62,6 +63,18 @@ export function createPlayer(video, on) {
     frames ? video.requestVideoFrameCallback(loop) : requestAnimationFrame(loop);
   }
 
+  // The playhead moves every display frame while playing, on a smooth clock (not on timeupdate's 4×/s steps).
+  const glideClock = createPlayClock();
+  let frameReq = 0;
+  function glide() {
+    frameReq = 0;
+    if (video.paused) return;
+    const t = glideClock.read(video.currentTime, performance.now(), { rate: video.playbackRate, key: current });
+    on.onFrame?.(current, t);
+    frameReq = requestAnimationFrame(glide);
+  }
+  const startGlide = () => { glideClock.reset(); if (!frameReq && globalThis.requestAnimationFrame) frameReq = requestAnimationFrame(glide); };
+
   /** You start (or seek) inside a cut: you asked to hear it. */
   const meant = () => { through = part() ? cutHere(on.cuts(), part().id, video.currentTime) ?? null : null; };
 
@@ -75,9 +88,10 @@ export function createPlayer(video, on) {
   video.addEventListener('seeked', () => {
     if (!selfSeek) meant();
     selfSeek = false;
+    glideClock.reset(); // a seek or a skipped cut: the line goes straight there
     on.onTime(current, video.currentTime);
   });
-  video.addEventListener('play', () => { meant(); paintPlay(true); loop(); });
+  video.addEventListener('play', () => { meant(); paintPlay(true); loop(); startGlide(); });
   video.addEventListener('pause', () => paintPlay(false));
   video.addEventListener('ended', () => next(true));
   video.addEventListener('error', () => {

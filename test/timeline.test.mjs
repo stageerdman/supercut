@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { keptSpans, skipTarget, firstKept, editedTime, editedLength, cutHere } from '../src/ui/playback.js';
-import { layout, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap, snapTargets, tickStep, tickLabel, PAD, GAP, MAX_PPS } from '../src/ui/timeline-geometry.js';
+import { layout, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap, snapTargets, tickStep, tickLabel, zoomScaled, pinchFactor, wheelFactor, PINCH_GAIN, PAD, GAP, MAX_PPS } from '../src/ui/timeline-geometry.js';
 import { startEdgeDrag } from '../src/ui/edge-drag.js';
 import { cutLabel, cutHover, edgeText, cutView, MIN_W } from '../src/ui/cut-view.js';
 import { bars, ticks } from '../src/ui/waveform-view.js';
@@ -89,6 +89,49 @@ test('geometry: fit fills the width; zoom anchored keeps the moment under the sa
   const zoomed = layout(two, pps * 4);
   const scroll = anchoredScroll(12, xAt(zoomed, 0, 6));
   near(xAt(zoomed, 0, 6) - scroll, 12);
+});
+
+test('zoom: a pinch scales the view in proportion, the same at any length; ⌘-scroll too, one notch capped', () => {
+  const ppsAt = (z, fit) => fit * (MAX_PPS / fit) ** z;
+  for (const fit of [0.4, 12]) { // a 30-minute and a 1-minute recording
+    const z1 = zoomScaled(0.2, pinchFactor(2.5), fit); // one full spread
+    near(ppsAt(z1, fit) / ppsAt(0.2, fit), 2.5 ** PINCH_GAIN);
+    near(zoomScaled(z1, pinchFactor(1 / 2.5), fit), 0.2, 'pinching back returns exactly');
+  }
+  assert.equal(zoomScaled(0.99, 10, 1), 1, 'clamped at the max');
+  assert.equal(zoomScaled(0.01, 0.1, 1), 0, 'and at fit');
+  assert.equal(zoomScaled(0.3, 2, MAX_PPS), 0.3, 'already at the max: nothing to zoom');
+  assert.ok(wheelFactor(-10) > 1 && wheelFactor(10) < 1, 'up / spread zooms in');
+  near(wheelFactor(-10) * wheelFactor(10), 1);
+  near(wheelFactor(-1000), wheelFactor(-25), 'a mouse notch is capped');
+  near(wheelFactor(-1, 1), wheelFactor(-16), 'lines count as 16 pt');
+  // 20 small trackpad events (deltaY 5 each) zoom ×7: a real distance, not a nudge
+  near(wheelFactor(-5) ** 20, Math.exp(2));
+});
+
+test('play clock: glides between coarse readings, never steps back, takes seeks and part changes at once', async () => {
+  const { createPlayClock } = await import('../src/ui/play-clock.js');
+  const c = createPlayClock();
+  assert.equal(c.read(10, 0), 10);
+  // the video still says 10 s, 16 ms later: the line runs on
+  near(c.read(10, 16), 10.016);
+  near(c.read(10, 32), 10.032);
+  // a reading a hair behind the estimate: the line holds, no step back
+  const before = c.read(10, 48);
+  assert.ok(c.read(10.04, 50) >= before);
+  // 2× speed runs twice as fast
+  const c2 = createPlayClock();
+  c2.read(5, 0, { rate: 2 });
+  near(c2.read(5, 100, { rate: 2 }), 5.2);
+  // a stall: never more than half a second past the last reading
+  assert.ok(c.read(10.04, 5000) <= 10.54 + 1e-9);
+  // a skipped cut or seek: straight there (either way)
+  assert.equal(c.read(20, 5016), 20);
+  assert.equal(c.read(3, 5032), 3);
+  // a new part starts at its own time
+  assert.equal(c.read(0.5, 5048, { key: 1 }), 0.5);
+  // paused: exactly the video's time
+  assert.equal(c.read(7, 6000, { playing: false }), 7);
 });
 
 test('geometry: a bit is the time under 4 pt, never under a frame', () => {

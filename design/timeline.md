@@ -52,9 +52,23 @@ Spec: `design/timeline-strip.md`.
 | Hover a cut edge, or a part's outer start/end | 4 × 40 pt handle in the cut's colour (accent for a bare part edge), cursor ↔. Hit area 12 pt wide, full track height |
 | Drag an edge | See "Dragging an edge" |
 | ⇧← / ⇧→ | Grow a time selection from the playhead by one bit (keyboard cutting) |
-| ⌘+ / ⌘− / pinch / slider | Zoom, anchored on the playhead (pinch: on the pointer). Fit is the start; ⌘0 back to fit |
+| ⌘+ / ⌘− / pinch / ⌘-scroll / slider | Zoom, anchored on the playhead (pinch, ⌘-scroll: on the pointer). Fit is the start; ⌘0 back to fit. See "Zoom" |
 | Two-finger swipe, ⇧-wheel | Scroll sideways |
 | Esc | Clear the selection |
+
+### Zoom
+- **Proportional**: a pinch scales the view by the fingers' scale **squared** (a full spread, ×2.5, zooms ×6; pinching
+  back returns exactly). The same at any recording length: a pinch is a feel, not a share of the slider.
+  WebKit sends `gesturechange` (`scale`); Chromium sends ⌃-wheel (`deltaY` ≈ −100·ln scale); both map to the same
+  factor. ⌘-scroll zooms the same way; one mouse-wheel notch is capped at ×1.65.
+- **On the pointer**: the moment under it stays under it. Applied once per frame (many events arrive per frame).
+- Code: `zoomScaled`, `pinchFactor`, `wheelFactor` in `src/ui/timeline-geometry.js`.
+
+### Playhead
+- **Glides while playing**: moved every display frame (requestAnimationFrame) on a smooth clock (`src/ui/play-clock.js`),
+  not on `timeupdate`'s 4×/s steps. Between coarse `currentTime` readings it runs on at the playback rate; it never
+  steps back; a seek or skipped cut (> 0.25 s off) goes straight there; a stall runs on at most 0.5 s. Paused: exactly
+  the video's time. Drawn with a sub-pixel transform, so nothing re-lays out.
 
 ### Dragging an edge
 - **Live**: the cut grows or shrinks as you move; the transcript strikes/unstrikes words as you go; the player shows the

@@ -45,6 +45,28 @@ export function timeAt(boxes, x, i) {
 /** The scroll that keeps the same moment at the same place on screen after a zoom. */
 export const anchoredScroll = (screenX, newContentX) => Math.max(0, newContentX - screenX);
 
+// Pinch zoom is proportional: the view scales with the fingers, amplified so one pinch covers a real distance
+// (a full spread, ×2.5 on the trackpad, zooms ×6). Spec: design/timeline.md § Zoom.
+export const PINCH_GAIN = 2;
+const WHEEL_K = 0.01; // ⌃-wheel (Chromium pinch, ⌘-scroll): deltaY ≈ −100·ln(scale)
+const WHEEL_MAX = 25; // one mouse-wheel notch zooms at most ×1.65
+
+/** The zoom level (0 = fit … 1 = MAX_PPS, log scale) after scaling the view by `factor`. */
+export function zoomScaled(z, factor, fit) {
+  const range = Math.log(MAX_PPS / fit);
+  if (!(range > 0) || !(factor > 0)) return z;
+  return Math.min(1, Math.max(0, z + Math.log(factor) / range));
+}
+
+/** The pinch factor for a WebKit gesture's `scale` (cumulative since gesturestart). */
+export const pinchFactor = (scale) => scale ** PINCH_GAIN;
+
+/** The factor for one ⌃/⌘-wheel event: deltaY in pixels (deltaMode 1 = lines). Up / spread zooms in. */
+export function wheelFactor(deltaY, deltaMode = 0) {
+  const dy = Math.max(-WHEEL_MAX, Math.min(WHEEL_MAX, deltaY * (deltaMode === 1 ? 16 : deltaMode === 2 ? 400 : 1)));
+  return Math.exp(-dy * WHEEL_K * PINCH_GAIN);
+}
+
 /** Seconds per ← → step: the time under 4 pt, never under a frame. */
 export const bitFor = (pps) => Math.max(4 / pps, FRAME);
 
