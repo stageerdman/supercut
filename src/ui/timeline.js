@@ -23,6 +23,7 @@ const EPS = 1e-6;
 /**
  * @param {HTMLElement} root  the scrolling box
  * @param {{parts: () => Array<{id:number,name:string,duration:number}>, cuts: () => Array, words: (id:number) => Array,
+ *   speech?: (id:number) => (Array<{s:number,e:number}>|undefined),
  *   waveform: (id:number) => ({perSecond:number,peaks:number[]}|undefined), lengths: () => object,
  *   playhead: () => ({i:number,t:number}), current: () => number, max: number,
  *   onSeek: (i:number, t:number) => void, onLive: (cuts:Array|null) => void, onCommit: (cuts:Array, label:string) => void,
@@ -158,8 +159,9 @@ export function createTimeline(root, o) {
     return l;
   }
 
-  /** The pauses of part i, from the edit's words (fixes included). */
-  const pausesOf = (i) => pauses(o.words(boxes[i].id), o.lengths()[boxes[i].id] ?? boxes[i].len);
+  /** A part's pauses: the silences between the audio's speech runs; words (fixes included) when it has none. */
+  const pausesFor = (box) => pauses(o.speech?.(box.id) ?? o.words(box.id), o.lengths()[box.id] ?? box.len);
+  const pausesOf = (i) => pausesFor(boxes[i]);
 
   function addSlot() {
     const last = boxes.at(-1);
@@ -269,7 +271,7 @@ export function createTimeline(root, o) {
       canvas.style.height = `${HEIGHT}px`;
       const fading = drawTimeline(canvas, {
         boxes, scroll: root.scrollLeft, width, height: HEIGHT, pps, waveforms: o.waveform, words: o.words, cuts: o.cuts(),
-        lengths: o.lengths(), strip,
+        pauses: pausesFor, strip,
       });
       if (fading && globalThis.requestAnimationFrame) draw(); // the next frame of a word fade
     };

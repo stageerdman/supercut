@@ -9,11 +9,15 @@ mod error;
 mod keep_awake;
 mod log;
 mod media;
+mod onnx;
 mod parakeet;
 mod project;
 mod recognizer;
+mod pieces;
 mod rules;
+mod speech;
 mod transcribe;
+mod vad;
 mod waveform;
 mod words;
 

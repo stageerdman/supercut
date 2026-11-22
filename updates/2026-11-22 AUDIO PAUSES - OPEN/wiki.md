@@ -54,6 +54,16 @@ Silero speed in Node: 21 min in 10–30 s (per-call overhead). Expect faster fro
   floor is invisible. Fine for drawing, not for deciding.
 - **Fixed energy thresholds.** Any floor-relative threshold is either deaf to quiet speech or fooled by room sound.
 
+## Building it (phases 1–3)
+- **ort rc.15 allows one environment per process, and a `Session::builder` must be given it explicitly.** Both
+  models get it from `onnx.rs` (built once, its error kept for every caller). A second `ort::init()` won't work.
+- **Silero in Rust is fast.** Looped `en.wav` through the real pipeline: 1020 of 1020 words back, about 32× real time
+  for VAD + transcription together.
+- **One pause rule, two views.** The timeline's pause blocks and the strip's word layout both call `pausesFor(box)`
+  in `timeline.js`, so they can't disagree. A transcript saved before the detector has no `speech`: pauses fall back
+  to word gaps.
+- **Magic's pause trimming didn't change.** It cuts word ranges (`cuts.js` `wordRange`), not pause blocks.
+
 ## Known limits of Silero
 - Very quiet speech (−28 dB under normal speech) can be called silence: on the clean clip a 0.3 s piece of the
   mumble was under a pause. Lowering thresholds (0.3 / 0.15) halves that but adds others. Pauses are suggestions

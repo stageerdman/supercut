@@ -4,7 +4,6 @@
 // (pauses). Which words go where: word-levels.js. Tested in test/word-levels.test.mjs and test/timeline.test.mjs.
 import { el } from './dom.js';
 import { at } from './cut-view.js';
-import { pauses } from './pauses.js';
 import { secondsPerWord, levelFor, layoutLabels } from './word-levels.js';
 
 export const STRIP = { top: 32, h: 20 };
@@ -32,10 +31,10 @@ export function stripPainter({
 
   /**
    * Paint the words of every part in view. `g` is the timeline canvas' context, already scaled, font set.
-   * `words(id)` a part's words, `lengths` { [id]: seconds } where known, `pps` points per second.
+   * `words(id)` a part's words, `pauses(box)` its pause blocks (the timeline's, so both agree), `pps` points per second.
    * @returns {boolean} still fading: paint again next frame
    */
-  function draw(g, { boxes, scroll, width, pps, words, cuts, lengths = {} }) {
+  function draw(g, { boxes, scroll, width, pps, words, cuts, pauses = () => [] }) {
     const t = now();
     const still = reduceMotion();
     const measure = (s) => {
@@ -56,9 +55,8 @@ export function stripPainter({
     // Lay out a screen beyond each side too, so a label scrolling into view is one we already know (no fade).
     const lay = (lvl) => boxes.flatMap((box) => {
       if (box.x + box.w < scroll - width || box.x > scroll + 2 * width) return [];
-      const ws = words(box.id);
       return layoutLabels({
-        box, words: ws, cuts, pauses: pauses(ws, lengths[box.id] ?? box.len),
+        box, words: words(box.id), cuts, pauses: pauses(box),
         scroll: scroll - width, width: 3 * width, level: lvl, measure,
       }).map((l) => ({ ...l, x: l.x - width }));
     });
