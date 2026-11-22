@@ -1,6 +1,8 @@
 # The transcript strip (on top of the timeline)
 
 Author: Jony · 2026-11-22 · Status: built. Builds on `design/timeline.md` and `design/edit-model.md`.
+**Superseded in part** by `design/timeline-words-by-zoom.md`: words are drawn whole by zoom level (no clipped
+fragments), cut words and cut pauses sit under the cut block (no strike, no hatch here). Pauses are unchanged.
 Checked against `design/user-model.md`: goal 2 (trust every cut: see what's said where you cut) and goal 3 (throw away
 junk myself: dead air is the most common junk in a talking-head take).
 

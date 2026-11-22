@@ -28,6 +28,8 @@ Living file. Every screen is checked against it. Source: `updates/2026-11-20 INI
 - A primary action that's hidden "until it works" reads as **missing**. Show it; say plainly when it isn't ready.
 - With a transcript on screen, the first thing they try is **cutting words** (select + Backspace), Descript-style.
 - CapCut is the reference for clips / timeline; the two fixed slots feel off (parked until the timeline update).
+- (2026-11-22) Words on the timeline strip read well zoomed far in; zoomed out they're **cut off mid-letter and
+  unreadable**. They want whole words, then phrase starts, then no text; and cuts as **their own blocks** on top.
 
 ## Assumptions (guesses — check them)
 | # | Assumption | Quick check |
@@ -42,6 +44,8 @@ Living file. Every screen is checked against it. Source: `updates/2026-11-20 INI
 | A8 | Nobody misses a razor / `S` split once select + ⌫ cuts a range | Watch 3 CapCut users make their first hand cut |
 | A9 | Struck-through text stays readable after a Magic run that cuts ~40 % (no folding needed) | Ask 3 users to read back the kept story |
 | A10 | Fixing words is rare (a few per video, names and jargon), so one gesture with no mode is enough | Count fixes per session |
+| A14 | 32 / 4 points per word are the right lines for words / phrases / no text (`design/timeline-words-by-zoom.md`) | Pinch through a real 20-min talk; note where text first feels crowded or sparse |
+| A15 | Covering cut words with the block loses nothing: people read cut words in the panel, not on the strip | Ask 3 users after a Magic run where they look to see what was cut |
 
 ## Editing by hand (2026-11-22, reasoned)
 - Two views, one thing: cuts show in the transcript (struck) and on the timeline (hatched) at the same place, grey for

@@ -36,7 +36,8 @@ Spec: `design/timeline-strip.md`.
 - **Waveform** fills the track: mirrored bars, `textSecondary` at 60 %; inside a cut at 25 %. Drawn on one canvas per
   part, only the visible range.
 - **Cuts** over the waveform: hatch 45° 6 pt — yours `textSecondary` 35 %, Magic `accent` 45 % (visual system) — with a
-  1 pt solid line at each edge in the same colour.
+  1 pt solid line at each edge in the same colour. **Now**: each cut is a block over strip + track, above words and
+  pauses, with a border all round and its length: `design/timeline-words-by-zoom.md`.
 - **Playhead**: 1 pt `accent` line through ruler and track, 9 pt triangle head on the ruler. Drag the head (or the
   ruler) to scrub.
 - **Zoom slider**: far right of the transport row, 96 pt, with − / + (28 pt targets). Its only job is zoom.
