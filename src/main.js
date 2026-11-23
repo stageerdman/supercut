@@ -22,7 +22,7 @@ import { paintMagic } from './ui/magic-button.js';
 import { createPlayer } from './ui/player.js';
 import { createRulesStore, mountRules } from './ui/rules.js';
 import { emptyTrace, newRun, withRun, renameTracePart } from './ui/trace.js';
-import { learningLog } from './ui/learning.js';
+import { learningLog, learningClips } from './ui/learning.js';
 import { runner } from './ai.js';
 
 const { invoke } = window.__TAURI__.core;
@@ -222,11 +222,24 @@ function traceRun(result) {
 
 const partIds = () => parts.map((p) => p.id);
 
-/** Writes a run's learning log if the user disagreed with it (else there's nothing to learn). */
+/** Writes a run's learning log if the user disagreed with it (else there's nothing to learn), and a clip of
+ *  what was heard before each review "No". */
 function saveLearningLog(run) {
-  const log = learningLog(run, history.edit.cuts, partIds());
+  const log = learningLog(run, history.edit.cuts, partIds(), notesOf(history.edit));
   if (!log) return Promise.resolve();
-  return invoke('save_learning_log', { id: run.id, log }).catch((e) => console.error('learning', run.id, e));
+  const saved = invoke('save_learning_log', { id: run.id, log }).catch((e) => console.error('learning', run.id, e));
+  return Promise.all([saved, ...learningClips(run.id, log).map(saveLearningClip)]);
+}
+
+const clipsSaved = new Set(); // the same window heard again needs no new encode
+function saveLearningClip({ id, heard }) {
+  const key = `${id}:${JSON.stringify(heard)}`;
+  if (clipsSaved.has(key)) return Promise.resolve();
+  clipsSaved.add(key);
+  return invoke('save_learning_clip', { id, spans: heard }).catch((e) => {
+    clipsSaved.delete(key);
+    console.error('learning clip', id, heard, e);
+  });
 }
 
 // Closing the window is the user's final answer on the newest run (older ones were written when replaced).
