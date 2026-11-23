@@ -228,8 +228,8 @@ does that).
   already reading, right when trust is lowest. With no notes, the line stays as it is today.
 
 ## What cut review will use (later, `f-cut-review-mode`)
-Review needs nothing new from notes. A "No" makes an ordinary note with `about` set to the cut, empty text, and no
-dialog. "Next open note" then walks the user through each one. `about` says which cut the note was about, and
+Review needs nothing new from notes. A "No" makes an ordinary **red** note with `about` set to the cut, empty text, and no
+dialog (`design/cut-review.md`, "A No"). "Next open note" then walks the user through each one. `about` says which cut the note was about, and
 `doneAt` says when it was done. Q9 for review: people may fix a cut and forget to tick its note, so the learning log
 should also look for a hand edit near `about`, not only the tick.
 

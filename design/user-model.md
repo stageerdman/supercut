@@ -65,6 +65,18 @@ A10 still holds for *fixing text*; it doesn't hold for *dealing with unheard spe
 - The job: **"Remember this spot so I can deal with it later, and don't let me forget."** A note is a to-do pinned
   to time, for yourself. The loop is drop it while listening → next open note → fix → Done. Spec: `design/notes.md`.
 
+## Cut review (2026-11-23, reasoned)
+- The job: **"Let me trust Magic's cuts without watching the whole video again."** A rhythm like sorting photos:
+  most answers come ~2 s into a window, by key. "No" means two things: put it back now (⌫) or fix later (N → red
+  note). People judge by the struck text first, the sound second. Spec: `design/cut-review.md`.
+
+| # | Assumption | Quick check |
+|---|---|---|
+| A23 | 3 s before + 3 s after the join is the right window (research Q3) | Verdicts store `after`; look where answers land |
+| A24 | Time order beats least-sure first (Q1) | Time 3 users on both orders of the same video |
+| A25 | Most people stop reviewing after a handful of cuts once trust builds (Q7) | Checked stops per session in the trace |
+| A26 | "N, fix later" plus mouse drags is enough; no nudge keys in review (Q5) | Count Nos that end as small `adjusted` edits |
+
 ## Editing by hand (2026-11-22, reasoned)
 - Two views, one thing: cuts show in the transcript (struck) and on the timeline (hatched) at the same place, grey for
   yours, coral for Magic's. Specs: `design/edit-model.md`, `design/timeline.md`, `design/transcript-editing.md`.

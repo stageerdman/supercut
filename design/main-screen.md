@@ -68,7 +68,8 @@ Exactly one filled button at any time.
 | Magic done | **Review cuts** (Phase 6) | Export, ✦ Magic (again) |
 | All reviewed | **Export** | ✦ Magic |
 
-Before Phase 6 ships, "Magic done" keeps Magic as primary and Export secondary.
+Before Phase 6 ships, "Magic done" keeps Magic as primary and Export secondary. Review's own spec is
+`design/cut-review.md`; until export exists, "All reviewed" gives the primary back to ✦ Magic.
 
 ## States
 

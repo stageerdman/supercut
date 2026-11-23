@@ -63,7 +63,7 @@ run = {
   proposals: [{ line, part, from, to, s, e, reason, source: 'claude' | 'rule', instead?: lineId }],
   checks: [{ line, why }],    // Magic's notes (already shown as notes)
   before: [{ part, s, e }],   // your cuts at run time (added by the app, not Rust): tells `agreed` from `touched`, and `missed` from cuts you'd made earlier
-  verdicts: { [line]: { says: 'yes' | 'no', at } },   // filled by Cut review mode
+  verdicts: { [proposal index]: { says: 'yes' | 'no', how?: 'restored', at, after, heard, note? } },   // Cut review mode, see "Verdicts"
   frozen?: { [line]: outcome },                        // set when a newer run replaces this one
 }
 ```
@@ -106,12 +106,64 @@ run = {
   cases stay on this Mac. Anything that sends them anywhere needs its own one-time, explicit yes. Nothing does that
   today.
 
+## Verdicts: what Cut review adds (Jony, 2026-11-23)
+Review is the one place where the user *says* what they think of a cut, so it is the one thing the trace records
+instead of working out. Everything after the verdict, including the fix, is still worked out by `outcome()`.
+Screen spec: `design/cut-review.md`.
+
+### What a verdict holds
+Written into the **live run** (`run.verdicts`), keyed by proposal index (the same index as `run.proposals` and
+`outcomes`). Outside the undo history, like the rest of the trace; a verdict's ⌘Z in review removes it by hand.
+```js
+verdicts[3] = {
+  says: 'no',             // 'yes' | 'no'
+  how: 'restored',        // only when the "no" was ⌫ (put back now); left out for "fix later"
+  at: '2026-11-23T21:04:10Z',
+  after: 1.8,             // seconds into the window when the key came (answers Q-R1: is 6 s right?)
+  heard: [{ part, s, e }],// the source spans the window played, as cut at that moment: what the user judged
+  note: 'n12',            // the red "fix later" note's id (N only)
+}
+```
+- A stop of several cuts writes the same verdict for each proposal in it. `outcome()` later shows which one changed.
+- Changing a verdict overwrites it. A verdict on your own cuts (no Magic run) is not recorded: it teaches Magic
+  nothing.
+- `heard` is a few numbers, not video. It is exactly what the clip will be cut from.
+
+### "No, then fixed": how it's read
+Nothing is logged when the user fixes the cut. The answer comes from three facts already in hand: the verdict, the
+outcome, and the note.
+
+| Verdict | Outcome when judged | Note | What it teaches |
+|---|---|---|---|
+| no | `adjusted(ds, de)` | done or open | **The edge was wrong, by this much.** The main signal for where cuts should start and end |
+| no | `restored` | any (or `how: 'restored'`) | **It shouldn't have been cut at all** |
+| no | `kept` / `touched` | done | Flagged, then left as it was: a weak "no" (the user changed their mind) |
+| no | `kept` / `touched` | open | Flagged, not fixed yet: logged as `fixed: false`, rewritten when it changes |
+| yes | `kept` | — | **Heard and approved**: a strong "yes", stronger than an unreviewed `kept` |
+| yes | `adjusted` / `restored` | — | Approved, then changed anyway (a too-fast Yes, or a fix found later) |
+| none | any | — | As before review existed |
+
+"Fixed" means the red note is done (`doneAt`) **or** the outcome is no longer `kept`/`touched`: people fix a cut and
+forget to tick its note (Notes Q9), so the tick alone isn't trusted.
+
+### Into the learning log
+- `learningLog` adds `verdicts` beside `outcomes` (yes verdicts stay there; they are labels, not cases).
+- A **case** is written for every proposal that is `restored` or `adjusted` (as today) **or has a "no" verdict**. A
+  case with a verdict also holds `verdict` (`says`, `how`, `after`), `fixed: true | false` and `doneAt`.
+- **The clip:** for each case with a verdict, the ~6 s window the user heard, rendered from `heard` with the bundled
+  ffmpeg (480p H.264 + AAC, about 1 MB), saved beside the log as `learning/<run id>-<proposal index>.mp4`. Only
+  for "no" verdicts: that is where the sound mattered and the text alone may not explain it. A rewrite overwrites.
+- **When:** as today (a newer run freezes this one; the window closes), and also each time a red review note is marked
+  done, because that is the moment a "no" becomes an answer. Writing again is harmless.
+- Privacy is unchanged: logs and clips stay on this Mac.
+
 ## What the user sees (lightly)
 Showing the trace earns its place in one way only: it answers "why is this gone?" where the user is already looking.
 - **Hover and review line for a dropped take:** "Magic: earlier take · kept “This is my brand new video.”". It names
   the take that stayed, which is the thing the user wants to compare. Use `instead`, the line's text, ≤ 70 characters.
   Cut review mode shows the same line under the player for each cut.
-- **Review order:** cuts with a check note nearby or `source: 'rule'` come first, then everything else in time order.
+- **Review order:** time order (decided in `design/cut-review.md`: jumping around the story costs more than it saves).
+  A check note on the stretch is shown in the review line instead.
 - **Not shown:** model, prompt, rules hash, stats, confidence, and a log viewer. `design/ai-slot.md` removed the log view
   on purpose, and the transcript already shows the result.
 
@@ -132,6 +184,7 @@ mode (`f-cut-review-mode`), which will reuse the same `reason` string.
 2. JS `src/ui/trace.js`, pure: `withRun`, `outcome`, `outcomes`, `missed`, `freeze`. Tests on merges, splits, undo of
    the whole step, re-runs, and a cut you'd made before Magic. Keep it in app state outside history.
 3. The hover line with `instead`.
-4. Cut review mode reads `outcomes` and writes `verdicts`.
+4. Cut review mode reads `outcomes` and writes `verdicts` (see "Verdicts" above and
+   `updates/2026-11-23 CUT REVIEW MODE - OPEN/update v1.md`).
 5. Learning cases at export (disagreements only, plus the clip).
 6. Project saving (its own feature) saves `magic` next to `edit`.
