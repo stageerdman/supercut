@@ -35,13 +35,8 @@ pub fn load(file: &Path) -> Result<Vec<String>, AppError> {
 /// Cleans, then writes through a temp file and a rename, so a save is all or nothing. Returns what was stored.
 pub fn save(file: &Path, rules: Vec<String>) -> Result<Vec<String>, AppError> {
     let rules = clean(rules);
-    if let Some(dir) = file.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| err(file, &e))?;
-    }
-    let tmp = file.with_extension("json.tmp");
     let json = serde_json::to_string_pretty(&rules).expect("a list of strings always serializes");
-    std::fs::write(&tmp, json).map_err(|e| err(file, &e))?;
-    std::fs::rename(&tmp, file).map_err(|e| err(file, &e))?;
+    crate::atomic::write(file, &json).map_err(|e| err(file, &e))?;
     Ok(rules)
 }
 

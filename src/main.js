@@ -21,11 +21,14 @@ import { createMagic, claudeBanner, withMagicRun, magicNotesOpen } from './ui/ma
 import { paintMagic } from './ui/magic-button.js';
 import { createPlayer } from './ui/player.js';
 import { createRulesStore, mountRules } from './ui/rules.js';
+import { emptyTrace, newRun, withRun, renameTracePart } from './ui/trace.js';
+import { learningLog } from './ui/learning.js';
 import { runner } from './ai.js';
 
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 const { getCurrentWebview } = window.__TAURI__.webview;
+const { getCurrentWindow } = window.__TAURI__.window;
 const { open } = window.__TAURI__.dialog;
 
 const MAX_PARTS = 2;
@@ -34,6 +37,9 @@ const MAX_PARTS = 2;
 let parts = [];
 let progress = null; // { part, stage, done, total } while working
 const history = createHistory(); // history.edit: { cuts, words } (design/edit-model.md); ⌘Z / ⇧⌘Z walk it
+// Magic Trace (design/magic-trace.md): every Magic run's record. Beside the history, outside undo, so an undone
+// Magic step still has its trace and reads as "restored".
+let trace = emptyTrace();
 const secondsLeft = makeEta();
 const transcribing = () => parts.some((p) => !p.transcript && !p.error);
 /** Each part's length where known, so cuts stay inside it. */
@@ -196,12 +202,39 @@ const magic = createMagic({
   flash: (text, ms) => status.flash(text, ms),
   banner: showBanner,
   onResult: (r) => { // one ⌘Z undoes the whole run, cuts and notes
+    if (r.run) traceRun(r);
     const seconds = edited().map((p) => ({ id: p.id, seconds: p.transcript?.seconds }));
     commit(withMagicRun(history.edit, r, seconds, lengths()), 'Magic Cut');
     notes.refresh(); // a replaced Magic note's open card closes
     return magicNotesOpen(history.edit);
   },
 });
+
+/** A Magic result joins the trace, before it's applied: the run it replaces is judged by the cuts it left. */
+function traceRun(result) {
+  const cuts = history.edit.cuts;
+  const at = Date.now();
+  const run = newRun(result, { id: `run-${at}`, at, before: cuts.filter((c) => c.by === 'you') });
+  trace = withRun(trace, run, cuts, partIds());
+  const replaced = trace.runs.at(-2);
+  if (replaced) saveLearningLog(replaced);
+}
+
+const partIds = () => parts.map((p) => p.id);
+
+/** Writes a run's learning log if the user disagreed with it (else there's nothing to learn). */
+function saveLearningLog(run) {
+  const log = learningLog(run, history.edit.cuts, partIds());
+  if (!log) return Promise.resolve();
+  return invoke('save_learning_log', { id: run.id, log }).catch((e) => console.error('learning', run.id, e));
+}
+
+// Closing the window is the user's final answer on the newest run (older ones were written when replaced).
+getCurrentWindow().onCloseRequested(async () => {
+  const last = trace.runs.at(-1);
+  if (last) await saveLearningLog(last);
+});
+
 // Your rules (gear, ⌘,). Pressing Magic Cut closes the panel and saves first, so a rule typed a second ago is used.
 const rules = mountRules({ gear: $('rules-gear'), panel: $('rules-panel'), box: $('rules-box') }, createRulesStore(invoke), { onError: showBanner });
 const pressMagic = () => rules.close().then((saved) => saved && magic.press());
@@ -285,6 +318,7 @@ async function putBack({ part, index }) {
   try {
     const { id } = await invoke('add_video', { path: part.path });
     history.rename(part.id, id);
+    trace = renameTracePart(trace, part.id, id);
     if (waveforms.has(part.id)) waveforms.set(id, waveforms.get(part.id));
     else loadWaveform(id);
     parts.splice(index, 0, { ...part, id });

@@ -2,11 +2,13 @@
 //! Video and audio never leave the Mac. Network use: the one-time speech model download,
 //! and transcript text sent to Claude through the user's own Claude Code CLI.
 
+mod atomic;
 mod audio;
 mod autocut;
 mod claude;
 mod error;
 mod keep_awake;
+mod learning;
 mod log;
 mod media;
 mod onnx;
@@ -75,6 +77,14 @@ fn save_rules(rules: Vec<String>) -> Result<Vec<String>, AppError> {
     let stored = rules::save(&rules::path(), rules)?;
     log::info("rules", "rules", format!("saved {} rules", stored.len()));
     Ok(stored)
+}
+
+/// Magic Trace: one run's learning log (built in src/ui/learning.js), kept on this Mac.
+#[tauri::command]
+fn save_learning_log(id: String, log: serde_json::Value) -> Result<(), AppError> {
+    let file = learning::save(&learning::dir(), &id, &log)?;
+    log::info("learning", &id, format!("saved {}", file.display()));
+    Ok(())
 }
 
 #[tauri::command]
@@ -165,7 +175,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Shared::default())
-        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, get_rules, save_rules, add_video, remove_part, transcribe_part, waveform])
+        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, add_video, remove_part, transcribe_part, waveform])
         .run(tauri::generate_context!())
         .expect("error while running Magic Cut");
 }

@@ -23,6 +23,7 @@ pub enum AppError {
     ClaudeBusy,
     ClaudeFailed(String),
     Rules(String),
+    Learning(String),
 }
 
 impl fmt::Display for AppError {
@@ -48,6 +49,7 @@ impl fmt::Display for AppError {
             Self::ClaudeBusy => write!(f, "Claude is busy or your usage limit is reached. Try again in a few minutes."),
             Self::ClaudeFailed(why) => write!(f, "Claude couldn't answer: {why}"),
             Self::Rules(why) => write!(f, "Couldn't read or save your editing rules. ({why})"),
+            Self::Learning(why) => write!(f, "Couldn't save Magic's learning log. ({why})"),
         }
     }
 }
