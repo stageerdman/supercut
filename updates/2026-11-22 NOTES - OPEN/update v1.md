@@ -206,6 +206,9 @@ up-to-date main.
   `npm run test:ui` 219 green, release built, `/Applications/Magic Cut.app` replaced (frontend id
   `1b6c4dec6e9ccd56`), Spotlight finds it, and it was opened. Remaining: the window check by a person (Phase 7's
   list above), then docs (`wiki.md`, user-model A16–A19 results).
+- **Reinstalled with the polish (Uncle Bob, 2026-11-23).** `npm ci && npm run install-app` from main at `7005d79`
+  (round green ✓ for Done, red note colour): `npm run test:ui` 220 green, `/Applications/Magic Cut.app` replaced
+  (frontend id `da19fecd4889be78`), Spotlight finds it, and it was opened. **Not yet seen in the window.**
 
 ### Phase 6 decisions
 - The done line counts Magic's open notes after `withMagicNotes`, so it matches the lane; `onResult` returns it.
