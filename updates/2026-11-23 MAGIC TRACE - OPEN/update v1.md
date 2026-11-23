@@ -83,6 +83,10 @@ The user sees one new thing: a dropped take's hover says which take Magic kept.
   `save_learning_log`, the shared `atomic.rs`. A log is written when a run is replaced and when the window closes.
 - Phase 5: `npm test` passes (235 UI, 110 Rust, after rebasing on main), and so does a release build. Not done yet: one real Magic run in
   the app to see a log land in `learning/`. That needs someone at the window.
+- **Installed (Uncle Bob, 2026-11-23).** `npm ci && npm run install-app` from main at `630509b`:
+  `npm run test:ui` 235 green, `/Applications/Magic Cut.app` replaced (frontend id `3c955f682f33fa76`,
+  built from `src/` with `trace.js` and `learning.js`), Spotlight finds it, and it was opened and is running.
+  **Not yet seen in the window:** the "kept “…”" hover and a log in `learning/` need a real Magic run.
 
 Next: the 6-second clip and the review verdicts go into each case once Cut review mode lands. Video export
 becomes a third moment to write logs.
