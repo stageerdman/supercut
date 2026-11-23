@@ -12,6 +12,7 @@ import { pauses, pauseCut, MIN_PAUSE } from '../src/ui/pauses.js';
 import { pauseView, pauseLabel } from '../src/ui/strip-view.js';
 import { toggleSelection } from '../src/ui/selection.js';
 import { FRAME } from '../src/ui/bit.js';
+import { QUIET, SEEK_LAG } from '../src/ui/twin-sync.js';
 
 const you = (s, e, part = 1) => ({ part, s, e, by: 'you' });
 const magic = (s, e, reason = 'earlier take', part = 1) => ({ part, s, e, by: 'magic', reason });
@@ -361,7 +362,7 @@ function fakeVideo({ twin = false } = {}) {
   const on = {};
   const classes = new Set();
   return {
-    on, paused: true, currentTime: 0, duration: 10, readyState: 1, dataset: {}, src: '', muted: false, id: 'player',
+    on, paused: true, currentTime: 0, duration: 10, readyState: 4, dataset: {}, src: '', muted: false, volume: 1, id: 'player',
     classList: { add: (...c) => c.forEach((x) => classes.add(x)), remove: (...c) => c.forEach((x) => classes.delete(x)), contains: (c) => classes.has(c) },
     addEventListener(k, f) { (on[k] ??= []).push(f); },
     emit(k) { (on[k] ?? []).forEach((f) => f()); },
@@ -383,45 +384,56 @@ async function rigPlayer(cuts, opts) {
   return { video, player };
 }
 
-test('player: a hidden twin waits on the far side of the next cut; at the cut they swap, no seek', async () => {
+const afterSwap = () => new Promise((r) => setTimeout(r, 30)); // the swap waits for the cut's exact moment
+
+test('player: a hidden twin plays along at QUIET on the far side of the next cut; at the cut they swap, no seek, no pause', async () => {
   const { video, player } = await rigPlayer([you(2, 3), you(8, 10)], { twin: true });
   const spare = video.twin;
-  assert.ok(spare.classList.contains('opacity-0') && spare.muted, 'the twin is hidden and silent');
+  assert.ok(spare.classList.contains('opacity-0') && spare.volume === QUIET && !spare.muted, 'hidden, inaudible, never muted');
   player.show(0, 4);
   video.play();
   player.tick();
-  assert.equal(spare.dataset.path, undefined, 'the next cut is over 2 s away: not yet');
+  assert.equal(spare.dataset.path, undefined, 'the next cut is 4 s away (over LEAD): not yet');
   player.show(0, 1);
   player.tick();
-  assert.equal(spare.currentTime, 3, 'ready on the far side of the cut');
-  spare.emit('seeked');
+  assert.equal(spare.paused, false, 'the twin starts playing first (a paused twin is slow to start)');
+  player.tick();
+  assert.equal(spare.currentTime, 2 + SEEK_LAG, 'then is seeked while it plays, ahead by the seek lag');
+  spare.currentTime = 2.99; // settled, in step
   video.currentTime = 1.99;
   player.tick();
+  await afterSwap();
   assert.equal(video.currentTime, 1.99, 'the old one never seeks (that is the hitch)');
   assert.equal(player.element, spare);
-  assert.ok(!spare.paused && !spare.muted && !spare.classList.contains('opacity-0'), 'the twin plays, seen and heard');
-  assert.ok(video.paused && video.muted && video.classList.contains('opacity-0'), 'the old one is now the twin');
-  assert.equal(player.time, 3);
+  assert.ok(!spare.classList.contains('opacity-0') && spare.volume === 1, 'the twin is seen and heard');
+  assert.ok(!video.paused && video.volume === QUIET && video.classList.contains('opacity-0'),
+    'the old one plays on, hidden and inaudible (pausing it would stall the other)');
+  assert.equal(player.time, 2.99);
   spare.currentTime = 6.5;
   player.tick();
   assert.equal(video.dataset.path, 'b', "the next part's file waits for the cut to the end");
-  assert.equal(video.currentTime, 0);
-  video.emit('seeked');
-  spare.currentTime = 7.99;
+  assert.ok(video.paused && video.currentTime === 0, 'it cannot play before 0: parked at the start');
+  spare.currentTime = 7.98;
   player.tick();
+  assert.equal(video.paused, false, 'the cut (a frame ahead) starts it: its start lag ≈ the wait for the cut');
+  await afterSwap();
   assert.equal(player.current, 1, 'on to part 2 by a swap');
   assert.equal(player.element, video);
 });
 
-test('player: the twin not ready yet (a seek just before a cut): it seeks as before', async () => {
+test('player: the twin not in step at the cut: it seeks as before; pausing pauses the twin too', async () => {
   const { video, player } = await rigPlayer([you(2, 3)], { twin: true });
+  const spare = video.twin;
   player.show(0, 1.9);
   video.play();
-  player.tick(); // the twin starts seeking, no seeked yet
+  player.tick(); // the twin starts playing, but has no time left to get in step
   video.currentTime = 1.99;
   player.tick();
   assert.equal(player.element, video);
   assert.equal(video.currentTime, 3);
+  assert.equal(spare.paused, false);
+  video.pause();
+  assert.equal(spare.paused, true, 'it only plays along while you do');
 });
 
 test('player: playing skips each cut on the frame before it, and cuts that touch in one jump', async () => {

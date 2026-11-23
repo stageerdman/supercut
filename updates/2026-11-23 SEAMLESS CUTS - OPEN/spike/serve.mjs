@@ -12,18 +12,22 @@ const repo = join(here, '../../..');
 const media = join(here, 'media');
 const types = { '.js': 'text/javascript', '.html': 'text/html', '.mp4': 'video/mp4' };
 
+// Frames between keyframes (GOP=30 for a phone-like 1 s; default 120, a camera-like 4 s). /media/a.mp4 serves it.
+const gop = Number(process.env.GOP || 120);
+const clip = join(media, gop === 120 ? 'a.mp4' : `a-g${gop}.mp4`);
+
 function makeMedia() {
-  if (existsSync(join(media, 'a.mp4'))) return;
+  if (existsSync(clip)) return;
   mkdirSync(media, { recursive: true });
-  // 30 fps, a keyframe every 4 s (a camera-like long GOP), with a tone.
+  // 30 fps with a tone.
   execFileSync(join(repo, 'node_modules/ffmpeg-static/ffmpeg'), ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=30',
-    '-f', 'lavfi', '-i', 'sine=frequency=440', '-t', '20', '-c:v', 'libx264', '-g', '120', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest',
-    join(media, 'a.mp4')]);
+    '-f', 'lavfi', '-i', 'sine=frequency=440', '-t', '20', '-c:v', 'libx264', '-g', String(gop), '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest',
+    clip]);
 }
 
 function handle(req, res) {
   const path = new URL(req.url, 'http://x').pathname;
-  const file = path.startsWith('/src/') ? join(repo, path) : join(here, path);
+  const file = path === '/media/a.mp4' ? clip : path.startsWith('/src/') ? join(repo, path) : join(here, path);
   if (!existsSync(file) || !statSync(file).isFile()) { res.writeHead(404).end(); return; }
   const size = statSync(file).size;
   const head = { 'Content-Type': types[extname(file)] ?? 'application/octet-stream', 'Accept-Ranges': 'bytes' };

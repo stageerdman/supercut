@@ -8,10 +8,12 @@ import { clock } from './dom.js';
 import { skipTarget, cutHere, firstKept, editedTime, editedLength } from './playback.js';
 import { createPlayClock } from './play-clock.js';
 import { cutsOf } from './cuts.js';
-import { twinStep, drift, learnLag, QUIET, TOLERANCE } from './twin-sync.js';
+import { twinStep, drift, parked, seekLoss, QUIET, TOLERANCE, SEEK_LAG } from './twin-sync.js';
 
 const EPS = 1e-6;
-export const LEAD = 2; // s: how far ahead of a cut (or a part's end) the spare gets ready
+// After a seek lands, the spare's clock runs ~0.3 s, stands still ~0.3 s, then runs steady: judge it only after this.
+const SETTLE_MS = 800;
+export const LEAD = 3; // s: how far ahead of a cut (or a part's end) the spare gets ready (room for two seeks)
 const STANDBY = ['absolute', 'opacity-0', 'pointer-events-none'];
 
 /**
@@ -25,8 +27,8 @@ export function createPlayer(first, on) {
   let spare = first.cloneNode ? first.cloneNode(false) : null; // hidden, waits on the far side of the next cut
   // What the spare is for: { path, t } the far side of the cut, `at` where the one you see leaves it.
   let ready = null;
-  const lags = { start: 0.035, seek: 0 }; // s the spare's clock runs late after a play() / a seek (WebKit's, learned)
-  let sought = false; // the spare was seeked to get in step: learn lags.seek from where it lands
+  let seekLag = SEEK_LAG; // s the spare falls behind where a seek while playing sends it (learned at each seek)
+  let sought = null; // { aimed, since }: the spare's last seek, to learn seekLag from once it runs steady
   let swapping = false; // a swap is due within this frame
   let current = 0;
   let through = null; // a cut you chose to play from inside: it plays, the next ones skip
@@ -47,7 +49,7 @@ export function createPlayer(first, on) {
   }
 
   /** The spare's cue is void (you seeked or edited): it gets in step again for the next cut. */
-  const idle = () => { ready = null; sought = false; };
+  const idle = () => { ready = null; sought = null; };
 
   const part = () => on.parts()[current];
   const len = () => video.duration || part()?.duration || 0;
@@ -108,32 +110,42 @@ export function createPlayer(first, on) {
     if (!next) return;
     if (!holds(ready, next.p, next.dest.t) || Math.abs(ready.at - next.at) > EPS) {
       ready = { path: next.p.path, t: next.dest.t, at: next.at };
-      sought = false;
+      sought = null;
       load(spare, next.p);
     }
     const n = spare;
-    const busy = n.seeking || n.readyState < 2;
-    if (sought && !busy && !n.paused) { // just landed: aim better next time
-      lags.seek = learnLag(lags.seek, drift(ready.at, ready.t, t, n.currentTime));
-      sought = false;
+    const settling = sought && performance.now() - sought.since < SETTLE_MS;
+    const busy = n.seeking || n.readyState < 2 || settling;
+    if (sought && !busy && !n.paused) { // settled: aim better next time
+      seekLag = seekLoss(sought.aimed, (performance.now() - sought.since) / 1000, n.playbackRate, n.currentTime);
+      sought = null;
     }
-    const step = twinStep({ at: ready.at, to: ready.t, t }, { paused: n.paused, busy, time: n.currentTime }, lags);
+    const step = twinStep({ at: ready.at, to: ready.t, t }, { paused: n.paused, busy, time: n.currentTime }, seekLag);
     if (step.do === 'park') { n.pause(); n.currentTime = step.time; }
-    else if (step.do === 'seek') { n.currentTime = step.time; sought = true; }
-    else if (step.do === 'play') {
-      n.playbackRate = video.playbackRate; // set now: changing it while playing stalls the picture
-      n.play()?.catch?.(idle); // it won't play: the cut seeks instead
-    }
+    else if (step.do === 'seek') { n.currentTime = step.time; sought = { aimed: step.time, since: performance.now() }; }
+    else if (step.do === 'play') startSpare();
   }
 
-  /** Go to `dest` while playing: swap to the spare if it runs in step on the far side, else seek. */
+  /** Can the spare take over at `dest` now: in step on the far side, or parked there (then this starts it)? */
+  function spareTakes(dest) {
+    if (!spare || !ready || spare.seeking || !holds(ready, on.parts()[dest.i], dest.t)) return false;
+    // Started now, its clock moves about when the cut comes (its start lag ≈ the under-a-frame wait).
+    if (parked(ready.t, { paused: spare.paused, time: spare.currentTime })) {
+      startSpare();
+      return true;
+    }
+    return !spare.paused && Math.abs(drift(ready.at, ready.t, video.currentTime, spare.currentTime)) <= TOLERANCE;
+  }
+
+  function startSpare() {
+    spare.playbackRate = video.playbackRate; // set now: changing it while playing stalls the picture
+    spare.play()?.catch?.(idle); // it won't play: the next cut seeks instead
+  }
+
+  /** Go to `dest` while playing: swap to the spare if it can take over, else seek. */
   function jump(dest) {
     if (swapping) return;
-    const p = on.parts()[dest.i];
-    if (spare && ready && !spare.paused && !spare.seeking && holds(ready, p, dest.t)) {
-      const off = drift(ready.at, ready.t, video.currentTime, spare.currentTime);
-      if (Math.abs(off) <= TOLERANCE) return swapOnTime(dest, ready.at - video.currentTime);
-    }
+    if (spareTakes(dest)) return swapOnTime(dest, ready.at - video.currentTime);
     idle();
     if (dest.i === current) { selfSeek = true; video.currentTime = dest.t; }
     else show(dest.i, dest.t, true);
@@ -204,7 +216,7 @@ export function createPlayer(first, on) {
   /** You start (or seek) inside a cut: you asked to hear it. */
   const meant = () => { through = part() ? cutHere(on.cuts(), part().id, video.currentTime) ?? null : null; };
 
-  // Both videos get the listeners; only the visible one's events count (the spare's seeked marks it ready).
+  // Both videos get the listeners; only the visible one's events count (spareF: what the hidden one's mean).
   const listen = (k, f, spareF) => {
     for (const n of spare ? [first, spare] : [first]) n.addEventListener(k, () => (n === video ? f() : spareF?.(n)));
   };
@@ -224,8 +236,6 @@ export function createPlayer(first, on) {
     idle(); // the spare's cue was timed to where you were
     glideClock.reset(); // a seek or a skipped cut: the line goes straight there
     on.onTime(current, video.currentTime);
-  }, (n) => {
-    if (ready && n.dataset.path === ready.path && Math.abs(n.currentTime - ready.park) < 0.05) ready.done = true;
   });
   listen('play', () => { meant(); paintPlay(true); loop(++run); startGlide(); });
   listen('pause', () => {
@@ -269,7 +279,7 @@ export function createPlayer(first, on) {
     get time() { return video.currentTime || 0; },
     get playing() { return !video.paused; },
     get element() { return video; }, // for tests
-    get lag() { return lag; }, // for tests and measuring
+    get lag() { return seekLag; }, // the learned seek lag, for measuring
     toggle: () => (video.paused ? video.play() : video.pause()),
     play: () => video.play(),
     pause: () => video.pause(),

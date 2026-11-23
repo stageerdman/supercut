@@ -19,6 +19,9 @@ for (const c of CUTS) {
   console.log(`cut ${c.s}-${c.e}: last frame ${before.media.toFixed(3)} → first ${after.media.toFixed(3)}, ` +
     `picture held ${gap.toFixed(1)} ms = ${(gap - frame).toFixed(1)} ms longer than a frame`);
 }
+// Any picture standing still (not only at a cut): what you would see as a hitch.
+const held = shown.slice(1).map((f, i) => ({ media: shown[i].media, gap: f.now - shown[i].now })).filter((g) => g.gap > 2.5 * frame);
+console.log(`long holds anywhere: ${held.map((g) => `${g.media.toFixed(2)}s ${g.gap.toFixed(0)}ms`).join(', ') || 'none'}`);
 // Edited time: the source clock with the cuts taken out, so seamless is a straight line at 1 s per s.
 const edited = (t) => t - CUTS.reduce((s, c) => s + Math.max(0, Math.min(c.e, t) - c.s), 0);
 const live = samples.filter((s) => s.t > 2.2);
