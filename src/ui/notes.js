@@ -62,6 +62,30 @@ export function addNote(edit, sel, at, { id = freshId } = {}) {
   return { edit: { ...edit, notes: [...notesOf(edit), note] }, note, label };
 }
 
+/**
+ * Cut review's "No, fix later" (design/cut-review.md): an empty red note over a stop's cuts, one per part (first
+ * cut's start to last cut's end), `about` those cuts. One undo step.
+ * @param {Array<{part, s, e, by}>} stopCuts  the stop's cuts, in play order
+ * @returns {{edit: object, notes: Array, label: string}}
+ */
+export function addFixLater(edit, stopCuts, { id = freshId } = {}) {
+  const parts = [...new Set(stopCuts.map((c) => c.part))];
+  const notes = parts.map((part) => {
+    const mine = stopCuts.filter((c) => c.part === part);
+    const span = { part, s: Math.min(...mine.map((c) => c.s)), e: Math.max(...mine.map((c) => c.e)) };
+    const by = mine.some((c) => c.by === 'magic') ? 'magic' : 'you';
+    return { ...makeNote({ ...span, about: { s: span.s, e: span.e, by } }, { id: id() }), color: 'red' };
+  });
+  return { edit: { ...edit, notes: [...notesOf(edit), ...notes] }, notes, label: 'Review: fix later' };
+}
+
+/** A "No" changed to "Yes": its notes go, unless written in or done (then they're the user's). */
+export function dropFixLater(edit, ids) {
+  const untouched = (n) => ids.includes(n.id) && !n.text && !n.done;
+  if (!notesOf(edit).some(untouched)) return { edit, label: '' };
+  return { edit: { ...edit, notes: notesOf(edit).filter((n) => !untouched(n)) }, label: 'Review: looks good' };
+}
+
 function noteById(edit, id) {
   const note = notesOf(edit).find((n) => n.id === id);
   if (!note) throw new RangeError(`notes: there is no note "${id}" in this edit`);

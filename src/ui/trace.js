@@ -78,15 +78,38 @@ export function withRun(trace, run, cuts, present) {
   return { runs: [...runs, run] };
 }
 
+/** A copy of one run, changed by `change(run)`. An unknown run id is a bug in the caller. */
+function withRunChanged(trace, runId, change) {
+  if (!trace.runs.some((r) => r.id === runId)) throw new RangeError(`trace: there is no run "${runId}"`);
+  return { runs: trace.runs.map((r) => (r.id === runId ? change(r) : r)) };
+}
+
+/**
+ * Cut review's verdict on proposals `indices` of a run (design/magic-trace.md, "Verdicts"), overwriting any given.
+ * `verdict` = { says: 'yes'|'no', how?: 'restored', at, after, heard: [{ part, s, e }], note? }. Outside undo.
+ */
+export const withVerdict = (trace, runId, indices, verdict) =>
+  withRunChanged(trace, runId, (r) => ({ ...r, verdicts: { ...r.verdicts, ...Object.fromEntries(indices.map((i) => [i, verdict])) } }));
+
+/** Takes those verdicts back (⌘Z of a verdict in review). */
+export const withoutVerdict = (trace, runId, indices) =>
+  withRunChanged(trace, runId, (r) => {
+    const verdicts = { ...r.verdicts };
+    for (const i of indices) delete verdicts[i];
+    return { ...r, verdicts };
+  });
+
 /** Mirrors renamePart: a part put back with a new id keeps its trace. */
 export function renameTracePart(trace, from, to) {
   const rename = (list = []) => list.map((x) => (x.part === from ? { ...x, part: to } : x));
+  const renameVerdicts = (v) => Object.fromEntries(Object.entries(v).map(([i, x]) => [i, { ...x, heard: rename(x.heard) }]));
   const renameRun = (r) => ({
     ...r,
     lines: rename(r.lines),
     proposals: rename(r.proposals),
     checks: rename(r.checks),
     before: rename(r.before),
+    ...(r.verdicts && { verdicts: renameVerdicts(r.verdicts) }),
     ...(r.frozen && { frozen: { ...r.frozen, missed: rename(r.frozen.missed) } }),
   });
   return { runs: trace.runs.map(renameRun) };
