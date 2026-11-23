@@ -150,4 +150,14 @@ cuts" or "only unapproved". They stressed it must be really neat.
     ↑, ↓, ⌘Z back, which-cuts, click on a stop); Play / R / Space-replay frame only if the stop is out of view.
   - Not checked here: the motion and the native menu in the real app; that's Phase 5's manual pass.
 
-Next: Phase 5 (verify in the app and ship).
+- Phase 5 (verify and ship): automated half done (Uncle Bob), from main at `aa06265`.
+  - 336/336 UI tests, 114/114 Rust tests (live Claude, Parakeet and VAD tests included).
+  - Release build and `npm run install-app`: `/Applications/Magic Cut.app` replaced, frontend id `efdf4e08f976339f`
+    matches the built and the installed binary, Spotlight finds it, it opens.
+  - `npm run smoke` on the built bundle: codesign ok, Claude answered, a 153.8 s take transcribed in 5.5 s with
+    monotonic word times, Magic found the 3 bad takes in `retakes.wav`.
+  - Not done: the by-hand pass in the app (open, frame, ▶ Play, which-cuts, only Stop review closes, keyboard and
+    VoiceOver). The agent shell can't click, type into or screenshot the app, and the app has no UI test hook, so
+    this needs a person (or an agent with screen control) on the installed build.
+
+Next: the by-hand pass of Phase 5 on the installed app, then set `f-cut-review-mode` to shipped.
