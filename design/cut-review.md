@@ -47,7 +47,9 @@ The loop: **Review → hear a join → Y (next) or N (fix later) → … → "3 
 ## Starting
 - **Toolbar button "Review cuts"**. After a Magic run it is the **primary** (filled) action and ✦ Magic becomes plain,
   as `design/main-screen.md` planned. It exists whenever there is at least one stop. Tooltip "Review cuts (R)".
-- **R** starts it (not in a text field, and not with words selected, where letters fix words as today).
+- **R** starts it (not in a text field, and not with words selected, where letters fix words as today). That
+  exception is only for starting: **once review is on, the review keys (Y, N, M, R, Return, Space) win even with
+  words selected** (see Keys); only a focused text field takes them.
 - **The Magic done line** adds the way in: "38 cuts · 24:10 → 14:52 · R to review · ⌘Z to undo".
 - Review opens at the **first unchecked stop** in time order. If every stop is checked, it opens at the first one and
   shows its verdict, so a second pass is possible.
@@ -109,12 +111,12 @@ review, double-click it.
 
 | Key | Action |
 |---|---|
-| **Y** or **Return** | Looks good → next unchecked stop, playing at once. Any time, mid-window too |
+| **Y** or **Return** | Looks good → the next unchecked stop **after this one**, playing at once. Any time, mid-window too. No unchecked stop after it → the end line, even if earlier stops were skipped with ↓ (the end line counts them; starting review again with Review cuts or R opens at the first of them). The same goes for N and ⌫ |
 | **N** (or **M**) | Fix later → an empty red note about the cut, then next stop. No typing, no dialog |
 | **⌫** | Put it back now (the app-wide restore). Counts as checked, then next stop |
 | **R** | Replay this window from its start. Never changes the verdict |
-| **Space** | Pause / play. After the window has ended: replay |
-| **↓ / ↑** | Next / previous stop, no verdict. ↑ shows the verdict given and plays it |
+| **Space** | Pause / play. After the window has ended: replay. Review owns Space even when a bar button has focus: it never presses the button |
+| **↓ / ↑** | Next / previous stop, no verdict. ↑ shows the verdict given and plays it. No wrap: ↓ on the last stop and ↑ on the first do nothing but replay the current window, and the status line says "Last cut" / "First cut" for 2 s |
 | **⌘Z** | Right after a verdict: undo that verdict (and its note or restore) and go back to that stop. Otherwise the usual undo |
 | **⌥→** | (On the end line) leave review and go to the first note to fix |
 | **Esc** | Leave review. Progress stays |
@@ -179,8 +181,10 @@ review, double-click it.
 - The bar is `role="region"`, "Cut review". On each stop the status live region reads "Cut 7 of 38. Magic: Earlier
   take, kept so today we want to…" (the full reason, not the truncated line).
 - Buttons are named "Looks good (Y)", "Fix later (N)", "Replay (R)", "Stop reviewing (Escape)", "Fix the first (Option
-  Right Arrow)"; each target is at least 28 pt. Focus enters the bar on Looks good, so Return and Space work as
-  everywhere; Tab moves within the bar and on out to the rest of the screen.
+  Right Arrow)"; each target is at least 28 pt. Focus enters the bar on Looks good, so Return is Yes. **Space is
+  always review's pause / play**, even on a focused bar button (review takes it first, so Space never presses a
+  button and never gives a verdict); a focused button is pressed with Return. Tab moves within the bar and on out to
+  the rest of the screen.
 - Every key has a button; every button has a key. Keyboard-only works end to end.
 - The chosen verdict is shown by a ✓ and the word "Noted", not by colour alone. `noteRed` on `raised` is ≥ 4.5 : 1 for
   that one word.
