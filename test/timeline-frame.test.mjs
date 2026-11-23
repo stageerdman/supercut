@@ -34,7 +34,6 @@ test('frame: a 6 s stretch fills 80 % of the view, centred, and the zoom slider 
   assert.ok(Math.abs(screen(0, 606) - 720) < 0.5, `ends at 90 %: ${screen(0, 606)}`);
   assert.equal(zooms.at(-1), timeline.zoom);
   assert.equal(timeline.inView(r), true);
-  delete globalThis.document;
 });
 
 test('inView: false once you scroll the stretch away; a frame brings it back', async () => {
@@ -45,7 +44,6 @@ test('inView: false once you scroll the stretch away; a frame brings it back', a
   assert.equal(timeline.inView(r), false);
   timeline.frame(r);
   assert.equal(timeline.inView(r), true);
-  delete globalThis.document;
 });
 
 test('frame: a stretch across two parts counts the gap; a stretch past the deepest zoom stays at MAX_PPS', async () => {
@@ -56,5 +54,4 @@ test('frame: a stretch across two parts counts the gap; a stretch past the deepe
   timeline.frame({ i0: 0, t0: 100, i1: 0, t1: 100.5, seconds: 0.5, gaps: 0 });
   assert.equal(timeline.zoom, 1, 'clamped');
   assert.ok(Math.abs(screen(0, 100.25) - 400) < 0.5, 'still centred');
-  delete globalThis.document;
 });
