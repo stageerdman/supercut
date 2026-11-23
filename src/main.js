@@ -9,7 +9,6 @@ import { createTranscript } from './ui/transcript.js';
 import { mountSearch } from './ui/transcript-search.js';
 import { mountDivider } from './ui/divider.js';
 import { createRail } from './ui/rail.js';
-import { withMagic } from './ui/cuts.js';
 import { toggleSelection, keptSelection, wordsIn } from './ui/selection.js';
 import { removeText } from './ui/fix.js';
 import { menuFor, noteMenu, popup } from './ui/context-menu.js';
@@ -18,7 +17,7 @@ import { createNoteCard } from './ui/note-card.js';
 import { createNoteControl } from './ui/note-control.js';
 import { createHistory, changed } from './ui/history.js';
 import { bit } from './ui/bit.js';
-import { createMagic, claudeBanner } from './ui/magic.js';
+import { createMagic, claudeBanner, withMagicRun, magicNotesOpen } from './ui/magic.js';
 import { paintMagic } from './ui/magic-button.js';
 import { createPlayer } from './ui/player.js';
 import { createRulesStore, mountRules } from './ui/rules.js';
@@ -196,7 +195,12 @@ const magic = createMagic({
   paint: (s) => { paintMagic(s); status.render(); },
   flash: (text, ms) => status.flash(text, ms),
   banner: showBanner,
-  onResult: (c) => commit({ ...history.edit, cuts: withMagic(history.edit.cuts, c, lengths()) }, 'Magic Cut'), // one ⌘Z undoes the whole run
+  onResult: (r) => { // one ⌘Z undoes the whole run, cuts and notes
+    const seconds = edited().map((p) => ({ id: p.id, seconds: p.transcript?.seconds }));
+    commit(withMagicRun(history.edit, r, seconds, lengths()), 'Magic Cut');
+    notes.refresh(); // a replaced Magic note's open card closes
+    return magicNotesOpen(history.edit);
+  },
 });
 // Your rules (gear, ⌘,). Pressing Magic Cut closes the panel and saves first, so a rule typed a second ago is used.
 const rules = mountRules({ gear: $('rules-gear'), panel: $('rules-panel'), box: $('rules-box') }, createRulesStore(invoke), { onError: showBanner });

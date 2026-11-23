@@ -8,7 +8,12 @@ Drop: earlier takes of a line that was said again (keep the last take), false st
 (a line abandoned midway, a stumble that is said again right after). \
 Keep everything else, even casual speech: never drop something that isn't said again. \
 Lines that look like takes of one line are listed after the transcript. They are hints: \
-lines that only sound alike but say different things both stay. Answer with line numbers only.";
+lines that only sound alike but say different things both stay. Answer with line numbers only.\n\n\
+You may also list a few lines under check, where the user should listen or decide: \
+two takes nearly as good as each other, a line you almost cut or almost kept (an aside, a tangent), \
+or speech you couldn't make out. Never use check to explain a cut. \
+Zero is the normal answer: at most one per 3 minutes of speech and never more than 5. \
+Each why is one plain line under 70 characters that says what to do, like \"Two good takes. I kept the second. Listen to both?\"";
 
 /// The built-in rules, then the user's own rules (feature "Custom AI editing rules"), which win where they differ.
 pub fn system(custom: &[String]) -> String {
@@ -39,6 +44,13 @@ mod tests {
         let lines = split(&[part(1, "Hi. Hi again. Bye.")]);
         assert_eq!(transcript(&lines, &[vec![1, 2]]), "1: Hi.\n2: Hi again.\n3: Bye.\n\nLook like takes of one line: 1, 2\n");
         assert_eq!(transcript(&lines, &[]), "1: Hi.\n2: Hi again.\n3: Bye.\n");
+    }
+
+    #[test]
+    fn the_rules_say_when_to_ask_for_a_check_and_how_rarely() {
+        for rule in ["Never use check to explain a cut", "Zero is the normal answer", "one per 3 minutes", "never more than 5", "under 70 characters"] {
+            assert!(RULES.contains(rule), "missing: {rule}");
+        }
     }
 
     #[test]

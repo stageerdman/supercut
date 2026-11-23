@@ -19,6 +19,15 @@ What this update taught us. It holds durable principles, not status. Status is i
 - **One key, one meaning.** ⌫ stays cut/restore. `M` stays note, even in the transcript, where it's the one letter
   that doesn't start a fix.
 
+## Magic's notes (Phase 6)
+- **The app enforces the caps, the prompt only asks.** Rust keeps known lines, one note per line, the first 5 in time
+  order, text cut to 70 characters; `withMagicNotes` then applies the speech cap and your notes. A chatty Claude can't
+  flood the lane.
+- **The done line counts the notes that landed**, not the ones Claude sent (a deleted spot or one of your notes can
+  block one), so it never promises a note you can't find.
+- **Q3, first live run (2026-11-23):** on the 42 s retakes sample Claude cut the 3 bad takes and flagged nothing.
+  That is the intended answer for a clean talk. Still open: what it flags on a long, messy real recording.
+
 ## Open questions carried forward
 - Q1 / A16 most notes are empty and made while playing · Q2 should Magic read notes (Pixel) · Q3 what Magic should
   flag, and how many · Q4 / A17 colour use · Q5 / A19 do CapCut users find ⚑ · Q6 pass-by popups · Q7 is "Show done"

@@ -3,7 +3,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { clock, eta } from '../src/ui/dom.js';
 import { workText, makeEta, createStatusLine } from '../src/ui/status.js';
-import { magicView, createMagic, claudeBanner, NOT_CONNECTED } from '../src/ui/magic.js';
+import { magicView, createMagic, claudeBanner, NOT_CONNECTED, withMagicRun, magicNotesOpen, doneLine } from '../src/ui/magic.js';
+import { createHistory } from '../src/ui/history.js';
+import { emptyEdit } from '../src/ui/edit.js';
+import { editNote, deleteNote } from '../src/ui/notes.js';
 import { isCut } from '../src/ui/cuts.js';
 import { cutTitle } from '../src/ui/transcript.js';
 import { bit, setBit } from '../src/ui/bit.js';
@@ -102,7 +105,7 @@ test('magic button looks', () => {
 
 // ---------- Magic controller with fakes ----------
 
-function rig({ runner, claudeState = 'ready', transcribing = false } = {}) {
+function rig({ runner, claudeState = 'ready', transcribing = false, noted = 0 } = {}) {
   const log = { states: [], flashes: [], banners: [], results: [] };
   const project = {
     parts: [{ id: 1, name: 'a.mov', transcript: { seconds: 2, words: [{ w: 'hi', s: 0, e: 0.4 }] } }],
@@ -116,7 +119,7 @@ function rig({ runner, claudeState = 'ready', transcribing = false } = {}) {
     paint: (s) => log.states.push(s.kind),
     flash: (t) => log.flashes.push(t),
     banner: (t, a) => log.banners.push([t, a?.label]),
-    onResult: (c) => log.results.push(c),
+    onResult: (r) => { log.results.push(r); return noted; },
     store: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) },
   });
   return { m, log, project };
@@ -152,7 +155,7 @@ test('Magic runs, sends only text, hands on the cuts, says privacy once', async 
   await m.press();
   assert.deepEqual(r.sent, [{ id: 1, name: 'a.mov', seconds: 2, words: [{ w: 'hi', s: 0, e: 0.4 }] }]);
   assert.deepEqual(log.states, ['ready', 'running', 'running', 'ready']);
-  assert.deepEqual(log.results, [[{ part: 1, s: 0, e: 0.4 }]]);
+  assert.deepEqual(log.results.map((r) => r.cuts), [[{ part: 1, s: 0, e: 0.4 }]]);
   assert.match(log.flashes[0], /Only the text/);
   assert.equal(log.flashes[1], '3 cuts');
   await m.press();
@@ -228,14 +231,69 @@ test('Magic summary: cuts and the length before → after, across parts', () => 
 test('the runner asks Rust auto_cut with the parts and hands back its cuts', async () => {
   const cuts = [{ part: 1, from: 0, to: 2, s: 0, e: 1, reason: 'earlier take' }];
   const asked = [];
-  globalThis.window = { __TAURI__: { core: { invoke: async (cmd, args) => (asked.push([cmd, args]), cuts) } } };
+  const notes = [{ part: 1, s: 3, e: 5, text: 'Listen to both?' }];
+  globalThis.window = { __TAURI__: { core: { invoke: async (cmd, args) => (asked.push([cmd, args]), { cuts, notes }) } } };
   const stages = [];
   const parts = [{ id: 1, name: 'a.mov', seconds: 10, words: [] }];
   const result = await runner.run({ parts, onStage: (s) => stages.push(s) });
   assert.deepEqual(asked, [['auto_cut', { parts }]]);
-  assert.deepEqual(result, { summary: '1 cut · 00:10 → 00:09 · ⌘Z to undo', cuts });
+  assert.deepEqual(result, { summary: '1 cut · 00:10 → 00:09 · ⌘Z to undo', cuts, notes });
   assert.deepEqual(stages, ['Choosing the best takes']);
   delete globalThis.window;
+});
+
+// ---------- Magic's notes (design/notes.md, "Magic's notes") ----------
+
+const magicParts = [{ id: 1, seconds: 600 }];
+let nextId = 0;
+const ids = () => `m${++nextId}`;
+const run1 = {
+  cuts: [{ part: 1, s: 10, e: 12, reason: 'earlier take' }],
+  notes: [{ part: 1, s: 30, e: 34, text: 'Two good takes. Listen to both?' }, { part: 1, s: 90, e: 95, text: 'Mumbled?' }],
+};
+
+test('a Magic run with notes is one undo step holding cuts and notes, and ⌘Z removes both', () => {
+  const h = createHistory();
+  h.push(withMagicRun(h.edit, run1, magicParts, {}, ids), 'Magic Cut');
+  assert.equal(h.edit.cuts.length, 1);
+  assert.deepEqual(h.edit.notes.map((n) => [n.by, n.s, n.e, n.text, n.color, n.done]), [
+    ['magic', 30, 34, 'Two good takes. Listen to both?', 'yellow', false],
+    ['magic', 90, 95, 'Mumbled?', 'yellow', false],
+  ]);
+  assert.equal(magicNotesOpen(h.edit), 2);
+  assert.equal(h.undo().label, 'Magic Cut');
+  assert.deepEqual([h.edit.cuts, h.edit.notes], [[], []]);
+});
+
+test('a Magic re-run keeps your notes and touched ones, never brings back a deleted one, replaces the rest', () => {
+  let edit = withMagicRun(emptyEdit(), run1, magicParts, {}, ids);
+  const [first, second] = edit.notes;
+  edit = editNote(edit, first.id, { color: 'blue' }).edit; // touched: now yours
+  edit = deleteNote(edit, second.id).edit; // deleted: remembered
+  const run2 = { cuts: [], notes: [...run1.notes, { part: 1, s: 200, e: 204, text: 'An aside. Keep it?' }] };
+  edit = withMagicRun(edit, run2, magicParts, {}, ids);
+  assert.deepEqual(edit.notes.map((n) => [n.by, n.s, n.color]), [['you', 30, 'blue'], ['magic', 200, 'yellow']]);
+  assert.equal(magicNotesOpen(edit), 1);
+});
+
+test('Magic notes are capped by speech: none without speech, one for a short talk', () => {
+  assert.equal(withMagicRun(emptyEdit(), run1, [{ id: 1, seconds: 0 }], {}, ids).notes.length, 0);
+  assert.equal(withMagicRun(emptyEdit(), run1, [{ id: 1, seconds: 120 }], {}, ids).notes.length, 1);
+  assert.equal(withMagicRun(emptyEdit(), { cuts: [] }, magicParts, {}, ids).notes.length, 0, 'an older runner sends no notes');
+});
+
+test('the done line names Magic\'s notes and the key, only when there are some', () => {
+  assert.equal(doneLine('38 cuts · 24:10 → 14:52 · ⌘Z to undo', 2), '38 cuts · 24:10 → 14:52 · 2 notes to check · ⌥→ · ⌘Z to undo');
+  assert.equal(doneLine('3 cuts · 00:42 → 00:32 · ⌘Z to undo', 1), '3 cuts · 00:42 → 00:32 · 1 note to check · ⌥→ · ⌘Z to undo');
+  assert.equal(doneLine('3 cuts · 00:42 → 00:32 · ⌘Z to undo', 0), '3 cuts · 00:42 → 00:32 · ⌘Z to undo');
+  assert.equal(doneLine('Nothing cut.', 1), 'Nothing cut. · 1 note to check · ⌥→');
+});
+
+test('the controller flashes the done line with the notes onResult reports', async () => {
+  const { m, log } = rig({ runner: okRunner({ summary: '3 cuts · ⌘Z to undo', cuts: [] }), noted: 2 });
+  m.update();
+  await m.press();
+  assert.equal(log.flashes.at(-1), '3 cuts · 2 notes to check · ⌥→ · ⌘Z to undo');
 });
 
 // ---------- Your rules (src/ui/rules.js) ----------

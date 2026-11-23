@@ -50,7 +50,7 @@ mod tests {
     use super::*;
 
     fn picks(keep: &[u32], drop: &[u32]) -> Picks {
-        Picks { keep: keep.to_vec(), drop: drop.iter().map(|&id| Dropped { id, reason: "claude".into() }).collect() }
+        Picks { keep: keep.to_vec(), drop: drop.iter().map(|&id| Dropped { id, reason: "claude".into() }).collect(), check: vec![] }
     }
 
     fn sorted(p: &Picks) -> (Vec<u32>, Vec<u32>) {

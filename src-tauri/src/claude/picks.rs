@@ -9,12 +9,21 @@ use serde_json::{json, Value};
 pub struct Picks {
     pub keep: Vec<u32>,
     pub drop: Vec<Dropped>,
+    /// Lines Claude wants the user to listen to or decide on (Magic's notes). Optional: zero is normal.
+    #[serde(default)]
+    pub check: Vec<Check>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct Dropped {
     pub id: u32,
     pub reason: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct Check {
+    pub line: u32,
+    pub why: String,
 }
 
 pub fn schema() -> Value {
@@ -26,6 +35,11 @@ pub fn schema() -> Value {
                 "type": "object",
                 "properties": {"id": {"type": "integer"}, "reason": {"type": "string"}},
                 "required": ["id", "reason"]
+            }},
+            "check": {"type": "array", "items": {
+                "type": "object",
+                "properties": {"line": {"type": "integer"}, "why": {"type": "string"}},
+                "required": ["line", "why"]
             }}
         },
         "required": ["keep", "drop"]
@@ -54,6 +68,13 @@ mod tests {
         let p = parse(json!({"keep": [2, 3], "drop": [{"id": 1, "reason": "false start"}]}), 3).unwrap();
         assert_eq!(p.keep, [2, 3]);
         assert_eq!(p.drop[0], Dropped { id: 1, reason: "false start".into() });
+        assert!(p.check.is_empty(), "no check list means no notes");
+    }
+
+    #[test]
+    fn the_check_list_is_read_when_there() {
+        let p = parse(json!({"keep": [1], "drop": [], "check": [{"line": 1, "why": "Listen?"}]}), 1).unwrap();
+        assert_eq!(p.check, [Check { line: 1, why: "Listen?".into() }]);
     }
 
     #[test]

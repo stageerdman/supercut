@@ -3,7 +3,31 @@
 // Until a runner is connected it's a placeholder: pressing it says Magic isn't connected yet.
 //
 // States: off · ready · queued · running(stage) · (done → ready, summary in the status line)
-// A failed run changes nothing in the project: cuts are only handed on after success.
+// A failed run changes nothing in the project: cuts and notes are only handed on after success.
+import { withMagic } from './cuts.js';
+import { notesOf } from './edit.js';
+import { withMagicNotes, openNotes } from './notes.js';
+
+/**
+ * Pure: a run's `{ cuts, notes }` applied to the edit, as one edit (one "Magic Cut" undo step). Your cuts and notes
+ * win (`withMagic`, `withMagicNotes`). `parts` in play order, `[{ id, seconds }]`: the order and the speech cap.
+ */
+export function withMagicRun(edit, { cuts, notes = [] }, parts, lengths = {}, id) {
+  const order = parts.map((p) => p.id);
+  const speech = parts.reduce((sum, p) => sum + (p.seconds || 0), 0);
+  const next = { ...edit, cuts: withMagic(edit.cuts, cuts, lengths) };
+  return withMagicNotes(next, notes, { order, speech, ...(id && { id }) });
+}
+
+/** Pure: how many of Magic's notes are open, for the done line. */
+export const magicNotesOpen = (edit) => openNotes(notesOf(edit)).filter((n) => n.by === 'magic').length;
+
+/** Pure: the done line, plus "· 2 notes to check · ⌥→" (before "· ⌘Z to undo") when Magic left some. */
+export function doneLine(summary, notes) {
+  if (!notes) return summary;
+  const check = ` · ${notes} note${notes === 1 ? '' : 's'} to check · ⌥→`;
+  return summary.replace(/( · ⌘Z to undo)?$/, `${check}$1`);
+}
 
 /** Pure: how the button looks in a state. Tested in test/ui.test.mjs. */
 export function magicView(state) {
@@ -23,13 +47,13 @@ export const NOT_CONNECTED = "Magic Cut isn't connected yet. Soon it will pick y
 /**
  * The controller. Every dependency is passed in so it runs (and is tested) without a window.
  * @param {{
- *   runner: null | { run: (job: {parts: Array<{id:number,name:string,seconds:number,words:Array}>, onStage: (s:string)=>void}) => Promise<{summary:string, cuts:Array<{part:number,s:number,e:number}>}>, cancel: () => void },
+ *   runner: null | { run: (job: {parts: Array<{id:number,name:string,seconds:number,words:Array}>, onStage: (s:string)=>void}) => Promise<{summary:string, cuts:Array<{part:number,s:number,e:number}>, notes?:Array<{part:number,s:number,e:number,text:string}>}>, cancel: () => void },
  *   claude: () => Promise<{state:string, message:string}>,
  *   project: () => {parts: Array, transcribing: boolean},
  *   paint: (state) => void,
  *   flash: (text:string, ms:number) => void,
  *   banner: (text:string, action?: {label:string, run:()=>void}) => void,
- *   onResult: (cuts:Array) => void,
+ *   onResult: (result: {cuts:Array, notes?:Array}) => number | void,  // returns how many of Magic's notes are open
  *   store?: {getItem:(k:string)=>string|null, setItem:(k:string,v:string)=>void},
  * }} deps
  */
@@ -52,9 +76,9 @@ export function createMagic(deps) {
         onStage: (stage) => state.kind === 'running' && set({ kind: 'running', stage }),
       });
       if (state.kind !== 'running') return; // cancelled meanwhile: drop the result
-      deps.onResult(result.cuts);
+      const notes = deps.onResult(result) || 0;
       set({ kind: 'ready' });
-      deps.flash(result.summary, 6000);
+      deps.flash(doneLine(result.summary, notes), 6000);
     } catch (e) {
       if (state.kind !== 'running') return; // the cancel was the "error"
       set({ kind: 'ready' });

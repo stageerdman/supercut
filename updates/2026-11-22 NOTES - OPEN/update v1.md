@@ -193,6 +193,20 @@ up-to-date main.
   Remaining: the window check by a person, Phase 6 (Magic's notes, Rust), docs (`wiki.md`, user-model A16–A19
   results), `npm run install-app`.
 
+- **Phase 6 done (Uncle Bob, 2026-11-23).** Rust: `claude/picks.rs` reads an optional `check: [{ line, why }]`
+  (the schema offers it, an answer without it parses as before); `autocut/notes.rs` turns it into notes over the
+  lines (unknown and doubled lines dropped, first 5 in time order, `why` trimmed and cut to 70 characters);
+  `autocut::propose` / `auto_cut` / `--auto-cut` return `Proposal { cuts, notes }`; the prompt says when to flag,
+  never to explain a cut, the caps, and that zero is normal. JS: `src/ai.js` hands on `notes`; `src/ui/magic.js`
+  `withMagicRun` applies cuts and notes as one edit (one "Magic Cut" step), `doneLine` adds "· 2 notes to check · ⌥→";
+  `main.js` wires it and refreshes an open card. Tests: 4 in `autocut/notes.rs`, 1 each in `picks.rs`, `prompt.rs`,
+  `autocut/mod.rs`; 5 in `test/ui.test.mjs`. `npm run test:ui` 219 green, `npm run test:rust` 101 green. Live run
+  with this Mac's Claude: 3 cuts, 0 notes on the retakes sample (wiki, Q3). **Not yet checked in the window.**
+
+### Phase 6 decisions
+- The done line counts Magic's open notes after `withMagicNotes`, so it matches the lane; `onResult` returns it.
+- `withMagicRun` lives in `magic.js` (it joins cuts and notes, which are separate modules); `main.js` only wires it.
+
 ### Phases 2–5 decisions
 - A click on a noted word in the transcript opens its card **unfocused** and doesn't seek, so fixing goes on; a click
   on a note bar opens it focused. Transcript clicks keep the card open.

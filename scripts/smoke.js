@@ -45,9 +45,10 @@ for (let i = 1; i < t.words.length; i++) if (t.words[i].s < t.words[i - 1].s) th
 const retakes = path.join(__dirname, '..', 'models', 'retakes.wav');
 if (fs.existsSync(retakes)) {
   const m0 = Date.now();
-  const cuts = JSON.parse(execFileSync(bin, ['--auto-cut', retakes], { encoding: 'utf8' }));
-  console.log(`magic: ${cuts.length} cuts in ${((Date.now() - m0) / 1000).toFixed(1)} s`);
+  const { cuts, notes } = JSON.parse(execFileSync(bin, ['--auto-cut', retakes], { encoding: 'utf8' }));
+  console.log(`magic: ${cuts.length} cuts, ${notes.length} notes in ${((Date.now() - m0) / 1000).toFixed(1)} s`);
   for (const c of cuts) console.log(`  ${c.s.toFixed(2).padStart(6)}–${c.e.toFixed(2).padEnd(6)} ${c.reason}`);
+  for (const n of notes) console.log(`  ✦ ${n.s.toFixed(2).padStart(4)}–${n.e.toFixed(2).padEnd(6)} ${n.text}`);
   if (cuts.length !== 3) throw new Error('expected the three bad takes cut');
 } else console.log('magic: skipped (run npm run sample-retakes)');
 console.log('smoke: ok');

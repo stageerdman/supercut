@@ -32,6 +32,7 @@ export const runner = {
     return {
       summary: '38 cuts · 24:10 → 14:52', // one line, shown 6 s
       cuts: [{ part: 1, s: 12.4, e: 15.9 }], // part = the part's id; seconds in that part's own time
+      notes: [{ part: 1, s: 30.1, e: 34.2, text: 'Two good takes. Listen to both?' }], // optional; usually none
     };
   },
   cancel: () => {/* stop the claude process; the late result is ignored anyway */},
@@ -41,6 +42,9 @@ export const runner = {
 **Connected (2026-11-20):** `src/ai.js` exports the runner. It calls the Rust command `auto_cut`
 (`src-tauri/src/autocut/`); each cut also carries `from`/`to` (word indices in its part) and a short `reason`.
 Magic sends each part's `seconds` too, for the summary.
+**Notes (2026-11-23):** `auto_cut` returns `{ cuts, notes }`. Claude may list a few lines under `check`; Rust turns
+them into notes over those lines (`autocut/notes.rs`: known lines only, ≤ 5, text ≤ 70 characters). The app applies
+them with `withMagicRun` (`src/ui/magic.js`) in the same "Magic Cut" step as the cuts; see `design/notes.md`.
 
 Rules the UI already enforces (tested in `test/ui.test.mjs`):
 - **Throw a plain sentence** (`throw new Error('Claude is busy. Try again in a minute.')`). It goes straight into the banner

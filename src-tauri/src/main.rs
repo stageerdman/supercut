@@ -54,10 +54,10 @@ async fn claude_self_test() -> Result<claude::picks::Picks, AppError> {
         .map_err(|e| AppError::ClaudeFailed(e.to_string()))?
 }
 
-/// Magic: the parts' transcripts (play order) → proposed cuts, chosen by the user's Claude
+/// Magic: the parts' transcripts (play order) → proposed cuts and notes, chosen by the user's Claude
 /// with the user's saved editing rules (read fresh each run, so a save applies at once).
 #[tauri::command]
-async fn auto_cut(parts: Vec<autocut::lines::PartWords>) -> Result<Vec<autocut::decide::Cut>, AppError> {
+async fn auto_cut(parts: Vec<autocut::lines::PartWords>) -> Result<autocut::Proposal, AppError> {
     tauri::async_runtime::spawn_blocking(move || autocut::run(&claude::locate()?, &parts, &rules::load(&rules::path())?, "magic"))
         .await
         .map_err(|e| AppError::ClaudeFailed(e.to_string()))?
@@ -132,8 +132,8 @@ fn print_and_exit<T: Serialize>(result: Result<T, AppError>) -> ! {
     std::process::exit(0)
 }
 
-/// Magic on one file, as one part: transcribe, then propose cuts.
-fn auto_cut_file(file: &Path) -> Result<Vec<autocut::decide::Cut>, AppError> {
+/// Magic on one file, as one part: transcribe, then propose cuts and notes.
+fn auto_cut_file(file: &Path) -> Result<autocut::Proposal, AppError> {
     let t = transcribe::transcribe_file(&parakeet::model_dir(), &audio::bundled_ffmpeg(), file, "cli", |_, _| {})?;
     let parts = [autocut::lines::PartWords { id: 1, words: t.words }];
     autocut::run(&claude::locate()?, &parts, &rules::load(&rules::path())?, "cli")
