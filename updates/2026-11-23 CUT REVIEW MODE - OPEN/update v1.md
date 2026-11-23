@@ -91,10 +91,17 @@ After Magic, the user checks every cut in a few minutes without watching the who
 - Phase 3: done, minus the pre-load. `src/ui/review-play.js` plays a window on the normal player (no second
   player path), waits at its end, Space / R replay, and ignores stale times from before a seek lands. The next stop's
   start is **not** pre-loaded (`player.show` seeks), so a verdict may hitch on a slow disk: check by ear in Phase 6.
-- Phase 4: the engine is done, the screen is not. `src/ui/review-session.js` (`createReviewSession`) does start,
-  Y / N / ⌫, ↑ / ↓ / goTo, R / Space, ⌘Z of the last verdict, Esc and resume, the end line and going stale on a
-  Magic re-run; `test/review-session.test.mjs`. **Still to build (UI owner):** `review-bar.js`, the toolbar button
-  and R to start, key routing ahead of type-to-fix, and the wiring in `main.js`.
+- Phase 4: done. Engine: `src/ui/review-session.js` (`createReviewSession`) does start, Y / N / ⌫, ↑ / ↓ / goTo,
+  R / Space, ⌘Z of the last verdict, Esc and resume, the end line and going stale on a Magic re-run;
+  `test/review-session.test.mjs`. Screen: `src/ui/review-bar.js` (the bar over the player, key caps, ✓ Noted,
+  end line, a live region per stop, 480 pt / narrow), `src/ui/review-control.js` (key routing ahead of type-to-fix,
+  the ring on the current cut, clicking another stop's cut, ⌥→ from the end line into the first red note), the
+  **Review cuts** toolbar button (primary after a Magic run until all is checked) and R to start, Magic's done line
+  offering R; wired in `main.js`. `test/review-bar.test.mjs`, `test/review-control.test.mjs`.
+  Known gaps, for Phase 6: no keyboard-only or VoiceOver pass yet (no screen here); if every Magic cut is put back
+  with ⌫ during review, the stops fall back to your own cuts mid-session; the bar and an open note card share the
+  spot over the player; a seek forward during review can end the window early. The session's commit does not call
+  `review.changed()` on purpose (no re-entry mid-verdict).
 - Phase 5: done. `learning.js` writes verdicts beside outcomes and a case for every "no" (`verdict`, `heard`,
   `fixed`, `doneAt`); `learningClips` names the clips. Rust `save_learning_clip` (`src-tauri/src/learning_clip.rs`)
   renders `heard` to `learning/<run id>-<index>.mp4`, 854×480 boxed, H.264 + AAC, temp file then rename; paths come
@@ -103,4 +110,4 @@ After Magic, the user checks every cut in a few minutes without watching the who
   are then, which already carries `doneAt`.
 - Phase 6: not started.
 
-Next: Phase 4's screen (bar, button, keys, `main.js` wiring), then Phase 6.
+Next: Phase 6 (verify in the app and ship).
