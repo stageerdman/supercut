@@ -4,6 +4,7 @@
 //! CLAUDE.md, hooks or MCP config get picked up. The prompt goes in on stdin.
 
 use super::setup::command;
+pub use super::stream::Reply;
 use super::stream::Stream;
 use crate::error::AppError;
 use crate::log;
@@ -34,7 +35,7 @@ pub fn args(ask: &Ask) -> Vec<String> {
 }
 
 /// Asks and waits up to `limit`. `trace` tags the log lines.
-pub fn ask(bin: &Path, ask: &Ask, limit: Duration, trace: &str) -> Result<Value, AppError> {
+pub fn ask(bin: &Path, ask: &Ask, limit: Duration, trace: &str) -> Result<Reply, AppError> {
     log::info("claude", trace, format!("ask: {} chars, up to {} s", ask.prompt.len(), limit.as_secs()));
     let t0 = Instant::now();
     let result = run(bin, ask, limit, trace);
@@ -45,7 +46,7 @@ pub fn ask(bin: &Path, ask: &Ask, limit: Duration, trace: &str) -> Result<Value,
     result
 }
 
-fn run(bin: &Path, ask: &Ask, limit: Duration, trace: &str) -> Result<Value, AppError> {
+fn run(bin: &Path, ask: &Ask, limit: Duration, trace: &str) -> Result<Reply, AppError> {
     let mut child = command(bin)
         .args(args(ask))
         .current_dir(quiet_dir()?)
@@ -141,7 +142,7 @@ mod tests {
 
     fn call(bin: &Path, limit: Duration) -> Result<Value, AppError> {
         let schema = json!({"type": "object"});
-        ask(bin, &Ask { prompt: "hello claude", system: "be brief", schema: &schema }, limit, "test")
+        ask(bin, &Ask { prompt: "hello claude", system: "be brief", schema: &schema }, limit, "test").map(|r| r.answer)
     }
 
     #[test]

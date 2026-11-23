@@ -25,8 +25,8 @@ pub fn run(bin: &Path, trace: &str) -> Result<Picks, AppError> {
     let schema = picks::schema();
     let prompt = prompt(&SENTENCES);
     // Magic's own rules, so the self-test proves what Magic will ask.
-    let answer = ask(bin, &Ask { prompt: &prompt, system: crate::autocut::RULES, schema: &schema }, LIMIT, trace)?;
-    picks::parse(answer, SENTENCES.len() as u32)
+    let reply = ask(bin, &Ask { prompt: &prompt, system: crate::autocut::RULES, schema: &schema }, LIMIT, trace)?;
+    picks::parse(reply.answer, SENTENCES.len() as u32)
 }
 
 #[cfg(test)]

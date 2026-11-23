@@ -2,7 +2,7 @@
 //! speaker paused, so a false start ("So today I want to, um…" + pause) is a line of its own.
 
 use crate::words::Word;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// A pause this long ends a line even without punctuation.
 const PAUSE_S: f64 = 1.0;
@@ -15,7 +15,7 @@ pub struct PartWords {
 }
 
 /// Words `from..to` of part `part`. Ids run 1, 2, … across all parts in play order.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct Line {
     pub id: u32,
     pub part: u32,

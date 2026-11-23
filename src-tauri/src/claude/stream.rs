@@ -5,9 +5,18 @@
 use crate::error::AppError;
 use serde_json::Value;
 
+/// Claude's structured answer, and the model that really gave it (the id from the stream's init line,
+/// not the alias we asked for): a learning log must say which model it scores.
+#[derive(Debug, PartialEq)]
+pub struct Reply {
+    pub answer: Value,
+    pub model: Option<String>,
+}
+
 #[derive(Default)]
 pub struct Stream {
     result: Option<Value>,
+    model: Option<String>,
     /// Kind of the latest `system/api_retry` event, e.g. "rate_limit".
     retry: Option<String>,
     /// The last line that wasn't JSON (CLI warnings land here): a detail for the error.
@@ -28,6 +37,7 @@ impl Stream {
         };
         match (v["type"].as_str(), v["subtype"].as_str()) {
             (Some("result"), _) => self.result = Some(v),
+            (Some("system"), Some("init")) => self.model = v["model"].as_str().map(str::to_owned),
             (Some("system"), Some("api_retry")) => {
                 self.retry = Some(v["error"].as_str().unwrap_or("unknown").to_owned());
                 return self.retry.as_deref();
@@ -39,7 +49,7 @@ impl Stream {
 
     /// The answer, once the process is done. `fallback` explains a run that ended
     /// without a result line (stderr, exit code).
-    pub fn finish(self, fallback: &str) -> Result<Value, AppError> {
+    pub fn finish(self, fallback: &str) -> Result<Reply, AppError> {
         let Some(r) = self.result else {
             let detail = self.noise.as_deref().filter(|_| fallback.is_empty()).unwrap_or(fallback);
             return Err(classify(detail, self.retry.as_deref()));
@@ -49,7 +59,7 @@ impl Stream {
             return Err(classify(text, self.retry.as_deref()));
         }
         match r.get("structured_output") {
-            Some(answer) if !answer.is_null() => Ok(answer.clone()),
+            Some(answer) if !answer.is_null() => Ok(Reply { answer: answer.clone(), model: self.model }),
             _ => Err(AppError::ClaudeFailed("the answer didn't have the expected shape".into())),
         }
     }
@@ -72,12 +82,16 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn read(lines: &[&str], fallback: &str) -> Result<Value, AppError> {
+    fn reply(lines: &[&str], fallback: &str) -> Result<Reply, AppError> {
         let mut s = Stream::default();
         for l in lines {
             s.line(l);
         }
         s.finish(fallback)
+    }
+
+    fn read(lines: &[&str], fallback: &str) -> Result<Value, AppError> {
+        reply(lines, fallback).map(|r| r.answer)
     }
 
     const INIT: &str = r#"{"type":"system","subtype":"init","session_id":"x"}"#;
@@ -86,6 +100,14 @@ mod tests {
     fn the_structured_answer_comes_back() {
         let result = r#"{"type":"result","subtype":"success","is_error":false,"result":"","structured_output":{"keep":[2]}}"#;
         assert_eq!(read(&[INIT, "", result], ""), Ok(json!({"keep": [2]})));
+    }
+
+    #[test]
+    fn the_real_model_id_comes_from_the_init_line() {
+        let init = r#"{"type":"system","subtype":"init","model":"claude-sonnet-5-5"}"#;
+        let result = r#"{"type":"result","is_error":false,"structured_output":{}}"#;
+        assert_eq!(reply(&[init, result], "").unwrap().model.as_deref(), Some("claude-sonnet-5-5"));
+        assert_eq!(reply(&[INIT, result], "").unwrap().model, None, "no model in the init line: unknown, never guessed");
     }
 
     #[test]
