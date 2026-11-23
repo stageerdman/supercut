@@ -443,6 +443,22 @@ test('player: a short kept stretch (0.9 s) between two cuts: the old one seeks o
   assert.equal(spare.currentTime, 3.89, 'the one left behind was not seeked over the cut');
 });
 
+test('player: you seek while a swap is due within the frame: no swap', async () => {
+  const { video, player } = await rigPlayer([you(2, 3)], { twin: true });
+  const spare = video.twin;
+  player.show(0, 1);
+  video.play();
+  player.tick();
+  player.tick();
+  spare.currentTime = 2.99;
+  video.currentTime = 1.99;
+  player.tick(); // the swap is due in 10 ms
+  video.currentTime = 0.5; // you seek back before it comes
+  await afterSwap();
+  assert.equal(player.element, video, 'you stay where you sought');
+  assert.equal(video.currentTime, 0.5);
+});
+
 test('player: the twin not in step at the cut: it seeks as before; pausing pauses the twin too', async () => {
   const { video, player } = await rigPlayer([you(2, 3)], { twin: true });
   const spare = video.twin;

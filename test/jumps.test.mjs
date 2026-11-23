@@ -16,26 +16,19 @@ test('jumps: a cut to the end of a part lands on the next part’s first kept mo
   assert.deepEqual(j.landing(0, 8), { i: 1, t: 1 });
 });
 
-test('jumps: ahead lists the jumps within lead, in playing time', () => {
-  const j = rig([cut(1, 2, 3), cut(1, 3.5, 4), cut(1, 6, 7)]);
-  assert.deepEqual(j.ahead(0, 1, 3, 2), [
-    { ahead: 1, at: 2, dest: { i: 0, t: 3 } },
-    { ahead: 1.5, at: 3.5, dest: { i: 0, t: 4 } },
-  ]);
-  assert.equal(j.ahead(0, 1, 1.2, 2).length, 1, 'the second is past the lead');
+test('jumps: next is the first cut after t, landing past any cut touching it', () => {
+  const j = rig([cut(1, 2, 3), cut(1, 3, 4), cut(1, 6, 7)]);
+  assert.deepEqual(j.next(0, 1), { at: 2, dest: { i: 0, t: 4 } });
+  assert.deepEqual(j.next(0, 4), { at: 6, dest: { i: 0, t: 7 } });
 });
 
-test('jumps: ahead crosses from a part’s end into the next part', () => {
-  const j = rig([cut(1, 9, 10), cut(2, 0.5, 1)]);
-  assert.deepEqual(j.ahead(0, 8.5, 3, 2), [
-    { ahead: 0.5, at: 9, dest: { i: 1, t: 0 } },
-    { ahead: 1, at: 0.5, dest: { i: 1, t: 1 } },
-  ]);
+test('jumps: next from a part’s end (or a cut to it) goes into the next part', () => {
+  assert.deepEqual(rig([]).next(0, 8), { at: 10, dest: { i: 1, t: 0 } });
+  assert.deepEqual(rig([cut(1, 9, 10), cut(2, 0, 1)]).next(0, 8), { at: 9, dest: { i: 1, t: 1 } });
 });
 
-test('jumps: ahead stops where playing stops (nothing kept after)', () => {
-  const j = rig([cut(2, 0, 5)]);
-  assert.deepEqual(j.ahead(0, 9, 3, 2), []);
+test('jumps: next stops where playing stops (nothing kept after)', () => {
+  assert.deepEqual(rig([cut(2, 0, 5)]).next(0, 9), { at: 10, dest: null });
 });
 
 test('jumps: the cut you play from inside plays, only in its own part', () => {

@@ -29,7 +29,8 @@ export function createJumps({ parts, cuts, lenOf, through = null, throughIn = -1
     return r?.end || to >= len - EPS ? nextKept(i) : { i, t: to };
   }
 
-  /** The next jump after `t` in part `i`: { at, dest }, `dest` null when playing stops there. */
+  /** The next jump after `t` in part `i`: { at, dest }: it leaves at `at` (a cut's start or the part's end) for
+   * `dest`, null when playing stops there. */
   function next(i, t) {
     const len = lenOf(i);
     const cut = cutsOf(cuts, parts[i].id).find((c) => c.s > t + EPS);
@@ -37,21 +38,5 @@ export function createJumps({ parts, cuts, lenOf, through = null, throughIn = -1
     return { at, dest: at >= len - EPS && !cut ? nextKept(i) : landing(i, at) };
   }
 
-  /**
-   * The next `max` jumps from `t` in part `i` that come within `lead` s of playing:
-   * [{ ahead, at, dest }], `ahead` the playing time until the jump, `at` where it leaves (in its own part).
-   */
-  function ahead(i, t, lead, max) {
-    const out = [];
-    for (let k = i, from = t, sum = 0; out.length < max;) {
-      const j = next(k, from);
-      sum += j.at - from;
-      if (sum > lead || !j.dest) break;
-      out.push({ ahead: sum, at: j.at, dest: j.dest });
-      ({ i: k, t: from } = j.dest);
-    }
-    return out;
-  }
-
-  return { nextKept, landing, ahead };
+  return { nextKept, landing, next };
 }

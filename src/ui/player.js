@@ -1,55 +1,43 @@
 // PlayerView: plays the parts back to back (part 1 runs into part 2), skipping the cuts.
 // No controls on the video itself; the transport row is the only one.
 // Skipping is checked every frame (requestVideoFrameCallback; timeupdate's 4×/s would run into a cut).
-// Seamless cuts: hidden <video>s (the twins) play along silently, each in step on the far side of an upcoming cut;
-// at the cut the seen one and that twin swap (shown and heard ↔ hidden and silent), so nothing seeks or starts at
-// the cut; then the old one, hidden, seeks on for the cut after (a kept stretch of ~0.8 s is time enough).
-// Why it is done this way, and what stalls WebKit's picture: twin-sync.js. Spec: design/timeline.md § Playback.
+// Seamless cuts: a hidden <video> (the twin) plays along silently, in step on the far side of the next cut; at the
+// cut the two swap (shown and heard ↔ hidden and silent), so nothing seeks or starts at the cut; then the old one,
+// hidden, seeks on for the cut after (a kept stretch of FIX_BEFORE is time enough). One twin, not two: measured, a
+// second playing twin starves WebKit's decoders. Why it is done this way, and what stalls WebKit's picture:
+// twin-sync.js. Spec: design/timeline.md § Playback.
 import { clock } from './dom.js';
 import { skipTarget, cutHere, editedTime, editedLength } from './playback.js';
 import { createPlayClock } from './play-clock.js';
 import { createJumps } from './jumps.js';
-import { twinStep, drift, parked, seekLoss, QUIET, TOLERANCE, SEEK_LAG } from './twin-sync.js';
+import { twinStep, drift, parked, seekLoss, QUIET, TOLERANCE, SEEK_LAG, SETTLE } from './twin-sync.js';
 
 const EPS = 1e-6;
-// After a seek lands, a twin's clock runs ~0.3 s, stands still ~0.3 s, then runs steady: judge it only after this.
-const SETTLE_MS = 800;
-export const LEAD = 3; // s: how far ahead of a cut (or a part's end) a twin gets ready (room for two seeks)
-// Hidden twins, one per upcoming jump within LEAD. One: measured, a second playing twin starves WebKit's decoders
-// (the twins never settle and every cut falls back to a seek). Kept stretches under ~FIX_BEFORE then seek.
-const SPARES = 1;
+export const LEAD = 3; // s: how far ahead of a cut (or a part's end) the twin gets ready (room for two seeks)
 const STANDBY = ['absolute', 'opacity-0', 'pointer-events-none'];
 
 /**
- * @param {HTMLVideoElement} first  the visible video; the hidden twins are made next to it
+ * @param {HTMLVideoElement} first  the visible video; the hidden twin is made next to it
  * @param {{parts: () => Array<{id:number,path:string,name:string,duration:number}>, cuts: () => Array,
  *          onTime: (i:number, t:number)=>void, onFrame?: (i:number, t:number)=>void, onPart: (i:number)=>void, onError: (name:string)=>void}} on
  */
 export function createPlayer(first, on) {
   const { convertFileSrc } = window.__TAURI__.core;
   let video = first; // the one you see and hear
-  // Hidden, each waits on the far side of an upcoming jump. `cue`: { path, t } that far side, `at` where the seen
-  // one leaves for it (on the seen one's clock); `sought`: { aimed, since } its last seek, to learn seekLag from.
-  let twins = makeTwins();
-  const elements = [first, ...twins.map((w) => w.el)];
-  let seekLag = SEEK_LAG; // s a twin falls behind where a seek while playing sends it (learned at each seek)
-  let swapping = false; // a swap is due within this frame
+  let twin = first.cloneNode ? first.cloneNode(false) : null; // hidden, waits on the far side of the next cut
+  const elements = twin ? [first, twin] : [first];
+  let cue = null; // what the twin is for: { path, t } the far side of the cut, `at` where the seen one leaves it
+  let sought = null; // { aimed, since }: the twin's last seek, to learn seekLag from once it runs steady
+  let seekLag = SEEK_LAG; // s the twin falls behind where a seek while playing sends it (learned at each seek)
+  let swapTimer = 0; // a swap due within this frame
   let current = 0;
   let through = null; // a cut you chose to play from inside: it plays, the next ones skip
   let selfSeek = false; // our own jump over a cut, not the user's seek
 
-  function makeTwins() {
-    if (!first.cloneNode) return [];
-    const out = [];
-    for (let k = 0, prev = first; k < SPARES; k++) {
-      const el = first.cloneNode(false);
-      el.removeAttribute('id');
-      standby(el);
-      prev.after(el);
-      prev = el;
-      out.push({ el, cue: null, sought: null });
-    }
-    return out;
+  if (twin) {
+    twin.removeAttribute('id');
+    standby(twin);
+    first.after(twin);
   }
 
   /** Dress `n` as a hidden twin (inaudible, out of the tab order and the accessibility tree). */
@@ -60,8 +48,13 @@ export function createPlayer(first, on) {
     n.setAttribute('aria-hidden', 'true');
   }
 
-  /** The twins' cues are void (you seeked or edited): they get in step again for the cuts ahead. */
-  const idle = () => twins.forEach((w) => { w.cue = null; w.sought = null; });
+  /** The twin's cue is void (you seeked or edited): no swap is due, it gets in step again for the next cut. */
+  function idle() {
+    clearTimeout(swapTimer);
+    swapTimer = 0;
+    cue = null;
+    sought = null;
+  }
 
   const part = () => on.parts()[current];
   const len = () => video.duration || part()?.duration || 0;
@@ -98,82 +91,74 @@ export function createPlayer(first, on) {
   const landing = (from) => jumps().landing(current, from);
 
   const pathAt = (dest) => on.parts()[dest.i]?.path;
-  const holds = (w, dest) => !!w.cue && w.cue.path === pathAt(dest) && Math.abs(w.cue.t - dest.t) < EPS;
+  const holds = (dest) => !!cue && cue.path === pathAt(dest) && Math.abs(cue.t - dest.t) < EPS;
 
-  /** Every frame before a cut: each jump within LEAD gets a twin in step on its far side (twinStep says how). */
+  /** Every frame before a cut: get the twin in step on the far side of the next jump (twinStep says how). */
   function prepare(t) {
-    if (!twins.length) return;
-    const ahead = jumps().ahead(current, t, LEAD, twins.length);
-    // A twin already on a jump keeps it; the others take the jumps left.
-    const free = twins.filter((w) => !ahead.some((j) => holds(w, j.dest)));
-    for (const j of ahead) follow(twins.find((w) => holds(w, j.dest)) ?? free.shift(), j, t);
+    if (!twin) return;
+    const { at, dest } = jumps().next(current, t);
+    if (!dest || !pathAt(dest) || at - t > LEAD) return;
+    if (!holds(dest)) {
+      cue = { path: pathAt(dest), t: dest.t };
+      sought = null;
+      load(twin, on.parts()[dest.i]);
+    }
+    cue.at = at;
+    const settling = sought && performance.now() - sought.since < SETTLE * 1000;
+    const busy = twin.seeking || twin.readyState < 2 || settling;
+    if (sought && !busy && !twin.paused) { // settled: aim better next time
+      seekLag = seekLoss(sought.aimed, (performance.now() - sought.since) / 1000, twin.playbackRate, twin.currentTime);
+      sought = null;
+    }
+    const step = twinStep({ at, to: cue.t, t }, { paused: twin.paused, busy, time: twin.currentTime }, seekLag);
+    if (step.do === 'park') { twin.pause(); twin.currentTime = step.time; }
+    else if (step.do === 'seek') { twin.currentTime = step.time; sought = { aimed: step.time, since: performance.now() }; }
+    else if (step.do === 'play') startTwin();
   }
 
-  /** Keep twin `w` in step for jump `j` ({ ahead, dest }), the seen one being at `t`. */
-  function follow(w, j, t) {
-    if (!holds(w, j.dest)) {
-      w.cue = { path: pathAt(j.dest), t: j.dest.t };
-      w.sought = null;
-      load(w.el, on.parts()[j.dest.i]);
-    }
-    w.cue.at = t + j.ahead;
-    const n = w.el;
-    const settling = w.sought && performance.now() - w.sought.since < SETTLE_MS;
-    const busy = n.seeking || n.readyState < 2 || settling;
-    if (w.sought && !busy && !n.paused) { // settled: aim better next time
-      seekLag = seekLoss(w.sought.aimed, (performance.now() - w.sought.since) / 1000, n.playbackRate, n.currentTime);
-      w.sought = null;
-    }
-    const step = twinStep({ at: w.cue.at, to: w.cue.t, t }, { paused: n.paused, busy, time: n.currentTime }, seekLag);
-    if (step.do === 'park') { n.pause(); n.currentTime = step.time; }
-    else if (step.do === 'seek') { n.currentTime = step.time; w.sought = { aimed: step.time, since: performance.now() }; }
-    else if (step.do === 'play') startTwin(n);
-  }
-
-  /** The twin that can take over at `dest` now: in step on the far side, or parked there (then this starts it). */
-  function takerFor(dest) {
-    const w = twins.find((x) => holds(x, dest));
-    if (!w || w.el.seeking) return null;
+  /** Can the twin take over at `dest` now: in step on the far side, or parked there (then this starts it)? */
+  function twinTakes(dest) {
+    if (!twin || twin.seeking || !holds(dest)) return false;
     // Started now, its clock moves about when the cut comes (its start lag ≈ the under-a-frame wait).
-    if (parked(w.cue.t, { paused: w.el.paused, time: w.el.currentTime })) {
-      startTwin(w.el);
-      return w;
+    if (parked(cue.t, { paused: twin.paused, time: twin.currentTime })) {
+      startTwin();
+      return true;
     }
-    const inStep = Math.abs(drift(w.cue.at, w.cue.t, video.currentTime, w.el.currentTime)) <= TOLERANCE;
-    return !w.el.paused && inStep ? w : null;
+    return !twin.paused && Math.abs(drift(cue.at, cue.t, video.currentTime, twin.currentTime)) <= TOLERANCE;
   }
 
-  function startTwin(n) {
-    n.playbackRate = video.playbackRate; // set now: changing it while playing stalls the picture
-    n.play()?.catch?.(idle); // it won't play: the next cut seeks instead
+  function startTwin() {
+    twin.playbackRate = video.playbackRate; // set now: changing it while playing stalls the picture
+    twin.play()?.catch?.(idle); // it won't play: the next cut seeks instead
   }
 
-  /** Go to `dest` while playing: swap to a twin if one can take over, else seek. */
+  /** Go to `dest` while playing: swap to the twin if it can take over, else seek. */
   function jump(dest) {
-    if (swapping) return;
-    const w = takerFor(dest);
-    if (w) return swapOnTime(w, dest, w.cue.at - video.currentTime);
+    if (swapTimer) return;
+    if (twinTakes(dest)) return swapOnTime(dest);
     idle();
     if (dest.i === current) { selfSeek = true; video.currentTime = dest.t; }
     else show(dest.i, dest.t, true);
   }
 
-  /** The cut is `ahead` s of source time away (under a frame): swap right when it comes, not a frame early. */
-  function swapOnTime(w, dest, ahead) {
-    const ms = (ahead / (video.playbackRate || 1)) * 1000;
-    if (ms < 4) return swap(w, dest);
-    swapping = true;
-    setTimeout(() => { swapping = false; if (!video.paused) swap(w, dest); }, ms);
+  /** The cut is under a frame away: swap right when it comes, not a frame early. */
+  function swapOnTime(dest) {
+    const ms = ((cue.at - video.currentTime) / (video.playbackRate || 1)) * 1000;
+    if (ms < 4) return swap(dest);
+    swapTimer = setTimeout(() => {
+      swapTimer = 0;
+      // Still playing up to that cut? (A seek of yours meanwhile voids the cue; a pause, the swap.)
+      if (!video.paused && holds(dest) && Math.abs(cue.at - video.currentTime) <= TOLERANCE) swap(dest);
+    }, ms);
   }
 
-  function swap(w, dest) {
+  function swap(dest) {
     const old = video;
     const muted = old.muted, volume = old.volume, focused = document.activeElement === old;
-    video = w.el;
-    // The old one joins the back of the line; the other twins keep the jumps they are in step for.
-    twins = [...twins.filter((x) => x !== w), { el: old, cue: null, sought: null }];
-    // Their cues were timed on the old one's clock: move them onto the new one's (the cut's moment on each).
-    for (const x of twins) if (x.cue) x.cue.at += dest.t - w.cue.at;
+    video = twin;
+    twin = old;
+    cue = null;
+    sought = null;
     const moved = dest.i !== current;
     current = dest.i;
     video.classList.remove(...STANDBY);
@@ -183,7 +168,7 @@ export function createPlayer(first, on) {
     video.setAttribute('aria-label', old.getAttribute('aria-label') ?? 'Video player');
     video.id = old.id;
     old.removeAttribute('id');
-    standby(old); // it plays on, hidden and inaudible, as a twin for a cut ahead
+    standby(old); // it plays on, hidden and inaudible, as the twin for the next cut
     if (focused) video.focus?.();
     meant(); // a twin a hair short of the far side plays that hair, not seeks over it (the seek is the hitch)
     glideClock.reset();
@@ -191,7 +176,7 @@ export function createPlayer(first, on) {
     on.onTime(current, video.currentTime);
   }
 
-  /** Every frame while playing: jump over the cut ahead (and any cut touching it); get the twins ready. */
+  /** Every frame while playing: jump over the cut ahead (and any cut touching it); get the twin ready. */
   function tick() {
     if (video.paused || !part()) return;
     const id = part().id, cuts = on.cuts(), t = video.currentTime;
@@ -242,13 +227,13 @@ export function createPlayer(first, on) {
   listen('seeked', () => {
     if (!selfSeek) meant();
     selfSeek = false;
-    idle(); // the twins' cues were timed to where you were
+    idle(); // the twin's cue was timed to where you were
     glideClock.reset(); // a seek or a skipped cut: the line goes straight there
     on.onTime(current, video.currentTime);
   });
   listen('play', () => { meant(); paintPlay(true); loop(++run); startGlide(); });
   listen('pause', () => {
-    for (const w of twins) if (!w.el.paused) w.el.pause(); // they only play along while you do
+    if (twin && !twin.paused) twin.pause(); // it only plays along while you do
     paintPlay(false);
   });
   listen('ended', () => { const d = nextKept(); d ? jump(d) : video.pause(); });
@@ -304,7 +289,7 @@ export function createPlayer(first, on) {
       const parts = on.parts();
       if (!parts.length) {
         empty(video);
-        twins.forEach((w) => empty(w.el));
+        if (twin) empty(twin);
         current = 0;
       } else if (i === current) show(0);
       else if (i < current) current--;
