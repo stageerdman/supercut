@@ -77,7 +77,7 @@ loop, no auto-advance); N makes an empty red note; ⌘Z right after a verdict un
 - **Toolbar:** title, status, gear, **Stop review**. Nothing else on the right.
 - **Timeline: framed on the stop** (next section), its cut ringed (the normal selected-cut ring).
 - **Transcript:** the stop's struck words scroll into view (centred) and are ringed, as in v1.
-- **The bar** over the player (below).
+- **The bar** docked under the player, never over the video (below).
 
 ## The timeline frames each stop
 The clip is hard to judge as a 4-pixel mark on a 20-minute timeline. Each stop brings it close.
@@ -100,20 +100,25 @@ The clip is hard to judge as a 4-pixel mark on a 20-minute timeline. Each stop b
 - **Stop review leaves the zoom where it is:** the user is at the last cut, which is where they'll want to fix things.
 
 ## The bar
-One small floating bar over the bottom of the player, as v1: 8 pt above the transport row, centred, 480 pt wide (at
-most the player's width − 32), `raised`, radius 10, hairline border, padding 12. Never covers timeline or transcript.
+**v3: docked, never over the video.** The user rejected v2's floating card ("a pop-up covering a big part of the
+video"). The bar is now **one slim row docked under the player**: 40 pt tall (the transport row's height), the
+player's full width, `surface`, a hairline on top, padding 0 12. It is the player column's last child, so the player
+gives up 40 pt and the video scales to fit, whole. Hidden (and taking no space) when not reviewing.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Cut 7 of 38 · 1.2 s cut                       All cuts ⌄    │  caption, textSecondary · which-cuts menu
-│ Magic: Earlier take · kept “so today we want to…”           │  body 13, text, one line, ends in …
-│                                                             │
-│ [ ▶ Play   R ]                [ Fix later  N ] [ Looks good  Y ] │  secondary · secondary · primary
-└─────────────────────────────────────────────────────────────┘
+│                         video (never covered)                         │
+├───────────────────────────────────────────────────────────────────────┤
+│ ‹ ›  Cut 7 of 38 · 1.2 s cut  Magic: Earlier take · kept “…”   All cuts ⌄  [▶ Play R] [Fix later N] [Looks good Y] │
+├───────────────────────────────────────────────────────────────────────┤
+│ transport row …                                                       │
 ```
-- **Line 1, left** (`caption` 11, `textSecondary`, tabular): "Cut 7 of 38" / "Cuts 7–8 of 38", " · 1.2 s cut", then
-  " · Start of video" / " · End of video" when it applies. As v1.
-- **Line 1, right: the which-cuts menu.** A quiet text button in the ✕'s old place: the choice's name and a small
+- **‹ ›, left end:** previous / next cut (← / →, as ↑ / ↓): no verdict, no wrap; the timeline frames that cut. Quiet
+  icon buttons (28 pt, `textSecondary`, hover `text`). Chevrons, not triangles: ▶ means Play. Dimmed with
+  `aria-disabled` at the first / last cut (a press still says "First cut" / "Last cut"); on the end line ‹ goes to
+  the last cut and › is dimmed. Names "Previous cut (←)" / "Next cut (→)".
+- **The count** (`caption` 11, `textSecondary`, tabular, never truncated): "Cut 7 of 38" / "Cuts 7–8 of 38",
+  " · 1.2 s cut", then " · Start of video" / " · End of video" when it applies.
+- **The which-cuts menu**, right of the text, before the actions: the choice's name and a small
   chevron ⌄ (`caption` 11, `textSecondary`, hover `text`, 28 pt tall target). Click (or Return when focused) opens the
   native menu, the same popup the right-click menu uses (`context-menu.js`):
   ```
@@ -126,26 +131,25 @@ most the player's width − 32), `raised`, radius 10, hairline border, padding 1
   - review moves to the **first unchecked stop of the new set at or after where you are in time**; none after → the
     first unchecked from the start; none at all → that set's end line;
   - the timeline frames it and it plays. The status line says nothing: line 1 changes, and that's the feedback.
-- **Line 2** (`body` 13): the reason, as v1. Magic's: "Magic: Earlier take · kept “…”" with a check note's text after.
+- **The reason** (`body` 13, `text`, after the count, takes the free space and ends in …), as v1. Magic's: "Magic: Earlier take · kept “…”" with a check note's text after.
   Yours: "Your cut". Head / tail trims: "Your cut · start of the video" / "· end of the video". Several cuts:
   " · +1 more". One line, then "…"; the full text in the hover and the screen-reader label.
-- **Line 3, the actions.** Key caps move to the **right end of each button**, like shortcuts in a Mac menu (`caption`,
+- **The actions, right end.** Key caps move to the **right end of each button**, like shortcuts in a Mac menu (`caption`,
   1 pt hairline, radius 4; on the primary, `onAccent` at 40 %):
-  - **▶ Play** `R`: secondary (plain, hairline border), **left end**. Plays the clip from its start, every press, as
+  - **▶ Play** `R`: secondary (plain, hairline border), first of the three. Plays the clip from its start, every press, as
     often as wanted. Never gives a verdict. Its label doesn't change while playing (pressing it restarts the clip).
   - **Fix later** `N`: secondary.
   - **Looks good** `Y`: the one primary, filled `accent`, `onAccent` text, right end.
-  - All three 28 pt tall, 8 pt apart; Play is separated from the verdicts by the free space between.
+  - All three 28 pt tall, 8 pt apart.
+- **Narrow player:** below 720 pt the reason goes (it stays in the hover and the screen-reader text); below 560 pt the
+  buttons drop their words and keep ▶, their key caps and their names. The count, the arrows and the menu stay.
 - **The verdict already given** (↑ back, a second pass): "✓ Looks good" / "Noted" in `noteRed`, as v1.
 - **Motion:** the text crossfades between stops (120 ms); the bar doesn't move. Reduce Motion: no fade.
 
 ### The end line
-When no unchecked stop is left after the last verdict, the clip stops and the bar shows (two lines, no actions):
+When no unchecked stop is left after the last verdict, the clip stops and the row shows (no actions):
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ All 38 checked                                All cuts ⌄    │
-│ 3 cuts to fix                                               │   or "Nothing to fix"
-└─────────────────────────────────────────────────────────────┘
+│ ‹ ›  All 38 checked  3 cuts to fix                                      All cuts ⌄ │   or "Nothing to fix"
 ```
 - Line 1: "All 38 checked", or "35 of 38 checked" when some were skipped with ↓. The which-cuts menu stays: pick
   another set to go on (e.g. Not approved yet).
@@ -188,12 +192,13 @@ Review keys work whenever review is on and no text field or open menu has focus,
 | **⌫** | Put it back now, checked, then next |
 | **R** | ▶ Play: the clip from its start. Never a verdict, never leaves |
 | **Space** | Pause / play; after the clip ended: play it again. Even on a focused bar button |
-| **↓ / ↑** | Next / previous stop, no verdict, no wrap ("Last cut" / "First cut"). ↑ on the end line: the last stop |
+| **→ / ←** or **↓ / ↑** | Next / previous stop (the bar's › ‹), no verdict, no wrap ("Last cut" / "First cut"). ← / ↑ on the end line: the last stop |
 | **⌘Z** | Right after a verdict: undo it and go back. Otherwise the usual undo (review stays on) |
 | **Esc** | Its app meaning only (close a card, clear a selection). **Never leaves review** |
 | **⌘Return** | Finishes an open note card as usual; never starts Magic while reviewing |
 
-Clicks, edge drags and ←/→ keep their meaning. Clicking a cut that is a stop in the set makes it the current stop
+Clicks, edge drags, Shift-←/→ (grow a selection) and ⌥←/→ (notes) keep their meaning; plain ←/→ are review's
+(the playhead nudge comes back after Stop review). Clicking a cut that is a stop in the set makes it the current stop
 (frames, plays). Clicking any other cut just selects it; review stays on.
 
 ## A "No"
@@ -218,7 +223,7 @@ No → Yes removes the note only if it's still empty and not done.
 | End line | "All 38 checked" · "3 cuts to fix" | Stopped | Stays | **Stop review** primary |
 | No cuts left | "No cuts left" | Stopped | Stays | **Stop review** primary |
 | Magic step undone mid-review | Count updates; Magic's cuts read as put back | — | — | Stop review |
-| Narrow player (< 400 pt bar) | Buttons keep ▶ and their key caps, drop their words; the menu keeps its words | — | — | — |
+| Narrow player (< 720 / < 560 pt) | The reason goes, then the buttons' words (▶, key caps, names stay) | — | — | — |
 | Increase Contrast | Hairlines and key caps 100 % | — | — | — |
 | Reduce Motion | No crossfade | — | Frames by jumping | — |
 
@@ -227,7 +232,7 @@ No → Yes removes the note only if it's still empty and not done.
   toolbar." Then on each stop: "Cut 7 of 38. Magic: Earlier take, kept so today we want to…".
 - Names: "Play (R)", "Fix later (N)", "Looks good (Y)", "Which cuts: All cuts" (`aria-haspopup="menu"`), "Review
   cuts (R)" / "Stop review". Targets ≥ 28 pt.
-- Focus enters the bar on Looks good (Return = Yes). Tab: Play → Fix later → Looks good → which-cuts → out to the
+- Focus enters the bar on Looks good (Return = Yes). Tab: ‹ → › → which-cuts → Play → Fix later → Looks good → out to the
   screen; the toolbar's Stop review is reachable by Tab (and Shift-Tab) like any toolbar button. Keyboard-only works
   end to end, including leaving.
 - The frame motion is not needed to understand anything (the ring, the transcript and the bar say the same).

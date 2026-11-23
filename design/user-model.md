@@ -88,6 +88,12 @@ What they asked for after trying it (the "why" after each is my reading, a guess
 - **All cuts by default**, with a choice like "only AI cuts" or "only unapproved".
 - They stressed it must be **really neat and well made**. Spec v2: `design/cut-review.md`.
 
+### Observed: the second try (2026-11-23)
+- **The floating bar was rejected:** "looks like a pop-up window covering a big part of the video — not acceptable."
+  Lesson: while judging a cut, the frames are the content; nothing may sit on the video. Controls dock beside it.
+- **Arrows to the previous / next cut**, also on ← →. (Guess: they browse cuts back and forth, not only in order.)
+  Spec v3: `design/cut-review.md`, "The bar".
+
 ## Editing by hand (2026-11-22, reasoned)
 - Two views, one thing: cuts show in the transcript (struck) and on the timeline (hatched) at the same place, grey for
   yours, coral for Magic's. Specs: `design/edit-model.md`, `design/timeline.md`, `design/transcript-editing.md`.
