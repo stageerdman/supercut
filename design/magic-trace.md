@@ -115,6 +115,17 @@ Showing the trace earns its place in one way only: it answers "why is this gone?
 - **Not shown:** model, prompt, rules hash, stats, confidence, and a log viewer. `design/ai-slot.md` removed the log view
   on purpose, and the transcript already shows the result.
 
+### Shipped (Jony, 2026-11-23)
+The hover is the whole visible trace, and nothing new was added for it. `keptReason` (`src/ui/magic.js`) adds
+"· kept “…”" to a dropped take's reason, so it appears wherever the user already meets a cut:
+- the timeline block's hover (`cutHover`): "Magic Cut: Earlier take · kept “so today we…”"
+- the transcript hover over cut words (`src/ui/transcript.js`)
+- the VoiceOver label for a focused or selected cut (`cutLabel`), so keyboard and screen-reader users get the same answer
+
+Deliberately not built: a badge, an info button, a panel or a log view. They answer no question the hover doesn't
+already answer, and they would add noise to every Magic cut. The review line under the player waits for Cut review
+mode (`f-cut-review-mode`), which will reuse the same `reason` string.
+
 ## Build order (suggested)
 1. Rust: `propose` returns the run record (model from the stream's init line, `source`, `instead`). Tests next to
    `decide.rs`.
