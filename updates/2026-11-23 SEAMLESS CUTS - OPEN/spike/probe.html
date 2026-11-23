@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<body style="margin:0;background:#000">
+<div style="position:relative;width:640px;height:360px">
+  <video id="a" src="/media/a.mp4" style="position:absolute;width:640px;height:360px" playsinline></video>
+  <video id="b" src="/media/a.mp4" style="position:absolute;width:640px;height:360px" playsinline></video>
+</div>
+<script type="module">
+  // How long from play() on a paused, pre-seeked <video> until its picture moves? Under which conditions?
+  const b = document.getElementById('b');
+  const a = document.getElementById('a');
+  const until = (el, k) => new Promise((r) => el.addEventListener(k, r, { once: true }));
+  const firstMove = (el, from) => new Promise((r) => {
+    const cb = (now, m) => (m.mediaTime > from + 0.001 ? r({ now, media: m.mediaTime }) : el.requestVideoFrameCallback(cb));
+    el.requestVideoFrameCallback(cb);
+  });
+  window.probe = async ({ hidden, muted, at, mainPlaying }) => {
+    for (const el of [a, b]) if (el.readyState < 2) await until(el, 'loadeddata');
+    a.muted = true;
+    if (mainPlaying) { a.currentTime = 1; await until(a, 'seeked'); await a.play(); } else a.pause();
+    b.pause();
+    b.style.opacity = hidden ? '0' : '1';
+    b.muted = muted;
+    b.currentTime = at;
+    await until(b, 'seeked');
+    await new Promise((r) => setTimeout(r, 600));
+    const t0 = performance.now();
+    let playingAt = null, clockAt = null;
+    b.addEventListener('playing', () => { playingAt = performance.now() - t0; }, { once: true });
+    const moved = firstMove(b, b.currentTime);
+    b.play();
+    const poll = () => { if (b.currentTime > at + 0.001) clockAt = performance.now() - t0; else requestAnimationFrame(poll); };
+    requestAnimationFrame(poll);
+    const m = await moved;
+    await new Promise((r) => setTimeout(r, 100));
+    b.pause(); a.pause();
+    return { frame: +(m.now - t0).toFixed(1), clock: clockAt && +clockAt.toFixed(1), playing: playingAt && +playingAt.toFixed(1) };
+  };
+  window.ready = true;
+</script>
+</body>
+</html>

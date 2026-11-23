@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<body style="margin:0;background:#000">
+<video id="player" style="width:640px;height:360px" playsinline></video>
+<script>
+  window.__TAURI__ = { core: { convertFileSrc: (p) => p } };
+</script>
+<script type="module">
+  // Plays the real src/ui/player.js over cuts and records, every display frame, what the visible video shows.
+  const q = new URLSearchParams(location.search);
+  const { createPlayer } = await import('/src/ui/player.js');
+  const cuts = JSON.parse(q.get('cuts'));
+  const parts = [{ id: 1, path: '/media/a.mp4', name: 'a', duration: 19.9 }];
+  const first = document.getElementById('player');
+  const player = createPlayer(first, { parts: () => parts, cuts: () => cuts, onTime() {}, onPart() {}, onError: (n) => console.log('error', n) });
+  const samples = []; // { now, t, el }
+  const frames = []; // presented frames per element
+  const els = [first, first.nextElementSibling];
+  if (q.get('log')) for (const [k, el] of els.entries()) for (const ev of ['play', 'playing', 'pause', 'seeking', 'seeked', 'waiting', 'stalled']) {
+    el.addEventListener(ev, () => console.log(`${performance.now().toFixed(0)} v${k}${player.element === el ? '*' : ' '} ${ev} t=${el.currentTime.toFixed(3)} vol=${el.volume}`));
+  }
+  els.forEach((el, k) => {
+    const cb = (now, m) => { frames.push({ k, now, media: m.mediaTime, shown: player.element === el }); el.requestVideoFrameCallback(cb); };
+    el.requestVideoFrameCallback(cb);
+  });
+  const sample = () => { samples.push({ now: performance.now(), t: player.time, el: els.indexOf(player.element), lag: player.lag }); requestAnimationFrame(sample); };
+  window.run = async (from, seconds) => {
+    player.show(0, from);
+    await new Promise((r) => first.readyState >= 2 ? r() : first.addEventListener('loadeddata', r, { once: true }));
+    await new Promise((r) => setTimeout(r, 500));
+    samples.length = 0; frames.length = 0;
+    requestAnimationFrame(sample);
+    await player.play();
+    await new Promise((r) => setTimeout(r, seconds * 1000));
+    player.pause();
+    return { samples, frames };
+  };
+  window.ready = true;
+</script>
+</body>
+</html>
