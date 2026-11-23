@@ -612,6 +612,7 @@ export function createTimeline(root, o) {
     paintPlayhead,
     /** The current note (ring), or null. */
     setNote(id) { if (id !== currentNote) { currentNote = id; paintNotes(); } },
+    get currentNote() { return currentNote; },
     focusNote: (id) => noteEl(id)?.focus({ preventScroll: true }),
     /** The note's centre in client x (for placing its card), or null when not on screen. */
     noteX(id) {
