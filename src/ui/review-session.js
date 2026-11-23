@@ -138,6 +138,16 @@ export function createReviewSession(deps) {
       return true;
     },
 
+    /** Progress over the cuts review would open on now (the toolbar's primary state), on or off. */
+    progress() {
+      const r = run();
+      const id = on ? runId : r && items().some((i) => i.by === 'magic') ? r.id : null;
+      return { ...progress(items(), { ...(id != null && r?.verdicts), ...own }), magic: id != null, stops: list().length };
+    },
+
+    /** The stops as they are now (the caller finds a clicked cut's stop, or rings the current one). */
+    stops: () => list(),
+
     /** What the bar shows. Null when review is off. */
     view() {
       if (!on) return null;
@@ -154,6 +164,7 @@ export function createReviewSession(deps) {
         removed: `${duration(removed(stop))} cut`,
         edge: w.edge,
         reason: stop.items[0].reason,
+        by: stop.items[0].by,
         more: stop.items.length - 1,
         chosen: given ? given.says : null,
       };

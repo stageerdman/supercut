@@ -18,7 +18,11 @@ import { createNoteControl } from './ui/note-control.js';
 import { createHistory, changed } from './ui/history.js';
 import { bit } from './ui/bit.js';
 import { createMagic, claudeBanner, withMagicRun, magicNotesOpen } from './ui/magic.js';
-import { paintMagic } from './ui/magic-button.js';
+import { paintMagic, paintReview } from './ui/magic-button.js';
+import { createWindowPlay } from './ui/review-play.js';
+import { createReviewSession } from './ui/review-session.js';
+import { createReviewBar } from './ui/review-bar.js';
+import { createReviewControl, reviewButton } from './ui/review-control.js';
 import { createPlayer } from './ui/player.js';
 import { createRulesStore, mountRules } from './ui/rules.js';
 import { emptyTrace, newRun, withRun, renameTracePart } from './ui/trace.js';
@@ -65,6 +69,7 @@ function paintEdit() {
 function commit(edit, label, extra) {
   history.push(edit, label, extra);
   paintEdit();
+  review.changed(); // the bar's count and reason follow; a Magic re-run ends review
 }
 
 // ---------- Claude: checked once when the first video loads, so there's time to fix it ----------
@@ -88,8 +93,8 @@ const status = createStatusLine({ box: $('work'), text: $('status'), track: $('p
 const player = createPlayer($('player'), {
   parts: () => parts,
   cuts: cutsNow,
-  onTime: (i, t) => { renderTime(); transcript.highlight(i, t); rail.paintHead(); if (!player.playing) timeline.paintPlayhead(false); },
-  onFrame: (i, t) => timeline.paintPlayhead(true, { i, t }), // while playing: every display frame, smooth
+  onTime: (i, t) => { renderTime(); transcript.highlight(i, t); rail.paintHead(); if (!player.playing) timeline.paintPlayhead(false); windowPlay.at(i, t); },
+  onFrame: (i, t) => { timeline.paintPlayhead(true, { i, t }); windowPlay.at(i, t); }, // while playing: every display frame, smooth
   onPart: () => { timeline.render(); rail.paintTrack(); rail.paintHead(); },
   onError: (name) => showBanner(`${name} can't be played here. Its transcript still works.`),
 });
@@ -111,7 +116,7 @@ const timeline = createTimeline($('timeline'), {
   onRemove: removePart,
   onDragStart: () => player.pause(),
   onZoom: (z) => ($('zoom').value = Math.round(z * 100)),
-  onSelect: () => transcript.paintSelection(), // one selection, shown in both views
+  onSelect: (sel) => { transcript.paintSelection(); review.selected(sel); }, // one selection, shown in both views
   onMenu: (at, where) => openMenu(at, where),
   notes: () => notesOf(history.edit),
   showDone: () => notes.showDone,
@@ -198,9 +203,10 @@ const magic = createMagic({
   runner,
   claude: () => { claudeCheck = null; return claude(); }, // re-check on press: they may have signed in since
   project: () => ({ parts: edited(), transcribing: transcribing() }),
-  paint: (s) => { paintMagic(s); status.render(); },
+  paint: () => { paintToolbar(); status.render(); },
   flash: (text, ms) => status.flash(text, ms),
   banner: showBanner,
+  reviewable: () => session.progress().stops > 0,
   onResult: (r) => { // one ⌘Z undoes the whole run, cuts and notes
     if (r.run) traceRun(r);
     const seconds = edited().map((p) => ({ id: p.id, seconds: p.transcript?.seconds }));
@@ -252,6 +258,52 @@ getCurrentWindow().onCloseRequested(async () => {
 const rules = mountRules({ gear: $('rules-gear'), panel: $('rules-panel'), box: $('rules-box') }, createRulesStore(invoke), { onError: showBanner });
 const pressMagic = () => rules.close().then((saved) => saved && magic.press());
 $('magic').onclick = pressMagic;
+
+// Cut review (design/cut-review.md): a mode of this screen. The window plays on the normal player; the bar floats
+// over the player's bottom; the session decides what Y, N, ⌫, ↑/↓, ⌘Z and Esc do.
+const reviewParts = () => parts.map((p) => ({ id: p.id, duration: p.duration || p.transcript?.seconds || 0 }));
+const windowPlay = createWindowPlay(player, { parts: reviewParts, cuts: cutsNow });
+const SHORT = new Set(['Noted, fix later', 'Put back', 'Last cut', 'First cut']); // verdicts and edges: 2 s
+const session = createReviewSession({
+  edit: () => history.edit,
+  commit: (edit, label) => { history.push(edit, label); paintEdit(); }, // review's own steps: no review.changed()
+  undo: () => { history.undo(); paintEdit(); notes.afterUndo(); },
+  trace: () => trace,
+  setTrace: (t) => { trace = t; },
+  parts: reviewParts,
+  play: windowPlay,
+  say: (text) => status.flash(text, SHORT.has(text) ? 2000 : 3000),
+});
+const review = createReviewControl({
+  session,
+  bar: createReviewBar($('player-box'), {
+    onYes: () => review.yes(),
+    onNo: () => review.no(),
+    onReplay: () => review.replay(),
+    onClose: () => review.leave(),
+    onFixFirst: () => review.fixFirst(),
+  }),
+  timeline,
+  transcript,
+  cuts: cutsNow,
+  parts: () => parts,
+  notes: () => notesOf(history.edit),
+  closeCard: () => card.close(),
+  openNote: (id) => notes.open(id, { focus: false }),
+  undo: () => undoRedo(false),
+  flash: (text, ms) => status.flash(text, ms),
+  paint: () => paintToolbar(),
+});
+const magicBusy = () => magic.state.kind === 'queued' || magic.state.kind === 'running';
+$('review').onclick = () => !magicBusy() && review.start();
+$('review').addEventListener('mousedown', (e) => e.preventDefault()); // Space and the keys stay review's
+
+/** The toolbar's two actions: Review cuts is the primary after a Magic run until every stop is checked. */
+function paintToolbar() {
+  const v = reviewButton(session.progress(), { on: review.on, busy: magicBusy() });
+  paintReview(v);
+  paintMagic(magic.state, { plain: v.primary || v.pressed });
+}
 
 // ---------- Drop + choose ----------
 
@@ -324,6 +376,7 @@ async function undoRedo(redo) {
   const what = changed(before, history.edit); // bring the change into view, in both views
   const i = parts.findIndex((p) => p.id === what?.part);
   if (i >= 0) { timeline.reveal(i, what.s); transcript.reveal(what.part, what.s); }
+  review.changed(); // undoing the Magic step ends review
 }
 
 /** Undo of a removal: same file, new id (renamed through the history), same place. No re-transcribing. */
@@ -397,6 +450,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.metaKey && e.key === 'f' && parts.some((p) => p.transcript)) { e.preventDefault(); search.focus(); return; }
   if (typing) return;
+  if (review.key(e)) { e.preventDefault(); return; } // review keys win, even with words selected
   if (e.metaKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undoRedo(e.shiftKey); return; }
   if (e.metaKey && (e.key === '=' || e.key === '+')) { e.preventDefault(); timeline.zoomBy(0.1); return; }
   if (e.metaKey && e.key === '-') { e.preventDefault(); timeline.zoomBy(-0.1); return; }
@@ -409,6 +463,8 @@ document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey || !parts.length) return;
   const sel = timeline.selection;
   if (e.key === 'F10' && e.shiftKey) { e.preventDefault(); openMenu(null); return; }
+  // R: start reviewing. Not with words selected, where letters fix words.
+  if ((e.key === 'r' || e.key === 'R') && !(sel && !sel.cut) && !magicBusy()) { e.preventDefault(); review.start(); return; }
   // M: a note at the playhead (or over the selection). Before writeKey, so it never opens the fix field.
   if (e.key === 'm' || e.key === 'M') { e.preventDefault(); notes.add(); return; }
   if (sel && !sel.cut && writeKey(e)) { e.preventDefault(); transcript.write(e.key === 'Enter' ? null : e.key); return; }
@@ -419,6 +475,10 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowRight') { e.preventDefault(); stepPlayhead(bit()); }
   else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); cutSelection(); }
   else if (e.key === 'Escape') { if (card.isOpen) card.close(); else timeline.clearSelection(); }
+});
+// Space in review is pause / play, even on a focused button: its click comes on keyup, so stop that too.
+document.addEventListener('keyup', (e) => {
+  if (review.on && e.key === ' ' && !e.target.closest('input, textarea, [contenteditable]')) e.preventDefault();
 });
 $('play').onclick = () => player.toggle();
 
@@ -517,6 +577,7 @@ function render() {
   renderTime();
   notes.refresh(); // a part's notes come and go with it
   magic.update();
+  paintToolbar();
   status.render();
 }
 

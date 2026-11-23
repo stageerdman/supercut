@@ -22,6 +22,15 @@
   display: none;
 }
 
+/* Increase Contrast: the review bar's hairlines and key caps at full strength (design/cut-review.md, States). */
+@media (prefers-contrast: more) {
+  #review-bar,
+  #review-bar .border-hairline,
+  #review-bar .keycap {
+    border-color: var(--color-text-secondary);
+  }
+}
+
 /* The fix field is the one place in the transcript where text can be selected. */
 #transcript [contenteditable] {
   user-select: text;

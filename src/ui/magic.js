@@ -32,11 +32,12 @@ export function keptReason(cut, lines) {
 /** Pure: how many of Magic's notes are open, for the done line. */
 export const magicNotesOpen = (edit) => openNotes(notesOf(edit)).filter((n) => n.by === 'magic').length;
 
-/** Pure: the done line, plus "· 2 notes to check · ⌥→" (before "· ⌘Z to undo") when Magic left some. */
-export function doneLine(summary, notes) {
-  if (!notes) return summary;
-  const check = ` · ${notes} note${notes === 1 ? '' : 's'} to check · ⌥→`;
-  return summary.replace(/( · ⌘Z to undo)?$/, `${check}$1`);
+/** Pure: the done line, plus "· R to review" when there are cuts to review and "· 2 notes to check · ⌥→" when
+ *  Magic left notes (both before "· ⌘Z to undo"). */
+export function doneLine(summary, notes, review = false) {
+  const check = notes ? ` · ${notes} note${notes === 1 ? '' : 's'} to check · ⌥→` : '';
+  const add = `${review ? ' · R to review' : ''}${check}`;
+  return add ? summary.replace(/( · ⌘Z to undo)?$/, `${add}$1`) : summary;
 }
 
 /** Pure: how the button looks in a state. Tested in test/ui.test.mjs. */
@@ -88,7 +89,7 @@ export function createMagic(deps) {
       if (state.kind !== 'running') return; // cancelled meanwhile: drop the result
       const notes = deps.onResult(result) || 0;
       set({ kind: 'ready' });
-      deps.flash(doneLine(result.summary, notes), 6000);
+      deps.flash(doneLine(result.summary, notes, !!deps.reviewable?.()), 6000);
     } catch (e) {
       if (state.kind !== 'running') return; // the cancel was the "error"
       set({ kind: 'ready' });
