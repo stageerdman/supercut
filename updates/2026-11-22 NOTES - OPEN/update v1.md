@@ -182,6 +182,23 @@ up-to-date main.
   older edit without notes as none. `history.js`: `changed()` covers notes. 15 tests in `test/notes.test.mjs`, all
   of `npm run test:ui` green (170). Saving: notes are plain JSON inside the edit, so they save when projects save
   (that feature isn't built yet). Nothing on screen yet. Next: Phase 2 (the lane).
+- **Phases 2–5 and Phase 7's Show done toggle done (Jony, 2026-11-23).** `note-layout.js` (pure lane layout: pills,
+  bars, clusters, whole-word labels, stacking), `note-view.js` (the lane under the track: markers, labels, clusters
+  that zoom in, ring, peek, right-click, Return), `note-card.js` (text, four colours, Done/Reopen, Delete, keys),
+  `note-control.js` (add/open/go/done/reopen/remove/save/colour/show done, chip text), `context-menu.js` (Add note,
+  Show done notes, the note menu), `transcript.js` (underlines and bars for notes), `timeline.js` (`currentNote`),
+  `main.js` and `index.html` wired (`M`, ⚑, the chip, ⌥→/⌥←, card over the player). Tests: `test/note-card.test.mjs`,
+  additions to `test/transcript.test.mjs` and the layout tests; `npm run test:ui` green (214).
+  **Not yet checked in the window** (agents can't see the screen): `main.js` passes `node --check` only.
+  Remaining: the window check by a person, Phase 6 (Magic's notes, Rust), docs (`wiki.md`, user-model A16–A19
+  results), `npm run install-app`.
+
+### Phases 2–5 decisions
+- A click on a noted word in the transcript opens its card **unfocused** and doesn't seek, so fixing goes on; a click
+  on a note bar opens it focused. Transcript clicks keep the card open.
+- The transcript peek is the native `title` tooltip, not a custom popup.
+- ⌘Return = Done while a card is open; Esc closes an open card before it clears the selection.
+- Not built in v1: the 200 ms fade on Done, Increase Contrast colour variants.
 
 ### Phase 1 decisions
 - Every note change returns `{ edit, label }` (like `toggleWords` returns `{ cuts, label }`); no change → the same
