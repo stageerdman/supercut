@@ -202,6 +202,10 @@ up-to-date main.
   `main.js` wires it and refreshes an open card. Tests: 4 in `autocut/notes.rs`, 1 each in `picks.rs`, `prompt.rs`,
   `autocut/mod.rs`; 5 in `test/ui.test.mjs`. `npm run test:ui` 219 green, `npm run test:rust` 101 green. Live run
   with this Mac's Claude: 3 cuts, 0 notes on the retakes sample (wiki, Q3). **Not yet checked in the window.**
+- **Installed (Uncle Bob, 2026-11-23).** `npm ci && npm run install-app` from main at `7ec9dc5` (Phases 1–6):
+  `npm run test:ui` 219 green, release built, `/Applications/Magic Cut.app` replaced (frontend id
+  `1b6c4dec6e9ccd56`), Spotlight finds it, and it was opened. Remaining: the window check by a person (Phase 7's
+  list above), then docs (`wiki.md`, user-model A16–A19 results).
 
 ### Phase 6 decisions
 - The done line counts Magic's open notes after `withMagicNotes`, so it matches the lane; `onResult` returns it.
