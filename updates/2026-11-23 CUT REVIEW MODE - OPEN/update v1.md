@@ -85,6 +85,22 @@ After Magic, the user checks every cut in a few minutes without watching the who
 ## Status
 - Phase 0 (research and design): done. Research by Columbo, `design/cut-review.md` and the "Verdicts" section of
   `design/magic-trace.md` by Jony.
-- Phases 1–6: not started.
+- Phase 1: done. `src/ui/review.js`, `test/review.test.mjs`.
+- Phase 2: done. `trace.js` `withVerdict` / `withoutVerdict` (a part rename renames the spans heard), `notes.js`
+  `addFixLater` / `dropFixLater`; `test/review-verdicts.test.mjs`.
+- Phase 3: done, minus the pre-load. `src/ui/review-play.js` plays a window on the normal player (no second
+  player path), waits at its end, Space / R replay, and ignores stale times from before a seek lands. The next stop's
+  start is **not** pre-loaded (`player.show` seeks), so a verdict may hitch on a slow disk: check by ear in Phase 6.
+- Phase 4: the engine is done, the screen is not. `src/ui/review-session.js` (`createReviewSession`) does start,
+  Y / N / ⌫, ↑ / ↓ / goTo, R / Space, ⌘Z of the last verdict, Esc and resume, the end line and going stale on a
+  Magic re-run; `test/review-session.test.mjs`. **Still to build (UI owner):** `review-bar.js`, the toolbar button
+  and R to start, key routing ahead of type-to-fix, and the wiring in `main.js`.
+- Phase 5: done. `learning.js` writes verdicts beside outcomes and a case for every "no" (`verdict`, `heard`,
+  `fixed`, `doneAt`); `learningClips` names the clips. Rust `save_learning_clip` (`src-tauri/src/learning_clip.rs`)
+  renders `heard` to `learning/<run id>-<index>.mp4`, 854×480 boxed, H.264 + AAC, temp file then rename; paths come
+  from the open project, never from the web side. `main.js` saves the clips with the log. The log is not rewritten
+  the moment a red note is ticked: it is written when the run is replaced or the window closes, with the notes as they
+  are then, which already carries `doneAt`.
+- Phase 6: not started.
 
-Next: Phase 1, `src/ui/review.js` and its tests.
+Next: Phase 4's screen (bar, button, keys, `main.js` wiring), then Phase 6.

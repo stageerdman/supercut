@@ -13,3 +13,11 @@ Durable lessons from designing review. Status lives in `update v1.md`.
 - **Review keys beat type-to-fix.** Letters edit selected words everywhere else; inside review Y/N/R must never reach a
   word, so review drops the selection on entry and takes those keys first.
 - **The window is what the viewer hears.** Close cuts share one stop; ends shift the window instead of shrinking it.
+- **A time reading from before a seek lands is stale.** The player reports the old position once more after a seek;
+  the window ignores readings until one falls inside it, or it would end at once.
+- **Item keys must outlive a re-normalize.** Magic stops are keyed by proposal index (a put-back proposal stays an
+  item, checked), so "Cut 7 of 38" doesn't jump when cuts merge or split.
+- **concat wants one shape.** Joining spans of two parts needs every input boxed to the same size, SAR, fps and audio
+  layout first; the real-ffmpeg test caught a 4:3 + 16:9 join failing.
+- **Paths stay in Rust.** The web side names a part id; Rust looks up the file. A command never writes from a path
+  JavaScript hands it.
