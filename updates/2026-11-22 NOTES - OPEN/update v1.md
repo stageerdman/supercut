@@ -176,7 +176,21 @@ up-to-date main.
   is open, plus right-click → Done as the mouse path (loop overhead 5 → 3 per note); C, colour kept as designed; D,
   done line "· 2 notes to check · ⌥→"; E, the 0.5 s row reworded (no twin, playing or paused; paused opens it).
   Common session ≈ 50 overhead steps.
-- No code yet. Next: Phase 1.
+- **Phase 1 done (Uncle Bob, 2026-11-23).** `src/ui/notes.js` (pure): `addNote` (+ `noteSpot`, `noteAt` for the
+  no-twin rule), `editNote`, `setDone`, `deleteNote`, `openNotes`, `nextOpen`, `preRoll`, `withMagicNotes`. `edit.js`:
+  `notes` and `dismissed` in `emptyEdit`; `withoutPart` / `renamePart` carry them; `notesOf` / `dismissedOf` read an
+  older edit without notes as none. `history.js`: `changed()` covers notes. 15 tests in `test/notes.test.mjs`, all
+  of `npm run test:ui` green (170). Saving: notes are plain JSON inside the edit, so they save when projects save
+  (that feature isn't built yet). Nothing on screen yet. Next: Phase 2 (the lane).
+
+### Phase 1 decisions
+- Every note change returns `{ edit, label }` (like `toggleWords` returns `{ cuts, label }`); no change → the same
+  edit, so `history.push` makes no step.
+- `nextOpen(notes, order, from)`: `from` is the current note `{ id }` after a jump (the playhead sits at the pre-roll,
+  before the note), else the playhead `{ part, t }`. A note exactly at the playhead counts as next.
+- Section labels use the app's `clock()`: "Noted 01:12–01:40", the same time format as everywhere else.
+- Magic's cap is one per **started** 3 min of speech (`ceil`), so a 2-minute talk may get one; no speech → none.
+- Ids are `crypto.randomUUID()` (injectable in tests). Reopening drops `doneAt`.
 
 ## Decisions
 - **`M` beats type-to-fix in the panel.** Notes are frequent (L8 F8) and fixes rare (A10), so the common action keeps
