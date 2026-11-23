@@ -113,11 +113,10 @@ test('a cut joining a Magic cut and a range of yours counts once, as Magic\'s', 
   assert.deepEqual(reviewCuts(trace, merged, PARTS).map((i) => i.by), ['magic']);
 });
 
-test('a Magic step undone as a whole: its cuts stay, put back (checked), beside yours', () => {
+test('a Magic step undone as a whole leaves only your cuts', () => {
   const trace = traced([prop(10, 11)]);
   const cuts = normalize([you(20, 21)], L);
-  const items = reviewCuts(trace, cuts, PARTS);
-  assert.deepEqual(items.map((i) => [i.by, i.restored]), [['magic', true], ['you', false]]);
+  assert.deepEqual(reviewCuts(trace, cuts, PARTS).map((i) => i.by), ['you']);
 });
 
 test('your cut put back during review stays an item, unless it is cut again', () => {

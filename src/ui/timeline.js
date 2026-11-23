@@ -5,7 +5,7 @@
 // waveform-view.js · strip: strip-view.js, pauses.js · edge drags: edge-drag.js. It keeps no cuts of its own: it reads
 // `cuts()` and reports changes.
 import { el, clock } from './dom.js';
-import { layout, contentWidth, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap, snapTargets, zoomScaled, pinchFactor, wheelFactor, MAX_PPS, GAP } from './timeline-geometry.js';
+import { layout, contentWidth, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap, snapTargets, zoomScaled, zoomOf, pinchFactor, wheelFactor, MAX_PPS, GAP } from './timeline-geometry.js';
 import { cutView, edgeHandle, secs, MIN_W } from './cut-view.js';
 import { drawTimeline, RULER, STRIP, TRACK, NOTES } from './waveform-view.js';
 import { layoutNotes, clusterPps } from './note-layout.js';
@@ -272,8 +272,7 @@ export function createTimeline(root, o) {
     const notes = ids.map(noteById).filter(Boolean);
     const at = notes.length && noteCx(notes[0].id);
     if (!at || fit >= MAX_PPS) return;
-    const target = Math.min(MAX_PPS, clusterPps(notes));
-    const nz = Math.log(target / fit) / Math.log(MAX_PPS / fit);
+    const nz = zoomOf(clusterPps(notes), fit);
     const mid = (notes[0].s + notes.at(-1).e) / 2;
     zoomTo(Math.max(z + 0.05, nz), { i: at.i, t: mid });
   }

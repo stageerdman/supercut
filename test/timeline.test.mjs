@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { keptSpans, skipTarget, firstKept, editedTime, editedLength, cutHere } from '../src/ui/playback.js';
-import { layout, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap, snapTargets, tickStep, tickLabel, zoomScaled, pinchFactor, wheelFactor, PINCH_GAIN, PAD, GAP, MAX_PPS } from '../src/ui/timeline-geometry.js';
+import { layout, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap, snapTargets, tickStep, tickLabel, zoomScaled, zoomFor, pinchFactor, wheelFactor, PINCH_GAIN, PAD, GAP, MAX_PPS } from '../src/ui/timeline-geometry.js';
 import { startEdgeDrag } from '../src/ui/edge-drag.js';
 import { cutLabel, cutHover, edgeText, cutView, MIN_W } from '../src/ui/cut-view.js';
 import { bars, ticks } from '../src/ui/waveform-view.js';
@@ -107,6 +107,17 @@ test('zoom: a pinch scales the view in proportion, the same at any length; ⌘-s
   near(wheelFactor(-1, 1), wheelFactor(-16), 'lines count as 16 pt');
   // 20 small trackpad events (deltaY 5 each) zoom ×7: a real distance, not a nudge
   near(wheelFactor(-5) ** 20, Math.exp(2));
+});
+
+test('zoomFor: the stretch fills 80 % of the view, clamped to fit and MAX_PPS; a part gap counts', () => {
+  const ppsAt = (z, fit) => fit * (MAX_PPS / fit) ** z;
+  const fit = 0.8; // a 20-minute talk in ~1000 pt
+  near(ppsAt(zoomFor(6, 1000, fit), fit) * 6, 800, 'a 6 s clip: 800 of 1000 pt');
+  near(ppsAt(zoomFor(48, 1000, fit), fit) * 48, 800);
+  assert.equal(zoomFor(2000, 1000, fit), 0, 'longer than fit: just fits');
+  assert.equal(zoomFor(1, 1000, fit), 1, 'past MAX_PPS: clamped');
+  near(ppsAt(zoomFor(6, 1000, fit, 1), fit) * 6 + GAP, 800, 'across two parts the gap is in the width');
+  assert.equal(zoomFor(6, 1000, MAX_PPS), 0, 'a fit at the max: nothing to zoom');
 });
 
 test('play clock: glides between coarse readings, never steps back, takes seeks and part changes at once', async () => {

@@ -123,6 +123,17 @@ cuts" or "only unapproved". They stressed it must be really neat.
 ## Status
 - Phase 0 (design and roadmap): done. `design/cut-review.md` rewritten as v2 (Jony); the user's first-try feedback
   added to `design/user-model.md`; the toolbar order recorded in `design/main-screen.md` and `design/ai-slot.md`.
-- Phases 1–5: not started.
+- Phase 1 (engine): done, plus the pure parts of Phase 4. `review.js`: every cut (Magic's + yours, trims named
+  "Your cut · start / end of the video"), `inSet` / `setCounts` / `CHOICES`, `nearestUnchecked`, `stretchOf(window,
+  parts)` → `{ i0, t0, i1, t1, seconds, gaps }`. `timeline-geometry.js`: `zoomFor(seconds, width, fit, gaps)` and
+  `zoomOf(pps, fit)` (the cluster zoom in `timeline.js` now uses it too). `review-session.js`: `only` (All on every
+  start), `choose(only)` (false for an empty choice; Not approved taken once), your ⌫'d cuts kept as checked items
+  until `leave()`, the end line waits (never turns off), ↑ from the end line, `replay()` plays the clip from its start
+  as the edit is now (Space after the end too), `view()` carries `only`, `counts`, `empty` and `stretch`. Stop review
+  with Nos says "3 cuts to fix · ⌥→ for the first". 329 UI tests pass.
+  - Decision: a Magic step undone **as a whole** drops Magic's items (v1's rule), so the toolbar never offers to
+    review cuts that no longer exist; review stays on and the count updates. A single Magic cut put back stays, checked.
+  - Not done here (Phase 2–4 UI): `review-control.js` still has Esc → leave and `fixFirst`; the bar still has ✕;
+    `timeline.frame()` / `inView()` and calling them from the control.
 
-Next: Phase 1 (Uncle Bob).
+Next: Phase 2 (keys, toolbar, Magic hidden), then the bar and the timeline frame.

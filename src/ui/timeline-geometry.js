@@ -58,6 +58,24 @@ export function zoomScaled(z, factor, fit) {
   return Math.min(1, Math.max(0, z + Math.log(factor) / range));
 }
 
+export const FRAME_SHARE = 0.8; // a framed stretch fills this much of the view (design/cut-review.md)
+
+/**
+ * The zoom level (0 = fit … 1 = MAX_PPS) that shows `seconds` of source, crossing `gaps` part gaps, in
+ * FRAME_SHARE of `width` points. Never deeper than MAX_PPS, never out past fit.
+ */
+export function zoomFor(seconds, width, fit, gaps = 0) {
+  if (!(seconds > 0)) return 0;
+  return zoomOf(Math.max(width * FRAME_SHARE - gaps * GAP, 1) / seconds, fit);
+}
+
+/** The zoom level (0 … 1, log scale) of `pps`, clamped to fit … MAX_PPS. */
+export function zoomOf(pps, fit) {
+  const range = Math.log(MAX_PPS / fit);
+  if (!(range > 0)) return 0;
+  return Math.min(1, Math.max(0, Math.log(pps / fit) / range));
+}
+
 /** The pinch factor for a WebKit gesture's `scale` (cumulative since gesturestart). */
 export const pinchFactor = (scale) => scale ** PINCH_GAIN;
 

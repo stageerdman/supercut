@@ -54,15 +54,16 @@ function yourItems(cuts, parts, magic) {
 export const yourKey = (c) => `you:${c.part}:${c.s.toFixed(3)}`;
 
 /**
- * Every cut to review, in play order: Magic's from the latest run (put back ones stay, counted as checked, so
- * "Cut 7 of 38" holds), then each cut of yours no Magic item overlaps, head and tail trims included. `kept`: your
+ * Every cut to review, in play order: Magic's from the latest run while any of them is still cut (put back ones
+ * stay, counted as checked, so "Cut 7 of 38" holds), then each cut of yours no Magic item overlaps, head and tail trims included. `kept`: your
  * cuts put back during this review, still items (restored) until it stops, unless cut again.
  * @returns {Array<{key:string, index:number|null, part, s, e, by:'magic'|'you', reason:string, restored:boolean}>}
  */
 export function reviewCuts(trace, cuts, parts, kept = []) {
   const order = parts.map((p) => p.id);
   const run = trace.runs.at(-1);
-  const magic = run ? magicItems(run, cuts, parts).filter((i) => order.includes(i.part)) : [];
+  const fromRun = run ? magicItems(run, cuts, parts).filter((i) => order.includes(i.part)) : [];
+  const magic = fromRun.some((i) => !i.restored) ? fromRun : []; // its step undone as a whole: no Magic cuts
   const yours = yourItems(cuts, parts, magic);
   const back = kept.filter((k) => order.includes(k.part) && !yours.some((y) => y.key === k.key));
   return [...magic, ...yours, ...back].sort(byPlay(order));
