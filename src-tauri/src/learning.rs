@@ -10,12 +10,15 @@ pub fn dir() -> PathBuf {
     Path::new(&home).join("Library/Application Support/xyz.supercut.editor/learning")
 }
 
-/// Writes `<dir>/<id>.json`, replacing a log of the same run. The id is a plain name so it can't leave the folder.
-pub fn save(dir: &Path, id: &str, log: &Value) -> Result<PathBuf, AppError> {
+/// A file name stem that can't leave the folder: letters, digits, `-` and `_`, at most 64 of them.
+pub fn plain_id(id: &str) -> Result<&str, AppError> {
     let plain = !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
-    if !plain {
-        return Err(AppError::Learning(format!("not a run id: {id:?}")));
-    }
+    if plain { Ok(id) } else { Err(AppError::Learning(format!("not a run id: {id:?}"))) }
+}
+
+/// Writes `<dir>/<id>.json`, replacing a log of the same run.
+pub fn save(dir: &Path, id: &str, log: &Value) -> Result<PathBuf, AppError> {
+    let id = plain_id(id)?;
     let file = dir.join(format!("{id}.json"));
     let json = serde_json::to_string_pretty(log).expect("a JSON value always serializes");
     crate::atomic::write(&file, &json).map_err(|e| AppError::Learning(format!("{}: {e}", file.display())))?;

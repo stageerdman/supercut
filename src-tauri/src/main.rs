@@ -9,6 +9,7 @@ mod claude;
 mod error;
 mod keep_awake;
 mod learning;
+mod learning_clip;
 mod log;
 mod media;
 mod onnx;
@@ -84,6 +85,29 @@ fn save_rules(rules: Vec<String>) -> Result<Vec<String>, AppError> {
 fn save_learning_log(id: String, log: serde_json::Value) -> Result<(), AppError> {
     let file = learning::save(&learning::dir(), &id, &log)?;
     log::info("learning", &id, format!("saved {}", file.display()));
+    Ok(())
+}
+
+/// One stretch the user heard, in a part's own seconds (src/ui/trace.js verdict `heard`).
+#[derive(serde::Deserialize)]
+struct HeardSpan {
+    part: u32,
+    s: f64,
+    e: f64,
+}
+
+/// Magic Trace: the window heard before a review "No", saved beside the learning log. Paths come from the
+/// open project, never from the web side, so a clip can only be cut from the user's own parts.
+#[tauri::command]
+async fn save_learning_clip(project: State<'_, Shared>, id: String, spans: Vec<HeardSpan>) -> Result<(), AppError> {
+    let spans = {
+        let p = project.lock().unwrap();
+        spans.iter().map(|x| Ok(learning_clip::Span { path: p.get(x.part)?.path.clone(), s: x.s, e: x.e })).collect::<Result<Vec<_>, AppError>>()?
+    };
+    let file = tauri::async_runtime::spawn_blocking(move || learning_clip::save(&audio::bundled_ffmpeg(), &learning::dir(), &id, &spans))
+        .await
+        .map_err(|e| AppError::Learning(e.to_string()))??;
+    log::info("learning", "clip", format!("saved {}", file.display()));
     Ok(())
 }
 
@@ -175,7 +199,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Shared::default())
-        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, add_video, remove_part, transcribe_part, waveform])
+        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip, add_video, remove_part, transcribe_part, waveform])
         .run(tauri::generate_context!())
         .expect("error while running Magic Cut");
 }
