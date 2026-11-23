@@ -19,13 +19,22 @@ test('seekLoss: how far behind the twin runs, by its own clock; clamped to 0 …
   assert.equal(seekLoss(5, 1, 1, 3), 1, 'a wild reading is capped');
 });
 
-test('twinStep: busy (seeking, loading, settling) → wait; paused → play; far off with time left → seek ahead by the lag', () => {
+test('twinStep: busy (seeking, loading, settling) → wait; far off with time left → seek ahead by the lag', () => {
   const cue = { at: 10, to: 20, t: 7 };
   assert.deepEqual(twinStep(cue, { paused: false, busy: true, time: 0 }, SEEK_LAG), { do: 'wait' });
-  assert.deepEqual(twinStep(cue, { paused: true, busy: false, time: 0 }, SEEK_LAG), { do: 'play' });
   const seek = twinStep(cue, playing(4), SEEK_LAG);
   assert.equal(seek.do, 'seek');
   near(seek.time, 17 + SEEK_LAG);
+});
+
+test('twinStep: paused and off → seek it there paused, ahead by the lag (its start costs that); then → play', () => {
+  const cue = { at: 10, to: 20, t: 7 }; // it should be at 17
+  const park = twinStep(cue, { paused: true, busy: false, time: 0 }, SEEK_LAG);
+  assert.equal(park.do, 'park');
+  near(park.time, 17 + SEEK_LAG);
+  assert.deepEqual(twinStep(cue, { paused: true, busy: false, time: 17 + SEEK_LAG }, SEEK_LAG), { do: 'play' });
+  assert.deepEqual(twinStep(cue, { paused: true, busy: false, time: 17 }, SEEK_LAG), { do: 'play' }, 'in step already');
+  assert.equal(twinStep(cue, { paused: true, busy: false, time: 18 }, SEEK_LAG).do, 'park', 'too far ahead');
 });
 
 test('twinStep: in step → ok; off, but too close to the cut for a seek to settle → ok (the cut decides)', () => {
@@ -39,6 +48,6 @@ test('twinStep: the far side starts a part (nothing before it to play along) →
   assert.deepEqual(twinStep(cue, playing(3), SEEK_LAG), { do: 'park', time: 0 });
   assert.deepEqual(twinStep(cue, { paused: true, busy: false, time: 0 }, SEEK_LAG), { do: 'wait' });
   assert.ok(parked(0, { paused: true, time: 0.01 }) && !parked(0, { paused: false, time: 0 }) && !parked(0, { paused: true, time: 1 }));
-  assert.deepEqual(twinStep({ at: 10, to: 1.5, t: 9 },{ paused: true, busy: false, time: 0 }, SEEK_LAG), { do: 'play' },
+  assert.deepEqual(twinStep({ at: 10, to: 1.5, t: 9 }, { paused: true, busy: false, time: 0.5 }, SEEK_LAG), { do: 'play' },
     'a part starting after a cut at 0: there is time before its first kept moment to play along');
 });

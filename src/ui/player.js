@@ -106,14 +106,14 @@ export function createPlayer(first, on) {
     cue.at = at;
     const settling = sought && performance.now() - sought.since < SETTLE * 1000;
     const busy = twin.seeking || twin.readyState < 2 || settling;
-    if (sought && !busy && !twin.paused) { // settled: aim better next time
-      seekLag = seekLoss(sought.aimed, (performance.now() - sought.since) / 1000, twin.playbackRate, twin.currentTime);
+    if (sought && !busy && !twin.paused) { // settled: aim better next time (a start teaches nothing)
+      if (sought.aimed !== null) seekLag = seekLoss(sought.aimed, (performance.now() - sought.since) / 1000, twin.playbackRate, twin.currentTime);
       sought = null;
     }
     const step = twinStep({ at, to: cue.t, t }, { paused: twin.paused, busy, time: twin.currentTime }, seekLag);
     if (step.do === 'park') { twin.pause(); twin.currentTime = step.time; }
     else if (step.do === 'seek') { twin.currentTime = step.time; sought = { aimed: step.time, since: performance.now() }; }
-    else if (step.do === 'play') startTwin();
+    else if (step.do === 'play') { startTwin(); sought = { aimed: null, since: performance.now() }; }
   }
 
   /** Can the twin take over at `dest` now: in step on the far side, or parked there (then this starts it)? */

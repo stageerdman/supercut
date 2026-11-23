@@ -37,6 +37,9 @@ export const seekLoss = (aimed, elapsed, rate, time) => Math.min(MAX_LAG, Math.m
 /** The twin waits paused at the far side (it starts a part: nothing to play along before it); the cut plays it. */
 export const parked = (to, twin) => twin.paused && Math.abs(twin.time - to) < SYNC;
 
+/** A paused twin `ahead` s of where it should be is ready to start: its start lag (about a seek's) will eat that. */
+const ready = (ahead, seekLag) => ahead >= -SYNC && ahead <= seekLag + SYNC;
+
 /**
  * What to do with the twin this frame. `cue` = { at, to, t }: the cut at `at` lands on `to`, you are at `t`.
  * `twin` = { paused, busy (seeking, loading or settling), time }. `seekLag`: how far a seek while playing falls behind.
@@ -46,7 +49,8 @@ export function twinStep(cue, twin, seekLag) {
   if (twin.busy) return { do: 'wait' };
   const want = twinTarget(cue.at, cue.to, cue.t);
   if (want < 0) return parked(cue.to, twin) ? { do: 'wait' } : { do: 'park', time: cue.to };
-  if (twin.paused) return { do: 'play' };
+  // Paused and off: seek it there paused (that disturbs nothing), ahead by what its start will cost, then play it.
+  if (twin.paused) return ready(twin.time - want, seekLag) ? { do: 'play' } : { do: 'park', time: want + seekLag };
   if (Math.abs(twin.time - want) <= SYNC || cue.at - cue.t < FIX_BEFORE) return { do: 'ok' };
   return { do: 'seek', time: want + seekLag };
 }

@@ -396,9 +396,9 @@ test('player: a hidden twin plays along at QUIET on the far side of the next cut
   assert.equal(spare.dataset.path, undefined, 'the next cut is 4 s away (over LEAD): not yet');
   player.show(0, 1);
   player.tick();
-  assert.equal(spare.paused, false, 'the twin starts playing first (a paused twin is slow to start)');
+  assert.ok(spare.paused && spare.currentTime === 2 + SEEK_LAG, 'seeked while paused (disturbs nothing), ahead by what its start costs');
   player.tick();
-  assert.equal(spare.currentTime, 2 + SEEK_LAG, 'then is seeked while it plays, ahead by the seek lag');
+  assert.equal(spare.paused, false, 'then it plays along (a seek while both play would be a second hitch)');
   spare.currentTime = 2.99; // settled, in step
   video.currentTime = 1.99;
   player.tick();
