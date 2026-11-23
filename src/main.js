@@ -69,7 +69,7 @@ function paintEdit() {
 function commit(edit, label, extra) {
   history.push(edit, label, extra);
   paintEdit();
-  review.changed(); // the bar's count and reason follow; a Magic re-run ends review
+  review.changed(); // the bar's count and reason follow; review stays on
 }
 
 // ---------- Claude: checked once when the first video loads, so there's time to fix it ----------
@@ -260,7 +260,7 @@ const pressMagic = () => rules.close().then((saved) => saved && magic.press());
 $('magic').onclick = pressMagic;
 
 // Cut review (design/cut-review.md): a mode of this screen. The window plays on the normal player; the bar floats
-// over the player's bottom; the session decides what Y, N, ⌫, ↑/↓, ⌘Z and Esc do.
+// over the player's bottom; the session decides what Y, N, ⌫, ↑/↓, ⌘Z and ▶ Play do. Only Stop review leaves.
 const reviewParts = () => parts.map((p) => ({ id: p.id, duration: p.duration || p.transcript?.seconds || 0 }));
 const windowPlay = createWindowPlay(player, { parts: reviewParts, cuts: cutsNow });
 const SHORT = new Set(['Noted, fix later', 'Put back', 'Last cut', 'First cut']); // verdicts and edges: 2 s
@@ -279,30 +279,28 @@ const review = createReviewControl({
   bar: createReviewBar($('player-box'), {
     onYes: () => review.yes(),
     onNo: () => review.no(),
-    onReplay: () => review.replay(),
-    onClose: () => review.leave(),
-    onFixFirst: () => review.fixFirst(),
+    onPlay: () => review.play(),
+    onChoose: (only) => review.choose(only),
   }),
   timeline,
   transcript,
   cuts: cutsNow,
   parts: () => parts,
-  notes: () => notesOf(history.edit),
   closeCard: () => card.close(),
-  openNote: (id) => notes.open(id, { focus: false }),
   undo: () => undoRedo(false),
   flash: (text, ms) => status.flash(text, ms),
   paint: () => paintToolbar(),
 });
 const magicBusy = () => magic.state.kind === 'queued' || magic.state.kind === 'running';
-$('review').onclick = () => !magicBusy() && review.start();
+// Review cuts ↔ Stop review: one button, one place; the only way out of review.
+$('review').onclick = () => (review.on ? review.leave() : !magicBusy() && review.start());
 $('review').addEventListener('mousedown', (e) => e.preventDefault()); // Space and the keys stay review's
 
-/** The toolbar's two actions: Review cuts is the primary after a Magic run until every stop is checked. */
+/** The toolbar's two actions. Reviewing: ✦ Magic is gone and the button reads Stop review. */
 function paintToolbar() {
-  const v = reviewButton(session.progress(), { on: review.on, busy: magicBusy() });
+  const v = reviewButton(session.progress(), { on: review.on, busy: magicBusy(), end: !!session.view()?.end });
   paintReview(v);
-  paintMagic(magic.state, { plain: v.primary || v.pressed });
+  paintMagic(magic.state, { plain: v.primary, hidden: review.on, gap: v.visible });
 }
 
 // ---------- Drop + choose ----------
@@ -376,7 +374,7 @@ async function undoRedo(redo) {
   const what = changed(before, history.edit); // bring the change into view, in both views
   const i = parts.findIndex((p) => p.id === what?.part);
   if (i >= 0) { timeline.reveal(i, what.s); transcript.reveal(what.part, what.s); }
-  review.changed(); // undoing the Magic step ends review
+  review.changed(); // the review count follows (review stays on)
 }
 
 /** Undo of a removal: same file, new id (renamed through the history), same place. No re-transcribing. */
@@ -445,7 +443,7 @@ document.addEventListener('keydown', (e) => {
   if (e.metaKey && e.key === 'Enter') { // a note's card is open (even unfocused): ⌘Return finishes it, not Magic
     e.preventDefault();
     if (card.isOpen) notes.done(card.id);
-    else pressMagic();
+    else if (!review.on) pressMagic(); // never a Magic run mid-review
     return;
   }
   if (e.metaKey && e.key === 'f' && parts.some((p) => p.transcript)) { e.preventDefault(); search.focus(); return; }

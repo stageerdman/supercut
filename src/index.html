@@ -26,10 +26,10 @@
             <circle cx="12" cy="12" r="3" />
           </svg>
         </button>
-        <!-- Review cuts: the primary after a Magic run, until every cut is checked (src/ui/review-control.js, design/cut-review.md) -->
-        <button id="review" class="hidden" title="Review cuts (R)" aria-pressed="false">Review cuts</button>
-        <!-- The AI spot: the one primary action, far right (src/ui/magic.js, design/ai-slot.md) -->
+        <!-- The AI spot (src/ui/magic.js, design/ai-slot.md). Hidden while reviewing -->
         <button id="magic" class="hidden"></button>
+        <!-- Review cuts / Stop review: far right, one fixed width, so it never moves (src/ui/review-control.js, design/cut-review.md) -->
+        <button id="review" class="hidden" title="Review cuts (R)">Review cuts</button>
       </header>
 
       <!-- Your rules: one per line, saved as you type; floats under the gear -->

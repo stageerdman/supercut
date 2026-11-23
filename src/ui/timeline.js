@@ -5,7 +5,7 @@
 // waveform-view.js · strip: strip-view.js, pauses.js · edge drags: edge-drag.js. It keeps no cuts of its own: it reads
 // `cuts()` and reports changes.
 import { el, clock } from './dom.js';
-import { layout, contentWidth, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap, snapTargets, zoomScaled, zoomOf, pinchFactor, wheelFactor, MAX_PPS, GAP } from './timeline-geometry.js';
+import { layout, contentWidth, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap, snapTargets, zoomScaled, zoomOf, zoomFor, pinchFactor, wheelFactor, MAX_PPS, GAP } from './timeline-geometry.js';
 import { cutView, edgeHandle, secs, MIN_W } from './cut-view.js';
 import { drawTimeline, RULER, STRIP, TRACK, NOTES } from './waveform-view.js';
 import { layoutNotes, clusterPps } from './note-layout.js';
@@ -55,6 +55,7 @@ export function createTimeline(root, o) {
   let painting = false;
   let settleTimer = 0; // after a zoom: the full repaint of cuts and pauses
   let pinch = null; // { z0 } while a WebKit pinch gesture is on
+  let framing = 0; // the rAF of a review frame motion in progress (frameStretch)
 
   const content = el('div', 'relative h-full');
   const canvas = el('canvas', 'pointer-events-none absolute top-0 z-[1]');
@@ -320,7 +321,8 @@ export function createTimeline(root, o) {
     const x = xAt(boxes, i, Math.min(t, b.len));
     head.style.transform = `translateX(${x.toFixed(2)}px)`;
     const v = x - root.scrollLeft, w = root.clientWidth;
-    if (playing && (v > 0.9 * w || v < 0)) root.scrollLeft = x - 0.1 * w;
+    // (+1: a framed review clip ends right at 90 %, and must not page there)
+    if (playing && !framing && (v > 0.9 * w + 1 || v < 0)) root.scrollLeft = x - 0.1 * w;
   }
 
   /** Bring a moment into view (centred) if it's off screen: a seek from the transcript, an undo. */
@@ -550,8 +552,58 @@ export function createTimeline(root, o) {
 
   // ---------- Zoom and scroll ----------
 
+  // ---------- Framing a stretch (cut review: design/cut-review.md, "The timeline frames each stop") ----------
+
+  const FRAME_MS = 200;
+  const stopFraming = () => { if (framing) cancelAnimationFrame(framing); framing = 0; };
+  const reduceMotion = () => !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const ease = (k) => (k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2); // ease-in-out
+  /** The stretch's centre in content x, at the current zoom (across parts, the gap counts). */
+  const centreOf = (r) => (xAt(boxes, r.i0, Math.min(r.t0, boxes[r.i0].len)) + xAt(boxes, r.i1, Math.min(r.t1, boxes[r.i1].len))) / 2;
+  const known = (r) => !!r && !!boxes[r.i0] && !!boxes[r.i1];
+
+  /**
+   * Zoom and scroll together so the stretch `r` ({ i0, t0, i1, t1, seconds, gaps }: part index and source time)
+   * fills 80 % of the view, centred. 200 ms ease-in-out from wherever the view is (a new frame mid-motion starts
+   * from there); a jump under Reduce Motion or with `animate: false`. The zoom slider follows at the end.
+   */
+  function frameStretch(r, { animate = true } = {}) {
+    if (!known(r)) return;
+    stopFraming();
+    const width = root.clientWidth || 800;
+    const z0 = z, z1 = zoomFor(r.seconds, width, fit, r.gaps);
+    const sx0 = centreOf(r) - root.scrollLeft, sx1 = width / 2; // where the centre is on screen, and where it goes
+    const at = (k) => {
+      z = z0 + (z1 - z0) * k;
+      relayout();
+      root.scrollLeft = Math.max(0, centreOf(r) - (sx0 + (sx1 - sx0) * k));
+      draw();
+    };
+    if (!animate || reduceMotion() || !globalThis.requestAnimationFrame) {
+      at(1);
+      o.onZoom?.(z);
+      return;
+    }
+    const t0 = globalThis.performance?.now() ?? Date.now();
+    const tick = (now) => {
+      const k = Math.min(1, (now - t0) / FRAME_MS);
+      at(ease(k));
+      if (k < 1) framing = requestAnimationFrame(tick);
+      else { framing = 0; o.onZoom?.(z); }
+    };
+    framing = requestAnimationFrame(tick);
+  }
+
+  /** True when the whole stretch is on screen now. */
+  function inView(r) {
+    if (!known(r)) return true;
+    const x0 = xAt(boxes, r.i0, r.t0), x1 = xAt(boxes, r.i1, r.t1), v = root.scrollLeft;
+    return x0 >= v - 1 && x1 <= v + (root.clientWidth || 800) + 1;
+  }
+
   /** Zoom to level `nz` (0 = fit … 1), keeping `anchor` ({ i, t }, default the playhead) where it is on screen. */
   function zoomTo(nz, anchor = o.playhead(), screenX) {
+    stopFraming(); // a hand zoom wins over a frame in motion
     nz = Math.min(1, Math.max(0, nz));
     if (!boxes[anchor.i]) { z = nz; return render(); }
     const sx = screenX ?? xAt(boxes, anchor.i, anchor.t) - root.scrollLeft;
@@ -583,7 +635,7 @@ export function createTimeline(root, o) {
 
   // WebKit (the app's window) reports a trackpad pinch as gesture events with a cumulative `scale`.
   let pinchEnd = 0;
-  root.addEventListener('gesturestart', (e) => { e.preventDefault(); pinch = { z0: zoomGoal() }; });
+  root.addEventListener('gesturestart', (e) => { e.preventDefault(); stopFraming(); pinch = { z0: zoomGoal() }; });
   root.addEventListener('gesturechange', (e) => {
     if (!pinch) return;
     e.preventDefault();
@@ -597,9 +649,12 @@ export function createTimeline(root, o) {
       e.preventDefault();
       if (pinch || (e.timeStamp || performance.now()) - pinchEnd < 150) return; // the gesture events have it
       zoomSoon(zoomScaled(zoomGoal(), wheelFactor(e.deltaY, e.deltaMode), fit), e);
-    } else if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { // a mouse wheel scrolls sideways
-      e.preventDefault();
-      root.scrollLeft += e.deltaY;
+    } else {
+      stopFraming(); // a hand scroll wins over a frame in motion
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { // a mouse wheel scrolls sideways
+        e.preventDefault();
+        root.scrollLeft += e.deltaY;
+      }
     }
   }, { passive: false });
   globalThis.ResizeObserver && new ResizeObserver(() => render()).observe(root);
@@ -621,6 +676,8 @@ export function createTimeline(root, o) {
     /** A marker that just came in pops (after the repaint that made it). */
     pop: (id) => popIn(noteEl(id)),
     reveal,
+    frame: frameStretch,
+    inView,
     get zoom() { return z; },
     zoomTo,
     zoomBy: (d) => zoomTo(z + d),

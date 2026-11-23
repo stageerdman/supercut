@@ -43,7 +43,11 @@ export async function popup(items, handlers, at, tauri = globalThis.window?.__TA
   const menu = await api.Menu.new({
     items: items.map((i) => (i.separator
       ? { item: 'Separator' }
-      : { id: i.id, text: i.text, accelerator: i.accelerator, action: () => handlers[i.id]?.() })),
+      : {
+        id: i.id, text: i.text, accelerator: i.accelerator, action: () => handlers[i.id]?.(),
+        ...(i.enabled === false && { enabled: false }),
+        ...(i.checked != null && { checked: i.checked }), // a check item (the review bar's which-cuts menu)
+      })),
   });
   const pos = at && tauri.dpi?.LogicalPosition ? new tauri.dpi.LogicalPosition(at.x, at.y) : undefined;
   await menu.popup(pos);

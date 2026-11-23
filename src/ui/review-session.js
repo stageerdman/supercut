@@ -151,11 +151,12 @@ export function createReviewSession(deps) {
 
     /** ▶ Play / R: the current clip from its start, as the edit is now. Never a verdict. */
     replay() { if (on && at >= 0) go(at); },
-    /** Space: pause / play; after the clip ended, play it again. */
+    /** Space: pause / play; after the clip ended, play it again (true then: a replay). */
     toggle() {
-      if (!on || at < 0) return;
-      if (deps.play.ended) go(at);
-      else deps.play.toggle();
+      if (!on || at < 0) return false;
+      if (!deps.play.ended) { deps.play.toggle(); return false; }
+      go(at);
+      return true;
     },
 
     /** ⌘Z right after a verdict: undo it (and its note or restore) and go back to it. False: the usual undo. */
