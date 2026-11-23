@@ -54,7 +54,7 @@ pub fn propose(
     let Reply { answer, model } = ask_claude(&Ask { prompt: &transcript, system: &system, schema: &schema })?;
     let decided = decide::keep_last_takes(picks::parse(answer.clone(), lines.len() as u32)?, &groups);
     let (cuts, notes) = (decide::cuts(&lines, &decided, &groups), notes::notes(&lines, &decided.picks.check));
-    let run = Run { model, rules: record::rules_version(), custom: custom_rules.to_vec(), lines, groups, answer };
+    let run = Run { app: record::app_build(), model, rules: record::rules_version(), custom: custom_rules.to_vec(), lines, groups, answer };
     Ok(Proposal { cuts, notes, run: Some(run) })
 }
 

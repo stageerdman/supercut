@@ -9,6 +9,8 @@ use serde_json::Value;
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct Run {
+    /// The build that ran it: version and frontend id (`--build-id`), so a log is tied to the code that made it.
+    pub app: String,
     /// The real model id from Claude's init line; None if the stream didn't say.
     pub model: Option<String>,
     /// Which version of the built-in rules was sent (`rules_version`).
@@ -21,6 +23,10 @@ pub struct Run {
     pub groups: Vec<Vec<u32>>,
     /// Claude's raw answer, before our last-take rule.
     pub answer: Value,
+}
+
+pub fn app_build() -> String {
+    format!("{} {}", env!("CARGO_PKG_VERSION"), env!("MAGIC_CUT_FRONTEND_ID"))
 }
 
 /// A short, stable fingerprint of the built-in rules (FNV-1a, 64 bit): equal rules give equal versions across builds.
