@@ -153,8 +153,9 @@ export function layoutLabels({ box, words = [], cuts = [], pauses = [], scroll, 
 
 const fitWord = (w, room, measure) => (measure(w) <= room ? w : '');
 
-/** As many whole words of the phrase [i, j) as fit the room, then "…" if it goes on (the "…" must fit too). */
-function fitPhrase(words, i, j, room, { measure, space, dots }) {
+/** As many whole words of the phrase [i, j) as fit the room, then "…" if it goes on (the "…" must fit too).
+ *  Also used for note labels (note-layout.js). */
+export function fitPhrase(words, i, j, room, { measure, space, dots }) {
   let n = 0, more = false, w = 0;
   for (let m = 1; i + m <= j; m++) {
     w += (m > 1 ? space : 0) + measure(words[i + m - 1].w);
