@@ -12,8 +12,9 @@
 export const QUIET = 1e-4; // the twin's volume while it waits: inaudible (−80 dB), yet not 0, which WebKit treats as off
 export const SYNC = 0.05; // s: the twin is in step when it is this close to where it should be (seeks land ±a frame)
 export const TOLERANCE = 0.1; // s the twin may be off at the cut and still take over (off by more: seek instead)
-// s before the cut, the last moment to correct the twin by a seek: a seek takes ~0.8 s to run steady again.
-export const FIX_BEFORE = 1;
+// s before the cut, the last moment to correct the twin by a seek: a seek runs steady again by ~0.8 s, and a seek
+// begun now still lands in step (the lag is learned). Lower, and kept stretches down to this length swap too.
+export const FIX_BEFORE = 0.75;
 const MAX_LAG = 1;
 // s a seek while playing costs before the twin runs steady again (WebKit, measured 0.41–0.50; learned per seek).
 export const SEEK_LAG = 0.47;

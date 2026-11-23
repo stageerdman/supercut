@@ -73,11 +73,17 @@ is loaded, and no cut block reaches it.
 - Code: `zoomScaled`, `pinchFactor`, `wheelFactor` in `src/ui/timeline-geometry.js`.
 
 ### Playback over cuts
-- **No hitch at a cut**: seeking a playing `<video>` holds the old frame while it decodes from the last keyframe. So a
-  hidden second `<video>` (muted, out of the tab order) seeks to the far side of the next cut (or the next part's first
-  kept moment) up to 2 s ahead; at the cut the two swap: it plays on from a frame it already has, and the old one
-  pauses and becomes the spare. If the spare isn't ready (you sought right before a cut), it seeks as before.
-- Code: `src/ui/player.js` (`prepare`, `jump`, `swap`).
+- **No hitch at a cut** (measured: ≤ 1 frame): seeking a playing `<video>` holds its picture while it decodes, and a
+  paused audible one takes ~0.3 s to start. So a hidden twin `<video>` (out of the tab order) **plays along** at an
+  inaudible volume, in step on the far side of the next cut (or the next part's first kept moment), from up to 3 s
+  ahead. It gets in step by seeking while it plays, aimed ahead by its learned seek lag (~0.47 s). At the cut the two
+  swap volume and visibility: nothing seeks, starts or pauses. The old one plays on hidden and seeks on for the cut
+  after. A part's start (nothing before it to play along) waits paused, and the cut starts it.
+- **Limits**: a kept stretch under ~0.75 s between two cuts leaves the twin no time to settle: that cut seeks as
+  before (~0.4 s hold). So does a cut right after you seek. Two twins would cover short stretches, but measured in
+  WebKit three playing videos starve the decoders, so it stays one.
+- Code: `src/ui/player.js` (`prepare`, `follow`, `jump`, `swap`), `src/ui/jumps.js` (where each jump leaves and
+  lands), `src/ui/twin-sync.js` (what to do with the twin each frame). Facts: `updates/2026-11-23 SEAMLESS CUTS - OPEN/wiki.md`.
 
 ### Playhead
 - **Glides while playing**: moved every display frame (requestAnimationFrame) on a smooth clock (`src/ui/play-clock.js`),

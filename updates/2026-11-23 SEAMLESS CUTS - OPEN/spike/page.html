@@ -15,7 +15,7 @@
   const player = createPlayer(first, { parts: () => parts, cuts: () => cuts, onTime() {}, onPart() {}, onError: (n) => console.log('error', n) });
   const samples = []; // { now, t, el }
   const frames = []; // presented frames per element
-  const els = [first, first.nextElementSibling];
+  const els = [...document.querySelectorAll('video')]; // the seen one and every hidden twin
   if (q.get('log')) for (const [k, el] of els.entries()) for (const ev of ['play', 'playing', 'pause', 'seeking', 'seeked', 'waiting', 'stalled']) {
     el.addEventListener(ev, () => console.log(`${performance.now().toFixed(0)} v${k}${player.element === el ? '*' : ' '} ${ev} t=${el.currentTime.toFixed(3)} vol=${el.volume}`));
   }

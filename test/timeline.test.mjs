@@ -421,6 +421,28 @@ test('player: a hidden twin plays along at QUIET on the far side of the next cut
   assert.equal(player.element, video);
 });
 
+test('player: a short kept stretch (0.9 s) between two cuts: the old one seeks on at once and swaps back in', async () => {
+  const { video, player } = await rigPlayer([you(2, 3), you(3.9, 4.5)], { twin: true });
+  const spare = video.twin;
+  player.show(0, 1);
+  video.play();
+  player.tick();
+  player.tick();
+  spare.currentTime = 2.99;
+  video.currentTime = 1.99;
+  player.tick();
+  await afterSwap();
+  assert.equal(player.element, spare);
+  player.tick();
+  near(video.currentTime, 4.5 - 0.91 + SEEK_LAG, 'the cut is 0.91 s off: still time for one seek');
+  video.currentTime = 4.49; // it settled in step
+  spare.currentTime = 3.89;
+  player.tick();
+  await afterSwap();
+  assert.equal(player.element, video, 'the second cut swaps too: no seek after a short kept stretch');
+  assert.equal(spare.currentTime, 3.89, 'the one left behind was not seeked over the cut');
+});
+
 test('player: the twin not in step at the cut: it seeks as before; pausing pauses the twin too', async () => {
   const { video, player } = await rigPlayer([you(2, 3)], { twin: true });
   const spare = video.twin;
