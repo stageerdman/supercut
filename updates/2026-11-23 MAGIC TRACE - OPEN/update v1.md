@@ -73,8 +73,16 @@ The user sees one new thing: a dropped take's hover says which take Magic kept.
   `learning/`. Commit, push, record the status here.
 
 ## Status
-- Phase 1: not started
-- Phase 2: not started
-- Phase 3: not started
-- Phase 4: not started
-- Phase 5: not started
+- Phase 1: done. `auto_cut` returns `run` (app build, model, rules hash, custom rules, lines, groups, raw answer);
+  each cut has `line`, `source` and `instead`.
+- Phase 2: done. `src/ui/trace.js`, tested in `test/trace.test.mjs` (every outcome, holes, splits, missed,
+  freezing, renaming). `outcome` takes `present` (the part ids) to tell "gone".
+- Phase 3: done. `main.js` keeps `trace` beside the history. The runner hands on `run`. `keptReason` in
+  `magic.js` adds "· kept “…”".
+- Phase 4: done. `src/ui/learning.js` (tested in `test/learning.test.mjs`), Rust `learning.rs` +
+  `save_learning_log`, the shared `atomic.rs`. A log is written when a run is replaced and when the window closes.
+- Phase 5: `npm test` passes (234 UI, 108 Rust), and so does a release build. Not done yet: one real Magic run in
+  the app to see a log land in `learning/`. That needs someone at the window.
+
+Next: the 6-second clip and the review verdicts go into each case once Cut review mode lands. Video export
+becomes a third moment to write logs.
