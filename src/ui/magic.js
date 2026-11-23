@@ -12,11 +12,21 @@ import { withMagicNotes, openNotes } from './notes.js';
  * Pure: a run's `{ cuts, notes }` applied to the edit, as one edit (one "Magic Cut" undo step). Your cuts and notes
  * win (`withMagic`, `withMagicNotes`). `parts` in play order, `[{ id, seconds }]`: the order and the speech cap.
  */
-export function withMagicRun(edit, { cuts, notes = [] }, parts, lengths = {}, id) {
+export function withMagicRun(edit, { cuts, notes = [], run }, parts, lengths = {}, id) {
   const order = parts.map((p) => p.id);
   const speech = parts.reduce((sum, p) => sum + (p.seconds || 0), 0);
-  const next = { ...edit, cuts: withMagic(edit.cuts, cuts, lengths) };
+  const told = cuts.map((c) => ({ ...c, reason: keptReason(c, run?.lines ?? []) }));
+  const next = { ...edit, cuts: withMagic(edit.cuts, told, lengths) };
   return withMagicNotes(next, notes, { order, speech, ...(id && { id }) });
+}
+
+const KEPT_MAX = 70;
+const shorten = (text) => (text.length <= KEPT_MAX ? text : `${text.slice(0, KEPT_MAX - 1).trimEnd()}…`);
+
+/** Pure: a dropped take's reason, naming the take Magic kept instead: "Earlier take · kept “so today we…”". */
+export function keptReason(cut, lines) {
+  const kept = cut.instead != null && lines.find((l) => l.id === cut.instead);
+  return kept ? `${cut.reason} · kept “${shorten(kept.text)}”` : cut.reason;
 }
 
 /** Pure: how many of Magic's notes are open, for the done line. */

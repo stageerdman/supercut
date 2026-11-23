@@ -12,11 +12,12 @@ export function summary(cuts, parts) {
 
 export const runner = {
   // parts: [{ id, name, seconds, words }] → cuts: [{ part, from, to, s, e, reason }] (one per dropped line)
-  // and notes: [{ part, s, e, text, color? }] (the few lines Magic wants you to check; usually none).
+  // and notes: [{ part, s, e, text, color? }] (the few lines Magic wants you to check; usually none),
+  // and run: the run record for Magic Trace (src/ui/trace.js); null when there was nothing to read.
   async run({ parts, onStage }) {
     onStage('Choosing the best takes');
-    const { cuts, notes } = await window.__TAURI__.core.invoke('auto_cut', { parts });
-    return { summary: summary(cuts, parts), cuts, notes };
+    const { cuts, notes, run = null } = await window.__TAURI__.core.invoke('auto_cut', { parts });
+    return { summary: summary(cuts, parts), cuts, notes, run };
   },
   // The Claude call can't be stopped yet (issues.txt); it ends at its time limit and Magic drops the late result.
   cancel() {},

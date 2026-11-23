@@ -232,12 +232,13 @@ test('the runner asks Rust auto_cut with the parts and hands back its cuts', asy
   const cuts = [{ part: 1, from: 0, to: 2, s: 0, e: 1, reason: 'earlier take' }];
   const asked = [];
   const notes = [{ part: 1, s: 3, e: 5, text: 'Listen to both?' }];
-  globalThis.window = { __TAURI__: { core: { invoke: async (cmd, args) => (asked.push([cmd, args]), { cuts, notes }) } } };
+  const run = { model: 'claude-x', lines: [] };
+  globalThis.window = { __TAURI__: { core: { invoke: async (cmd, args) => (asked.push([cmd, args]), { cuts, notes, run }) } } };
   const stages = [];
   const parts = [{ id: 1, name: 'a.mov', seconds: 10, words: [] }];
   const result = await runner.run({ parts, onStage: (s) => stages.push(s) });
   assert.deepEqual(asked, [['auto_cut', { parts }]]);
-  assert.deepEqual(result, { summary: '1 cut · 00:10 → 00:09 · ⌘Z to undo', cuts, notes });
+  assert.deepEqual(result, { summary: '1 cut · 00:10 → 00:09 · ⌘Z to undo', cuts, notes, run });
   assert.deepEqual(stages, ['Choosing the best takes']);
   delete globalThis.window;
 });
@@ -274,6 +275,22 @@ test('a Magic re-run keeps your notes and touched ones, never brings back a dele
   edit = withMagicRun(edit, run2, magicParts, {}, ids);
   assert.deepEqual(edit.notes.map((n) => [n.by, n.s, n.color]), [['you', 30, 'blue'], ['magic', 200, 'yellow']]);
   assert.equal(magicNotesOpen(edit), 1);
+});
+
+test('a dropped take\'s reason names the take Magic kept, at most 70 characters', () => {
+  const long = 'so today we are going to look at how the whole thing fits together, step by step, slowly';
+  const run = { lines: [{ id: 5, text: 'so today we will' }, { id: 6, text: long }] };
+  const cuts = [
+    { part: 1, s: 1, e: 2, reason: 'Earlier take', instead: 5 },
+    { part: 1, s: 3, e: 4, reason: 'Earlier take', instead: 6 },
+    { part: 1, s: 5, e: 6, reason: 'Fumble' },
+  ];
+  const reasons = withMagicRun(emptyEdit(), { cuts, run }, magicParts).cuts.map((c) => c.reason);
+  assert.equal(reasons[0], 'Earlier take · kept “so today we will”');
+  assert.match(reasons[1], /^Earlier take · kept “so today .*…”$/);
+  assert.ok(reasons[1].length <= 'Earlier take · kept “”'.length + 70);
+  assert.equal(reasons[2], 'Fumble');
+  assert.equal(withMagicRun(emptyEdit(), { cuts }, magicParts).cuts[0].reason, 'Earlier take', 'no run record: as before');
 });
 
 test('Magic notes are capped by speech: none without speech, one for a short talk', () => {
