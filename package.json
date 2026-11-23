@@ -9,7 +9,7 @@
     "fetch-model": "node scripts/fetch-model.js",
     "sample-retakes": "node scripts/sample-retakes.js",
     "dev": "npm run prepare-bins && tauri dev",
-    "test:ui": "node --test test/ui.test.mjs test/edit.test.mjs test/notes.test.mjs test/note-layout.test.mjs test/note-lane.test.mjs test/note-card.test.mjs test/timeline.test.mjs test/cut-blocks.test.mjs test/word-levels.test.mjs test/transcript.test.mjs test/panel.test.mjs test/build-id.test.mjs test/write.test.mjs test/trace.test.mjs test/learning.test.mjs test/review.test.mjs test/review-verdicts.test.mjs test/review-play.test.mjs",
+    "test:ui": "node --test test/ui.test.mjs test/edit.test.mjs test/notes.test.mjs test/note-layout.test.mjs test/note-lane.test.mjs test/note-card.test.mjs test/timeline.test.mjs test/cut-blocks.test.mjs test/word-levels.test.mjs test/transcript.test.mjs test/panel.test.mjs test/build-id.test.mjs test/write.test.mjs test/trace.test.mjs test/learning.test.mjs test/review.test.mjs test/review-verdicts.test.mjs test/review-play.test.mjs test/review-session.test.mjs",
     "test:rust": "npm run prepare-bins && cargo test --manifest-path src-tauri/Cargo.toml",
     "test": "npm run test:ui && npm run test:rust -- -- --nocapture",
     "build": "npm run prepare-bins && tauri build --bundles app",
