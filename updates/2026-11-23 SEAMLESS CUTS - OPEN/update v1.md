@@ -13,17 +13,22 @@ Done means the picture holds under one frame at a cut (measured), an automated t
 3. **Learned seek lag (done).** The twin's seeks land ~0.47 s behind. The lag is learned on its own clock after it
    settles (800 ms).
 4. **Short kept stretches (done).** Where playing jumps moved into a pure module, `src/ui/jumps.js`. The last moment
-   to correct the twin dropped from 1 s to 0.75 s, so kept stretches down to ~0.8 s swap too. Two twins were tried
-   and measured worse (three decoders starve WebKit), so the player keeps one, behind `SPARES` in `player.js`.
+   to correct the twin is `FIX_BEFORE` = `SETTLE` (0.8 s) + 0.05 s, so kept stretches from ~0.9 s swap too. Two
+   twins were tried and measured worse (three decoders starve WebKit), so the player has one `twin`, no more.
+5. **Review round 1 (done).** The measure counts any hold until 0.5 s after a cut as that cut's, runs N times and
+   exits 1 unless all pass. Two holds right after a swap were found and fixed: a correcting seek too close to the cut
+   (now none under `FIX_BEFORE`), and a twin started then seeked while young before the first cut (now seeked while
+   still paused, then started). A swap waiting for its exact moment is dropped if you seek meanwhile.
 
 ## Status
-- Measured: all 6 test cuts hold ≤ 1 frame, with no long holds anywhere, in 2 of 3 runs. In the third, the 0.8 s
-  stretch fell back to a seek. Edited clock 6–34 ms behind the wall clock (was 1.3–1.9 s).
+- Measured, strict metric, 20 runs: 16 pass every cut. Cuts after stretches ≥ 1.2 s: clean in 79 of 80 crossings.
+  After the 0.9 s stretch: 17 of 20. After the 0.8 s stretch: always seeks (the known limit). Details: `wiki.md`.
 - Tests: `test/twin-sync.test.mjs`, `test/jumps.test.mjs`, the player tests in `test/timeline.test.mjs` (swap with
-  no seek and no pause, part start parked, short stretch seeks on at once and swaps, out of step falls back).
+  no seek and no pause, part start parked, short stretch seeks on at once and swaps, out of step falls back, your
+  seek voids a due swap).
 - Limits: see `wiki.md`, Known limits. Not yet measured inside the Tauri app itself.
 
 ## Next
 - Measure once in the real app (WKWebView) with a long, real recording.
-- If stretches under 0.75 s matter, try a second twin that only plays during a short stretch. It would have to stop
+- If stretches under 0.9 s matter, try a second twin that only plays during a short stretch. It would have to stop
   without `pause()` stalling the video you see.

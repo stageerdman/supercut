@@ -76,13 +76,15 @@ is loaded, and no cut block reaches it.
 - **No hitch at a cut** (measured: ≤ 1 frame): seeking a playing `<video>` holds its picture while it decodes, and a
   paused audible one takes ~0.3 s to start. So a hidden twin `<video>` (out of the tab order) **plays along** at an
   inaudible volume, in step on the far side of the next cut (or the next part's first kept moment), from up to 3 s
-  ahead. It gets in step by seeking while it plays, aimed ahead by its learned seek lag (~0.47 s). At the cut the two
-  swap volume and visibility: nothing seeks, starts or pauses. The old one plays on hidden and seeks on for the cut
-  after. A part's start (nothing before it to play along) waits paused, and the cut starts it.
-- **Limits**: a kept stretch under ~0.75 s between two cuts leaves the twin no time to settle: that cut seeks as
-  before (~0.4 s hold). So does a cut right after you seek. Two twins would cover short stretches, but measured in
-  WebKit three playing videos starve the decoders, so it stays one.
-- Code: `src/ui/player.js` (`prepare`, `follow`, `jump`, `swap`), `src/ui/jumps.js` (where each jump leaves and
+  ahead. A paused twin is seeked there paused, then started; a playing one gets in step by seeking while it plays.
+  Either way it aims ahead by its learned seek lag (~0.47 s). At the cut the two swap volume and visibility: nothing
+  seeks, starts or pauses. The old one plays on hidden and seeks on for the cut after. A part's start (nothing before
+  it to play along) waits paused, and the cut starts it.
+- **Limits**: a seek needs ~0.8 s to settle, so no correcting seek is made under 0.85 s before a cut (`FIX_BEFORE`).
+  After a kept stretch shorter than that, the cut seeks as before (~0.4 s hold); around 0.9 s it is a toss-up. So does
+  a cut right after you seek. Two twins would cover short stretches, but measured in WebKit three playing videos
+  starve the decoders, so it stays one.
+- Code: `src/ui/player.js` (`prepare`, `jump`, `swap`), `src/ui/jumps.js` (where each jump leaves and
   lands), `src/ui/twin-sync.js` (what to do with the twin each frame). Facts: `updates/2026-11-23 SEAMLESS CUTS - OPEN/wiki.md`.
 
 ### Playhead
