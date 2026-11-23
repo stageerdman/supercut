@@ -47,3 +47,10 @@ the previous and next cut, with ← →.
 
 ## Status
 - Phase 0 (this plan, design v3): done.
+- Phase 1 (docked bar): done. `#player-column` wraps `#player-box`; `review-bar.js` is one `h-10` row, its last
+  child (no absolute, no shadow; `hidden` takes no space). `barFit(width)` sheds the reason under 720 pt and the
+  button words under 560 pt; a ResizeObserver on the column re-lays it out (divider drags too).
+- Phase 2 (‹ › and ← →): done. `view()` has `hasPrev` / `hasNext`; `reviewKey` maps ← / → (no Shift) to up / down;
+  `control.prev()` / `next()` move and frame. 339 UI tests and 114 Rust tests pass.
+- Phase 3: pushed on the branch. Not yet seen in the real app (needs a build + install after merge): check the row
+  height matches the transport row, the video letterboxes whole, and the chevrons dim at the ends.

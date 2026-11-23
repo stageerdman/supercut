@@ -17,6 +17,9 @@ export function reviewKey(e) {
   if (k === 'Enter') return e.target?.closest?.('button') ? null : 'yes'; // a button: Return presses it
   if (k === 'ArrowDown') return 'down';
   if (k === 'ArrowUp') return 'up';
+  // ← → are the bar's ‹ ›; Shift-← → keep growing a selection.
+  if (k === 'ArrowRight') return e.shiftKey ? null : 'down';
+  if (k === 'ArrowLeft') return e.shiftKey ? null : 'up';
   if (k === 'Backspace' || k === 'Delete') return 'putBack';
   switch (k.toLowerCase()) {
     case 'y': return 'yes';
@@ -132,6 +135,9 @@ export function createReviewControl(o) {
     yes: () => { actions.yes(); paint(true); },
     no: () => { actions.no(); paint(true); },
     play: () => { actions.replay(); paint(); },
+    /** The bar's ‹ ›: the previous / next stop, framed. */
+    prev: () => { actions.up(); paint(true); },
+    next: () => { actions.down(); paint(true); },
     /** The which-cuts menu: the set changes, its next unchecked stop frames and plays. */
     choose(only) {
       if (s.choose(only)) paint(true);

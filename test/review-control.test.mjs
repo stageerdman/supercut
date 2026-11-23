@@ -59,8 +59,11 @@ test('keys: Y / Return, N / M, ⌫, R, Space, ↑ ↓, ⌘Z; no key leaves (Esc,
   assert.equal(k('Escape'), null, 'Esc never ends review');
   assert.equal(k('z', { metaKey: true }), 'undo');
   assert.equal(k('z', { metaKey: true, shiftKey: true }), null, '⇧⌘Z stays redo');
-  assert.equal(k('ArrowRight', { altKey: true }), null);
-  assert.equal(k('ArrowLeft'), null, '← → keep their meaning');
+  assert.equal(k('ArrowRight', { altKey: true }), null, '⌥→ stays the next note');
+  assert.equal(k('ArrowRight'), 'down', '→ is the bar’s ›');
+  assert.equal(k('ArrowLeft'), 'up', '← is the bar’s ‹');
+  assert.equal(k('ArrowLeft', { shiftKey: true }), null, '⇧← still grows a selection');
+  assert.equal(k('ArrowRight', { metaKey: true }), null);
   assert.equal(reviewKey({ key: 'Enter', target: { closest: () => ({}) } }), null);
   assert.equal(reviewKey({ key: ' ', target: { closest: () => ({}) } }), 'toggle', 'Space never presses a bar button');
 });
@@ -90,6 +93,30 @@ test('Y with words selected never writes a word: it is a verdict, and the next c
   assert.equal(r.log.framed.length, 2);
   r.key('ArrowDown');
   assert.equal(r.log.framed.length, 3, '↓ frames the next stop too');
+});
+
+test('‹ › and ← →: the previous / next cut, no verdict, each framed and ringed; the ends say so and stay', () => {
+  const r = rig();
+  r.control.start();
+  assert.equal(r.log.bar.at(-1).hasPrev, false);
+  assert.equal(r.log.bar.at(-1).hasNext, true);
+  r.control.next();
+  assert.equal(r.session.at, 1);
+  assert.deepEqual(r.timeline.selection, { part: 1, s: 20, e: 21, cut: true });
+  assert.equal(r.log.framed.length, 2);
+  assert.equal(r.key('ArrowRight'), true);
+  assert.equal(r.session.at, 2);
+  assert.equal(r.log.framed.length, 3);
+  assert.equal(r.log.bar.at(-1).hasNext, false, 'the last cut: › dimmed');
+  r.control.next();
+  assert.equal(r.session.at, 2, 'no wrap');
+  assert.equal(r.said.at(-1), 'Last cut');
+  r.key('ArrowLeft');
+  r.control.prev();
+  assert.equal(r.session.at, 0);
+  assert.equal(r.log.bar.at(-1).hasPrev, false);
+  assert.equal(r.history.edit.cuts.length, 3, 'no verdict, no edit');
+  assert.equal(r.control.on, true);
 });
 
 test('Play replays and frames only when the stop was scrolled out of view; never a verdict', () => {

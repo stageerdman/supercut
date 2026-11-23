@@ -259,8 +259,9 @@ const rules = mountRules({ gear: $('rules-gear'), panel: $('rules-panel'), box: 
 const pressMagic = () => rules.close().then((saved) => saved && magic.press());
 $('magic').onclick = pressMagic;
 
-// Cut review (design/cut-review.md): a mode of this screen. The window plays on the normal player; the bar floats
-// over the player's bottom; the session decides what Y, N, ⌫, ↑/↓, ⌘Z and ▶ Play do. Only Stop review leaves.
+// Cut review (design/cut-review.md): a mode of this screen. The window plays on the normal player; the bar docks
+// under the player, never over the video; the session decides what Y, N, ⌫, ‹ › (← → ↑ ↓), ⌘Z and ▶ Play do. Only
+// Stop review leaves.
 const reviewParts = () => parts.map((p) => ({ id: p.id, duration: p.duration || p.transcript?.seconds || 0 }));
 const windowPlay = createWindowPlay(player, { parts: reviewParts, cuts: cutsNow });
 const SHORT = new Set(['Noted, fix later', 'Put back', 'Last cut', 'First cut']); // verdicts and edges: 2 s
@@ -276,10 +277,12 @@ const session = createReviewSession({
 });
 const review = createReviewControl({
   session,
-  bar: createReviewBar($('player-box'), {
+  bar: createReviewBar($('player-column'), {
     onYes: () => review.yes(),
     onNo: () => review.no(),
     onPlay: () => review.play(),
+    onPrev: () => review.prev(),
+    onNext: () => review.next(),
     onChoose: (only) => review.choose(only),
   }),
   timeline,

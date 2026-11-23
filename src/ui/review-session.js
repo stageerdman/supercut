@@ -199,11 +199,15 @@ export function createReviewSession(deps) {
       const given = verdicts();
       const base = { only, counts: setCounts(everyCut(), given), ...progress(set, given) };
       const stop = stopAt(at);
-      if (!stop) return { end: true, empty: !set.length, ...base };
+      const n = list().length;
+      // ‹ › : whether there's a stop to go back / on to (the end line's ‹ goes to the last stop).
+      if (!stop) return { end: true, empty: !set.length, ...base, hasPrev: n > 0, hasNext: false };
       const w = windowOf(stop);
       return {
         end: false,
         ...base,
+        hasPrev: at > 0,
+        hasNext: at < n - 1,
         count: stopCount(stop, set.length),
         removed: `${duration(removed(stop))} cut`,
         edge: w.edge,
