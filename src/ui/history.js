@@ -1,6 +1,6 @@
-// Undo / redo over the whole edit (cuts and words). One user gesture = one step, each with a short label.
+// Undo / redo over the whole edit (cuts, words and notes). One user gesture = one step, each with a short label.
 // Pure, no DOM. Rules: design/edit-model.md (History). Tested in test/edit.test.mjs.
-import { emptyEdit, renamePart } from './edit.js';
+import { emptyEdit, renamePart, notesOf } from './edit.js';
 
 /**
  * A step is { edit, label, removed? }. `removed: { part, index }` marks "Removed part N": `part` is the removed
@@ -72,9 +72,15 @@ function wordSpans(a, b) {
   });
 }
 
+const NOTE_FIELDS = ['id', 'part', 's', 'e', 'text', 'color', 'by', 'done', 'doneAt'];
+const sameNote = (a, b) => NOTE_FIELDS.every((k) => a[k] === b[k]);
+
+/** The notes that differ between two note lists (added, deleted, or changed in any field). */
+const noteSpans = (a, b) => [...a.filter((x) => !b.some((y) => sameNote(x, y))), ...b.filter((y) => !a.some((x) => sameNote(x, y)))];
+
 /** What changed between two edits, as one { part, s, e } (the first part that differs), or null. Undo scrolls to it. */
 export function changed(a, b) {
-  const spans = [...cutSpans(a.cuts, b.cuts), ...wordSpans(a.words, b.words)];
+  const spans = [...cutSpans(a.cuts, b.cuts), ...wordSpans(a.words, b.words), ...noteSpans(notesOf(a), notesOf(b))];
   if (!spans.length) return null;
   const part = spans[0].part;
   const mine = spans.filter((x) => x.part === part);

@@ -53,7 +53,7 @@ export function noteSpot(cuts, sel, at) {
  * is no twin: that note comes back with no change.
  * @returns {{edit: object, note: object, label: string}}  label: "Added note" / "Noted 01:12–01:40"
  */
-export function addNote(edit, sel, at, { id = freshId() } = {}) {
+export function addNote(edit, sel, at, { id = freshId } = {}) {
   const spot = noteSpot(edit.cuts, sel, at);
   const twin = !sel && noteAt(notesOf(edit), spot.part, spot.s);
   if (twin) return { edit, note: twin, label: '' };
@@ -68,18 +68,20 @@ function noteById(edit, id) {
   return note;
 }
 
-/** Swap one note for its changed copy. Any touch makes a Magic note yours (as with cuts). */
-const replaced = (edit, note, change) => ({
+/** Swap one note for its new copy. Any touch makes a Magic note yours (as with cuts). */
+const replaced = (edit, note, next) => ({
   ...edit,
-  notes: notesOf(edit).map((n) => (n === note ? { ...n, ...change, by: 'you' } : n)),
+  notes: notesOf(edit).map((n) => (n === note ? { ...next, by: 'you' } : n)),
 });
 
 /** The card changed the text or the colour. Label "Edited note" / "Changed note colour". */
 export function editNote(edit, id, { text, color }) {
   const note = noteById(edit, id);
   if (color !== undefined && !NOTE_COLORS.includes(color)) throw new RangeError(`editNote: "${color}" is not a note colour`);
-  if (text !== undefined && text !== note.text) return { edit: replaced(edit, note, { text }), label: 'Edited note' };
-  if (color !== undefined && color !== note.color) return { edit: replaced(edit, note, { color }), label: 'Changed note colour' };
+  if (text !== undefined && text !== note.text) return { edit: replaced(edit, note, { ...note, text }), label: 'Edited note' };
+  if (color !== undefined && color !== note.color) {
+    return { edit: replaced(edit, note, { ...note, color }), label: 'Changed note colour' };
+  }
   return { edit, label: '' };
 }
 
@@ -87,9 +89,9 @@ export function editNote(edit, id, { text, color }) {
 export function setDone(edit, id, done = true, now = Date.now()) {
   const note = noteById(edit, id);
   if (note.done === done) return { edit, label: '' };
-  if (done) return { edit: replaced(edit, note, { done, doneAt: now }), label: 'Done: note' };
+  if (done) return { edit: replaced(edit, note, { ...note, done, doneAt: now }), label: 'Done: note' };
   const { doneAt: _was, ...open } = note;
-  return { edit: { ...replaced(edit, note, {}), notes: notesOf(edit).map((n) => (n === note ? { ...open, done, by: 'you' } : n)) }, label: 'Reopened note' };
+  return { edit: replaced(edit, note, { ...open, done }), label: 'Reopened note' };
 }
 
 /** Gone. A Magic note's spot is remembered, so the next Magic run doesn't put it back. Label "Deleted note". */

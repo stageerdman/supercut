@@ -151,7 +151,7 @@ test('a fixed word inside a cut is still cut (cuts never move)', () => {
 
 test('edit: words arrive per part, a part leaves with its cuts and words, a rename swaps its id', () => {
   const e = { ...withWords(withWords(emptyEdit(), 1, W), 2, []), cuts: [you(0, 1), you(0, 1, 2)] };
-  assert.deepEqual(withoutPart(e, 1), { cuts: [you(0, 1, 2)], words: { 2: [] } });
+  assert.deepEqual(withoutPart(e, 1), { cuts: [you(0, 1, 2)], words: { 2: [] }, notes: [], dismissed: [] });
   const r = renamePart(e, 1, 3);
   assert.deepEqual(r.cuts.map((c) => c.part), [3, 2]);
   assert.deepEqual(Object.keys(r.words).sort(), ['2', '3']);
