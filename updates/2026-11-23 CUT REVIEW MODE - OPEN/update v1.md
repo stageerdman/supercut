@@ -108,6 +108,12 @@ After Magic, the user checks every cut in a few minutes without watching the who
   from the open project, never from the web side. `main.js` saves the clips with the log. The log is not rewritten
   the moment a red note is ticked: it is written when the run is replaced or the window closes, with the notes as they
   are then, which already carries `doneAt`.
-- Phase 6: not started.
+- Phase 6: built and installed, hands-on pass still to do. On main `dc17b7e`: 309 UI tests and 114 Rust tests
+  pass (423 total), the CSS is up to date, and `npm run install-app` built a release and replaced
+  `/Applications/Magic Cut.app` (frontend id `d9ae6673cf557901`, checked in the build and the installed copy;
+  Spotlight finds it). `npm run smoke` passes on the release build: codesign, the bundled Claude call, and the
+  bundled ffmpeg + Parakeet transcription. The run through in the app (Y, N, ⌫, ↑, ⌘Z, Esc and resume, the end line
+  into ⌥→, a fix and Done landing in `learning/`) and the keyboard-only and VoiceOver passes need someone at the
+  screen. Nobody has used it there yet.
 
-Next: Phase 6 (verify in the app and ship).
+Next: the user runs review once in the app; anything found goes to issues.txt, then close the update.
