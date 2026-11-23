@@ -10,7 +10,7 @@ line about what's happening, and the result **in the transcript**, where they ca
 ## Where AI shows up (nothing else)
 | What | Where | Built in |
 |---|---|---|
-| Start / cancel | **✦ Magic**, the one filled button, far right of the toolbar. Queued or running, it becomes a pill with ✕ | `src/ui/magic-button.js` |
+| Start / cancel | **✦ Magic**, the one filled button, far right of the toolbar (just left of Review cuts once there are cuts; hidden while reviewing, `design/cut-review.md`). Queued or running, it becomes a pill with ✕ | `src/ui/magic-button.js` |
 | What it's doing | The status line ("Choosing the best takes…"); the pill only says "Magic ✕". Queued: the status line adds "· Magic starts when the transcript is ready" | `src/ui/magic.js`, `src/ui/status.js` |
 | First run ever | Status line, 8 s, once: "Only the text of your transcript is sent to Claude. Your video stays here." | `src/ui/magic.js` |
 | Result | Cut words stay in the transcript, **struck through** (accent line), same as yours; hover says why ("Magic: earlier take · Backspace brings it back"). Summary in the status line for 6 s | `src/ui/transcript.js`, `src/ui/cuts.js` (`withMagic`) |

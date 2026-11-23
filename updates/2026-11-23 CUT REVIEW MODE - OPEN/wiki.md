@@ -19,5 +19,12 @@ Durable lessons from designing review. Status lives in `update v1.md`.
   item, checked), so "Cut 7 of 38" doesn't jump when cuts merge or split.
 - **concat wants one shape.** Joining spans of two parts needs every input boxed to the same size, SAR, fps and audio
   layout first; the real-ffmpeg test caught a 4:3 + 16:9 join failing.
+- **A mode needs one way out, and it must be the way in.** v1 had four exits (Esc, ✕, R, the last verdict); after
+  trying it the user asked for controls that can't be closed by accident. v2: the button that started review reads "Stop review" and nothing else leaves. Keep that
+  button still: fixed width, far right, so hiding things beside it never moves it under the pointer.
+- **Bring the view to the thing being judged.** A cut is a few pixels on a long timeline; each stop frames its clip.
+  Frame on a new stop only, never after an edit or a hand zoom.
+- **Don't choose the set for the user.** "Magic's cuts, else yours" was clever and hid cuts. All by default, with a
+  plain menu to narrow it.
 - **Paths stay in Rust.** The web side names a part id; Rust looks up the file. A command never writes from a path
   JavaScript hands it.

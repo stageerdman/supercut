@@ -76,6 +76,17 @@ A10 still holds for *fixing text*; it doesn't hold for *dealing with unheard spe
 | A24 | Time order beats least-sure first (Q1) | Time 3 users on both orders of the same video |
 | A25 | Most people stop reviewing after a handful of cuts once trust builds (Q7) | Checked stops per session in the trace |
 | A26 | "N, fix later" plus mouse drags is enough; no nudge keys in review (Q5) | Count Nos that end as small `adjusted` edits |
+| A27 | Framing the clip at 80 % of the timeline width is close enough to judge, with enough context around it | Count hand zoom-outs right after a frame |
+| A28 | Three choices (All, Magic's, Not approved yet) cover how people narrow a review | Ask after a review of a hand-cut video |
+
+### Observed: the user's first try of review (2026-11-23)
+What they asked for after trying it (the "why" after each is my reading, a guess):
+- **The timeline zooms in on the cut under review.** (Guess: a cut is a few pixels on a zoomed-out timeline.)
+- **No accidental exits** (Esc, click-away): the Review cuts button becomes "Stop review" and is the only way out.
+- **A visible Play button** that replays the clip as often as wanted. (Guess: the R key alone wasn't enough.)
+- **✦ Magic Cut disappears while reviewing.**
+- **All cuts by default**, with a choice like "only AI cuts" or "only unapproved".
+- They stressed it must be **really neat and well made**. Spec v2: `design/cut-review.md`.
 
 ## Editing by hand (2026-11-22, reasoned)
 - Two views, one thing: cuts show in the transcript (struck) and on the timeline (hatched) at the same place, grey for

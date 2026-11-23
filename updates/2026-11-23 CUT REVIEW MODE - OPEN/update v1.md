@@ -1,5 +1,8 @@
 # Cut review mode: update v1
 
+> **Superseded by `update v2.md`** (the user's first try asked for zoom to each cut, Stop review as the only exit, a
+> Play button, Magic hidden while reviewing, and all cuts with a filter). Kept as the record of v1's build.
+
 Feature: `f-cut-review-mode`. Design: `design/cut-review.md` (Jony). Research: `research-cut-review.md` (Columbo).
 Trace and learning: `design/magic-trace.md`, "Verdicts". Notes it reuses: `design/notes.md`.
 

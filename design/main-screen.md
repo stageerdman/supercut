@@ -66,10 +66,13 @@ Exactly one filled button at any time.
 | Magic queued | **Magic queued ✕** (pill; ✕ cancels) | Export |
 | Ready | **✦ Magic** | Export |
 | Magic done | **Review cuts** (Phase 6) | Export, ✦ Magic (again) |
+| Reviewing | **Looks good** (in the review bar); **Stop review** at the end line | Export; ✦ Magic is hidden |
 | All reviewed | **Export** | ✦ Magic |
 
 Before Phase 6 ships, "Magic done" keeps Magic as primary and Export secondary. Review's own spec is
 `design/cut-review.md`; until export exists, "All reviewed" gives the primary back to ✦ Magic.
+Toolbar order on the right (review v2): `✦ Magic Cut` then `Review cuts`, so Review sits far right and doesn't move
+when Magic hides during review or its label becomes "Stop review".
 
 ## States
 
