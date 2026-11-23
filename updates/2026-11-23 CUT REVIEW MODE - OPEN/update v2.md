@@ -136,4 +136,18 @@ cuts" or "only unapproved". They stressed it must be really neat.
   - Not done here (Phase 2–4 UI): `review-control.js` still has Esc → leave and `fixFirst`; the bar still has ✕;
     `timeline.frame()` / `inView()` and calling them from the control.
 
-Next: Phase 2 (keys, toolbar, Magic hidden), then the bar and the timeline frame.
+- Phases 2–4 (screen): built (Jony). 336 UI tests pass; no Rust changed.
+  - Phase 2: `reviewKey` has no leave key (Esc and ⌥→ keep their app meaning) and no `fixFirst`; the toolbar button
+    toggles Review cuts ↔ Stop review (`reviewButton` → `{ visible, label, primary }`, Stop review is the primary on
+    the end line), and it is the only way out; ✦ Magic is hidden while reviewing (its slot keeps its width) and
+    ⌘Return does nothing then. An edit, undo or Magic step undone mid-review repaints the count and never leaves.
+  - Phase 3: the bar has no ✕ and no Fix the first. Actions ▶ Play (R) · Fix later (N) · Looks good (Y), key caps at
+    the right end; the which-cuts menu (native popup, ✓ on the choice, empty choices dimmed) at line 1's right, last in
+    Tab order. End line: "All 38 checked / 3 cuts to fix" or "Nothing to fix", "No cuts left" for an emptied set;
+    actions hidden, focus rests on the bar. First announcement adds "Stop review is in the toolbar."
+  - Phase 4: `timeline.frame(stretch)` (200 ms ease, Reduce Motion jumps, stops on a hand zoom, wheel or pinch;
+    playhead paging waits while framing) and `inView(stretch)`. The control frames on every new stop (start, Y, N, ⌫,
+    ↑, ↓, ⌘Z back, which-cuts, click on a stop); Play / R / Space-replay frame only if the stop is out of view.
+  - Not checked here: the motion and the native menu in the real app; that's Phase 5's manual pass.
+
+Next: Phase 5 (verify in the app and ship).
