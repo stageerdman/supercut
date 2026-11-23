@@ -7,7 +7,9 @@
 import { el, clock } from './dom.js';
 import { layout, contentWidth, fitPps, xAt, timeAt, anchoredScroll, bitFor, snap, snapTargets, zoomScaled, pinchFactor, wheelFactor, MAX_PPS, GAP } from './timeline-geometry.js';
 import { cutView, edgeHandle, secs, MIN_W } from './cut-view.js';
-import { drawTimeline, RULER, STRIP, TRACK } from './waveform-view.js';
+import { drawTimeline, RULER, STRIP, TRACK, NOTES } from './waveform-view.js';
+import { layoutNotes, clusterPps } from './note-layout.js';
+import { noteLane, fillLane, popIn, createPeek } from './note-view.js';
 import { pauses, pauseCut } from './pauses.js';
 import { pauseView, stripPainter } from './strip-view.js';
 import { startEdgeDrag } from './edge-drag.js';
@@ -17,8 +19,9 @@ import { setBit } from './bit.js';
 
 const SLOT = 120; // the add-slot's width
 const DRAG_PT = 4; // a press that moves less is a click
-const HEIGHT = 152;
+export const HEIGHT = 176; // ruler, strip, track, notes lane (index.html's #timeline is this tall)
 const EPS = 1e-6;
+const LABEL_FONT = '11px -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
 
 /**
  * @param {HTMLElement} root  the scrolling box
@@ -28,8 +31,12 @@ const EPS = 1e-6;
  *   playhead: () => ({i:number,t:number}), current: () => number, max: number,
  *   onSeek: (i:number, t:number) => void, onLive: (cuts:Array|null) => void, onCommit: (cuts:Array, label:string) => void,
  *   onToggle: () => void, onRemove: (id:number) => void, onDragStart: () => void, onZoom?: (z:number) => void,
- *   onSelect?: (sel:object|null) => void, onMenu?: (at:{x:number,y:number}) => void}} o
- *   onMenu: right-click; the selection is already what was clicked (context-menu.js)
+ *   onSelect?: (sel:object|null) => void, onMenu?: (at:{x:number,y:number}, where:{part:number,t:number,lane:boolean}) => void,
+ *   notes?: () => Array, showDone?: () => boolean, onNote?: (id:string, o:{focus:boolean}) => void,
+ *   onNoteMenu?: (id:string, at:{x:number,y:number}) => void}} o
+ *   onMenu: right-click off a note; the selection is already what was clicked (context-menu.js). `where`: the time
+ *   under the pointer, and whether it was on the notes lane.
+ *   notes: all the edit's notes (each part's lane shows its own, design/notes.md); onNote: a note clicked or Return.
  */
 export function createTimeline(root, o) {
   let z = 0; // zoom: 0 = fit … 1 = MAX_PPS, on a log scale (so each step feels the same)
@@ -39,6 +46,8 @@ export function createTimeline(root, o) {
   let frames = [];
   let lanes = [];
   let layers = []; // per part: its cut blocks, over the strip and the track
+  let noteLanes = []; // per part: its notes, under the track
+  let currentNote = null; // the note with the ring (its card is open)
   let selection = null; // { part, s, e, cut? } in source time, one part
   let grow = null; // ⇧← ⇧→: the fixed end of the selection
   let drag = null; // the pointer gesture in progress
@@ -55,12 +64,16 @@ export function createTimeline(root, o) {
   chip.style.top = `${RULER.top}px`;
   chip.onclick = () => o.onToggle();
   const head = el('div', 'pointer-events-none absolute z-[5] w-px bg-accent');
-  head.style.cssText = `left:0;will-change:transform;top:${RULER.top}px;height:${TRACK.top + TRACK.h - RULER.top}px`;
+  head.style.cssText = `left:0;will-change:transform;top:${RULER.top}px;height:${NOTES.top + NOTES.h - RULER.top}px`;
   const tip = el('div', 'absolute -top-px -left-1 h-0 w-0');
   tip.style.cssText += 'border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-top:9px solid var(--color-accent)';
   head.append(tip);
   content.append(canvas, sel, chip, head);
   root.replaceChildren(content);
+  const peek = createPeek(content, { bottom: NOTES.top - 4 });
+  const ruler = document.createElement('canvas').getContext?.('2d'); // measures note labels
+  if (ruler) ruler.font = LABEL_FONT;
+  const measureLabel = (t) => ruler?.measureText(t).width ?? t.length * 6;
 
   // ---------- Layout ----------
 
@@ -82,11 +95,13 @@ export function createTimeline(root, o) {
     frames.forEach((f) => f.remove());
     lanes.forEach((l) => l.remove());
     layers.forEach((l) => l.remove());
+    noteLanes.forEach((l) => l.remove());
     frames = boxes.map((b, i) => frame(b, i, parts[i]));
     lanes = boxes.map((b, i) => lane(b, i));
     layers = boxes.map((b, i) => cutLayer(b, i));
-    // Per part, in Tab order: the part's ✕, its cuts and edges, its pauses.
-    content.prepend(...boxes.flatMap((b, i) => [frames[i], layers[i], lanes[i]]));
+    noteLanes = boxes.map((b, i) => noteLane(b, i, { items: [], notes: new Map(), top: NOTES.top, h: NOTES.h }));
+    // Per part, in Tab order: the part's ✕, its cuts and edges, its pauses, its notes.
+    content.prepend(...boxes.flatMap((b, i) => [frames[i], layers[i], lanes[i], noteLanes[i]]));
     if (extra()) { frames.push(addSlot()); content.insertBefore(frames.at(-1), canvas); }
     paintCuts();
     paintPlayhead(false);
@@ -104,7 +119,8 @@ export function createTimeline(root, o) {
     const cuts = o.cuts();
     const place = (n, s, e, min) => { n.style.left = `${s * pps}px`; n.style.width = `${Math.max(min, (e - s) * pps)}px`; };
     boxes.forEach((box, i) => {
-      for (const n of [frames[i], lanes[i], layers[i]]) { n.style.left = `${box.x}px`; n.style.width = `${box.w}px`; }
+      for (const n of [frames[i], lanes[i], layers[i], noteLanes[i]]) { n.style.left = `${box.x}px`; n.style.width = `${box.w}px`; }
+      moveNotes(i);
       for (const n of layers[i].querySelectorAll('[data-cut]')) {
         const c = cuts[+n.dataset.cut];
         if (c) place(n, c.s, c.e, MIN_W);
@@ -199,11 +215,67 @@ export function createTimeline(root, o) {
       const n = mine.length;
       f.setAttribute('aria-label', `Part ${i + 1}, ${parts[i].name}, ${clock(box.len)}, ${n} cut${n === 1 ? '' : 's'}`);
     });
+    paintNotes();
     if (nudge) refocus();
     else if (hadFocus && !content.contains(document.activeElement)) keepFocus();
     painting = false;
     paintSelection();
     draw();
+  }
+
+  // ---------- Notes (design/notes.md, "The lane") ----------
+
+  const notesIn = (box) => (o.notes?.() ?? []).filter((n) => n.part === box.id);
+  const noteItems = (i) => layoutNotes({ notes: notesIn(boxes[i]), len: boxes[i].len, pps, measure: measureLabel, showDone: !!o.showDone?.() });
+
+  /** Repaint every lane from `notes()`. Focus on a note stays on it (its element is replaced). */
+  function paintNotes() {
+    const active = globalThis.document?.activeElement;
+    const focused = active?.dataset?.note ?? null;
+    boxes.forEach((box, i) => {
+      const notes = new Map(notesIn(box).map((n) => [n.id, n]));
+      fillLane(noteLanes[i], i, { items: noteItems(i), notes, current: currentNote });
+    });
+    if (focused && !content.contains(document.activeElement)) noteEl(focused)?.focus({ preventScroll: true });
+  }
+
+  /** While zooming: the same elements, moved (so a pinch over a note goes on); a repaint when clusters change. */
+  function moveNotes(i) {
+    const items = noteItems(i), els = noteLanes[i].children;
+    const same = items.length === els.length && items.every((m, k) => {
+      const n = els[k];
+      return m.kind === 'cluster' ? n.dataset.cluster === m.ids.join(' ') : n.dataset.note === m.ids[0];
+    });
+    if (!same) return paintNotes();
+    items.forEach((m, k) => {
+      const n = els[k], mark = n.querySelector('[data-mark]');
+      n.style.left = `${m.hit.x}px`;
+      n.style.width = `${m.hit.w}px`;
+      if (mark) { mark.style.left = `${m.x - m.hit.x}px`; mark.style.width = `${m.w}px`; }
+      const label = n.querySelector('[data-label]'); // a label that newly fits comes with the settle repaint
+      if (label) { label.style.left = `${m.labelX - m.hit.x}px`; label.textContent = m.label; }
+    });
+  }
+
+  const noteEl = (id) => noteLanes.map((l) => l.querySelector(`[data-note="${id}"]`)).find(Boolean) ?? null;
+  const noteById = (id) => (o.notes?.() ?? []).find((n) => n.id === id);
+
+  /** The note's centre in content points (null when its part isn't on the timeline). */
+  function noteCx(id) {
+    const n = noteById(id);
+    const i = n ? boxes.findIndex((b) => b.id === n.part) : -1;
+    return i < 0 ? null : { i, x: xAt(boxes, i, (n.s + n.e) / 2), t: (n.s + n.e) / 2 };
+  }
+
+  /** A cluster click: zoom in until its notes separate, anchored on it. */
+  function openCluster(ids) {
+    const notes = ids.map(noteById).filter(Boolean);
+    const at = notes.length && noteCx(notes[0].id);
+    if (!at || fit >= MAX_PPS) return;
+    const target = Math.min(MAX_PPS, clusterPps(notes));
+    const nz = Math.log(target / fit) / Math.log(MAX_PPS / fit);
+    const mid = (notes[0].s + notes.at(-1).e) / 2;
+    zoomTo(Math.max(z + 0.05, nz), { i: at.i, t: mid });
   }
 
   /** The element you were on went (a cut restored, a pause cut): focus stays in the timeline, on the selected cut
@@ -303,6 +375,13 @@ export function createTimeline(root, o) {
     if (e.button !== 0 || e.target.closest('button') || !boxes.length) return;
     commitNudge();
     const { x, y } = local(e);
+    const noteHit = e.target.closest('[data-note], [data-cluster]');
+    if (noteHit) { // a note opens on release; nothing else (no seek here: going to the note does it)
+      drag = { kind: 'note', id: noteHit.dataset.note, cluster: noteHit.dataset.cluster };
+      peek.hide();
+      e.preventDefault();
+      return;
+    }
     const edge = e.target.closest('[data-edge]');
     const pauseEl = e.target.closest('[data-pause]');
     const cutEl = e.target.closest('[data-cut]');
@@ -331,7 +410,7 @@ export function createTimeline(root, o) {
   });
 
   content.addEventListener('pointermove', (e) => {
-    if (!drag) return;
+    if (!drag || drag.kind === 'note') return;
     const { x } = local(e);
     if (drag.kind === 'edge') {
       const { i, d } = drag;
@@ -355,7 +434,10 @@ export function createTimeline(root, o) {
     const g = drag;
     drag = null;
     if (!g) return;
-    if (g.kind === 'edge') {
+    if (g.kind === 'note') {
+      if (g.cluster) openCluster(g.cluster.split(' '));
+      else o.onNote?.(g.id, { focus: true });
+    } else if (g.kind === 'edge') {
       hideChip();
       const r = g.d.end();
       r.changed ? o.onCommit(r.cuts, r.label) : o.onLive(null);
@@ -372,7 +454,9 @@ export function createTimeline(root, o) {
   content.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     if (drag || !boxes.length || e.target.closest('button')) return;
-    const { x } = local(e);
+    const { x, y } = local(e);
+    const noteHit = e.target.closest('[data-note]');
+    if (noteHit) return o.onNoteMenu?.(noteHit.dataset.note, { x: e.clientX, y: e.clientY });
     const pauseEl = e.target.closest('[data-pause]');
     const cutEl = e.target.closest('[data-cut]');
     const { i, t } = timeAt(boxes, x);
@@ -391,9 +475,32 @@ export function createTimeline(root, o) {
       const k = o.words(box.id).findIndex((w) => w.s <= t && t < w.e);
       if (k >= 0) next = wordSelection(box.id, o.words(box.id), k, k);
     }
+    const lane = y >= NOTES.top;
+    if (lane) next = null; // the lane's menu is about the time there, not a word
     if (next && !(inside && !next.cut)) setSelection(next);
-    if (next || inside) o.onMenu?.({ x: e.clientX, y: e.clientY });
+    else if (!next && !inside && selection) setSelection(null);
+    // Always a menu: with nothing selected it still has Add Note Here.
+    o.onMenu?.({ x: e.clientX, y: e.clientY }, { part: box.id, t, lane });
   });
+
+  // ---------- Notes: Return opens, hover / focus peeks ----------
+
+  content.addEventListener('keydown', (e) => {
+    const n = e.target.closest?.('[data-note], [data-cluster]');
+    if (!n || e.key !== 'Enter' || e.metaKey || e.altKey) return;
+    e.preventDefault();
+    e.stopPropagation(); // not the app's Return (which types on a selection)
+    if (n.dataset.cluster) openCluster(n.dataset.cluster.split(' '));
+    else o.onNote?.(n.dataset.note, { focus: true });
+  });
+  const peekAt = (n) => {
+    const note = n && noteById(n.dataset.note);
+    const at = note && noteCx(note.id);
+    at ? peek.show(note, at.x) : peek.hide();
+  };
+  content.addEventListener('pointerover', (e) => { if (!drag) peekAt(e.target.closest?.('[data-note]')); });
+  content.addEventListener('pointerleave', () => peek.hide());
+  content.addEventListener('focusout', (e) => e.target.dataset?.note != null && peek.hide());
 
   // ---------- Keyboard: edges are sliders, cuts are buttons ----------
 
@@ -431,6 +538,7 @@ export function createTimeline(root, o) {
   });
   content.addEventListener('focusin', (e) => {
     if (painting) return;
+    if (e.target.dataset?.note != null) return peekAt(e.target);
     if (e.target.dataset?.pause != null) { // Tab onto a pause selects it: ⌫ cuts it
       const i = +e.target.closest('[data-lane]').dataset.lane, p = pausesOf(i)[+e.target.dataset.pause];
       if (p && !isPause(boxes[i].id, p)) setSelection({ part: boxes[i].id, s: p.s, e: p.e, pause: true });
@@ -500,7 +608,18 @@ export function createTimeline(root, o) {
   return {
     render,
     paintCuts,
+    paintNotes,
     paintPlayhead,
+    /** The current note (ring), or null. */
+    setNote(id) { if (id !== currentNote) { currentNote = id; paintNotes(); } },
+    focusNote: (id) => noteEl(id)?.focus({ preventScroll: true }),
+    /** The note's centre in client x (for placing its card), or null when not on screen. */
+    noteX(id) {
+      const at = noteCx(id);
+      return at ? content.getBoundingClientRect().left + at.x : null;
+    },
+    /** A marker that just came in pops (after the repaint that made it). */
+    pop: (id) => popIn(noteEl(id)),
     reveal,
     get zoom() { return z; },
     zoomTo,

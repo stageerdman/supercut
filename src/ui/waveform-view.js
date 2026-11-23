@@ -7,6 +7,7 @@ import { STRIP, stripPainter } from './strip-view.js';
 export const RULER = { top: 8, h: 20 };
 export { STRIP };
 export const TRACK = { top: STRIP.top + STRIP.h + 4, h: 72 }; // under the transcript strip
+export const NOTES = { top: TRACK.top + TRACK.h + 4, h: 20 }; // the notes lane, under the track (design/notes.md)
 const GREY = '158, 161, 168';
 const BAR = 2; // points per bar, 1 pt gap
 
