@@ -67,7 +67,7 @@
       <!-- Editor -->
       <main id="editor" class="hidden min-h-0 flex-1 flex-col">
         <div class="flex min-h-0 flex-1">
-          <div class="relative flex min-w-0 flex-1 items-center justify-center bg-black">
+          <div id="player-box" class="relative flex min-w-0 flex-1 items-center justify-center bg-black">
             <video id="player" tabindex="0" aria-label="Video player" class="max-h-full max-w-full outline-none"></video>
           </div>
           <!-- Transcript: divider (drag = width), title + search, words in blocks, the rail (design/transcript-panel.md) -->
@@ -100,10 +100,13 @@
           </aside>
         </div>
 
-        <!-- Transport row: play, edited time; zoom far right (its only job) -->
+        <!-- Transport row: play, edited time, add note, the open-notes chip; zoom far right (its only job) -->
         <div class="flex h-10 shrink-0 items-center gap-3 border-t border-hairline px-4">
           <button id="play" aria-label="Play" class="w-6 text-text hover:text-accent">▶</button>
-          <span id="time" class="flex-1 tabular-nums text-text-secondary">00:00 / 00:00</span>
+          <span id="time" class="tabular-nums text-text-secondary">00:00 / 00:00</span>
+          <button id="add-note" aria-label="Add note" title="Add note (M)" class="flex size-7 items-center justify-center rounded-md text-text-secondary hover:text-text">⚑</button>
+          <button id="notes-chip" title="Next open note (⌥→)" class="hidden h-6 rounded-full border border-hairline px-2.5 text-[12px] tabular-nums text-text-secondary hover:text-text"></button>
+          <span class="flex-1"></span>
           <button id="zoom-out" aria-label="Zoom out" title="Zoom out (⌘−)" class="flex size-7 items-center justify-center rounded-md text-text-secondary hover:text-text">−</button>
           <input id="zoom" type="range" min="0" max="100" value="0" aria-label="Timeline zoom" class="w-24 accent-accent" />
           <button id="zoom-in" aria-label="Zoom in" title="Zoom in (⌘+)" class="flex size-7 items-center justify-center rounded-md text-text-secondary hover:text-text">+</button>

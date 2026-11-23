@@ -127,6 +127,7 @@ export function createNoteControl(o) {
 
   return {
     add, open, go, done, reopen, remove, save, color, toggleShowDone, afterUndo, paint,
+    refresh: afterUndo, // anything else that changed the notes (a part removed or put back)
     get showDone() { return showDone; },
     get cardOpen() { return o.card.isOpen; },
   };

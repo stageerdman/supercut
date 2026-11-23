@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { wordsIn, wordSelection, toggleSelection } from '../src/ui/selection.js';
-import { transcriptKey, wordClass, wordLabel, createTranscript } from '../src/ui/transcript.js';
+import { transcriptKey, wordClass, wordLabel, createTranscript, noteMarks } from '../src/ui/transcript.js';
 import { fixStep, openFixField } from '../src/ui/fix-field.js';
 import { createFollow, followTarget, PAUSE_MS } from '../src/ui/follow.js';
 import { isCut, cutsOf } from '../src/ui/cuts.js';
@@ -149,7 +149,13 @@ function fakeDom() {
   const make = (tag) => {
     const n = {
       tag, id: '', title: '', textContent: '', dataset: {}, attrs: {}, children: [], parent: null, listeners: {},
-      classes: new Set(),
+      classes: new Set(), style: {},
+      querySelectorAll(sel) {
+        const out = [];
+        const walk = (x) => { if (typeof x !== 'object') return; if (x !== this && matches(x, sel)) out.push(x); x.children.forEach(walk); };
+        walk(this);
+        return out;
+      },
       get className() { return [...this.classes].join(' '); },
       set className(v) { this.classes = new Set(String(v).split(' ').filter(Boolean)); },
       classList: null,
@@ -175,6 +181,7 @@ function fakeDom() {
     if (sel === 'span[data-i]') return x.tag === 'span' && x.dataset.i != null;
     if (sel === '[contenteditable]') return !!x.contentEditable;
     if (sel === 'p') return x.tag === 'p';
+    if (sel === '[data-note-bar]') return x.dataset?.noteBar != null;
     return false;
   };
   globalThis.document = {
@@ -217,7 +224,7 @@ test('fix field: opens in place of the words, keys stay inside, Return commits, 
 function panel(edit, sel = { now: null }) {
   const make = fakeDom();
   const box = make('div'), aside = make('aside');
-  const log = { seeks: [], selects: [], fixes: [], menus: [] };
+  const log = { seeks: [], selects: [], fixes: [], menus: [], notes: [] };
   const parts = [
     { id: 1, name: 'a', transcript: { seconds: 4, words } },
     { id: 2, name: 'b', transcript: { seconds: 2, words: [W('two', 0.2, 0.5), W('more', 0.6, 0.9)] } },
@@ -230,6 +237,8 @@ function panel(edit, sel = { now: null }) {
     onSeek: (i, s) => log.seeks.push([i, s]),
     onFix: (id, w, label) => log.fixes.push([id, w, label]),
     onMenu: (at) => log.menus.push(at),
+    notes: () => edit().notes ?? [],
+    onNote: (id, o) => log.notes.push([id, o]),
   });
   t.render();
   const spans = (part) => { // the words of a part, through its blocks
@@ -280,6 +289,54 @@ test('panel: cut words strike in place, by owner; a timeline range highlights it
   p.t.paintSelection();
   assert.deepEqual(s.map((x) => x.attrs['aria-selected'] === 'true'), [false, false, true, true, true, false]);
   assert.match(s[2].className, /bg-accent\/20/);
+  delete globalThis.document;
+});
+
+const noteOf = (id, s, e, more = {}) => ({ id, part: 1, s, e, text: '', color: 'yellow', by: 'you', done: false, ...more });
+
+test('notes in the words: a section underlines the words whose middle is inside, a moment puts a bar before its word', () => {
+  const marks = noteMarks(words, [noteOf('a', 1.2, 2.1), noteOf('m', 2.2, 2.2), noteOf('d', 0, 4, { done: true })]);
+  assert.deepEqual(marks.under.map((n) => n?.id ?? null), [null, null, 'a', 'a', null, null], 'was, gonna; a done note marks nothing');
+  assert.deepEqual(marks.bars.map((b) => [b.k, b.note.id]), [[4, 'm']], 'in the gap before "say": on "say"');
+  assert.deepEqual(noteMarks(words, [noteOf('late', 9, 9)]).bars, [], 'after the last word: no bar');
+  assert.equal(transcriptKey({ key: 'm' }, true), null, 'M is the app\'s (a note), not the fix field\'s');
+  assert.equal(transcriptKey({ key: 'M' }, true), null);
+  assert.equal(transcriptKey({ key: 'n' }, true), 'type', 'another letter still types');
+});
+
+test('panel: noted words get the underline in the note\'s colour (with the strike when cut), a name and a hover line', () => {
+  let edit = { cuts: [you(1.55, 2.2)], words: { 1: words, 2: [] }, notes: [noteOf('a', 1.2, 2.1, { color: 'blue', text: 'retake?' })] };
+  const p = panel(() => edit);
+  const s = p.spans(0);
+  assert.match(s[3].style.backgroundImage, /90 169 255 \/ 0\.6/);
+  assert.match(s[3].className, /line-through/, 'gonna is cut too: both');
+  assert.equal(s[2].attrs['aria-label'], 'was, has a note');
+  assert.equal(s[3].attrs['aria-label'], 'gonna, cut, has a note');
+  assert.match(s[2].title, /Note: retake\?/);
+  assert.ok(!s[0].style.backgroundImage);
+  edit = { ...edit, notes: [{ ...edit.notes[0], done: true }] };
+  p.t.paintCuts();
+  assert.ok(!s[2].style.backgroundImage, 'done: the mark goes');
+  assert.equal(s[2].attrs['aria-label'], 'was');
+  delete globalThis.document;
+});
+
+test('panel: clicking a noted word selects it and opens the card unfocused; clicking a bar opens it to write', () => {
+  const edit = { cuts: [], words: { 1: words, 2: [] }, notes: [noteOf('a', 1.2, 2.1), noteOf('m', 2.2, 2.2)] };
+  const p = panel(() => edit);
+  p.fire('pointerdown', p.spans(0)[2]);
+  assert.deepEqual(wordsIn(p.sel.now, words), { from: 2, to: 2 }, 'selected as usual');
+  assert.deepEqual(p.log.notes, [['a', { focus: false, seek: false }]]);
+  const para = p.spans(0)[4].parent;
+  const bar = para.children[para.children.indexOf(p.spans(0)[4]) - 1];
+  assert.equal(bar.dataset.noteBar, 'm');
+  assert.equal(bar.attrs.role, 'button');
+  p.fire('pointerdown', bar);
+  assert.deepEqual(p.log.notes.at(-1), ['m', { focus: true }]);
+  p.fire('pointerdown', p.spans(0)[0]);
+  assert.equal(p.log.notes.length, 2, 'a plain word opens nothing');
+  p.t.paintCuts();
+  assert.equal(para.children.filter((c) => c.dataset?.noteBar).length, 1, 'repainting keeps one bar');
   delete globalThis.document;
 });
 

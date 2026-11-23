@@ -28,6 +28,7 @@ export function makeDocument() {
       append(...c) { for (const x of c) { x.parent?.children && x.parent !== this && x.parent.children.splice(x.parent.children.indexOf(x), 1); x.parent = this; this.children.push(x); } },
       prepend(...c) { for (const x of c) x.parent = this; this.children.unshift(...c); },
       insertBefore(x, ref) { x.parent = this; this.children.splice(this.children.indexOf(ref), 0, x); },
+      before(x) { this.parent?.insertBefore(x, this); },
       replaceChildren(...c) { this.children.forEach((x) => { x.parent = null; }); this.children = []; this.append(...c); },
       remove() { if (this.parent) { this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; } },
       contains(x) { for (; x; x = x.parent) if (x === this) return true; return false; },

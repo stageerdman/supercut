@@ -12,8 +12,10 @@ import { createRail } from './ui/rail.js';
 import { withMagic } from './ui/cuts.js';
 import { toggleSelection, keptSelection, wordsIn } from './ui/selection.js';
 import { removeText } from './ui/fix.js';
-import { menuFor, popup } from './ui/context-menu.js';
-import { withWords, withoutPart, partsWithWords } from './ui/edit.js';
+import { menuFor, noteMenu, popup } from './ui/context-menu.js';
+import { withWords, withoutPart, partsWithWords, notesOf } from './ui/edit.js';
+import { createNoteCard } from './ui/note-card.js';
+import { createNoteControl } from './ui/note-control.js';
 import { createHistory, changed } from './ui/history.js';
 import { bit } from './ui/bit.js';
 import { createMagic, claudeBanner } from './ui/magic.js';
@@ -49,7 +51,8 @@ const cutsNow = () => live ?? history.edit.cuts;
 /** Repaint everything that shows the cuts: transcript strikes, timeline, readout. */
 function paintEdit() {
   transcript.paintCuts();
-  timeline.paintCuts();
+  timeline.paintCuts(); // with the notes lane
+  notes.paint(); // the open-notes chip
   renderTime();
 }
 
@@ -104,7 +107,11 @@ const timeline = createTimeline($('timeline'), {
   onDragStart: () => player.pause(),
   onZoom: (z) => ($('zoom').value = Math.round(z * 100)),
   onSelect: () => transcript.paintSelection(), // one selection, shown in both views
-  onMenu: (at) => openMenu(at),
+  onMenu: (at, where) => openMenu(at, where),
+  notes: () => notesOf(history.edit),
+  showDone: () => notes.showDone,
+  onNote: (id, o) => notes.open(id, o),
+  onNoteMenu: (id, at) => openNoteMenu(id, at),
 });
 
 const transcript = createTranscript($('transcript'), $('transcript-panel'), {
@@ -121,7 +128,31 @@ const transcript = createTranscript($('transcript'), $('transcript-panel'), {
   playhead: () => ({ i: player.current, t: player.time }),
   onView: (from, to) => rail.paintView(from, to),
   onMenu: (at) => openMenu(at),
+  notes: () => notesOf(history.edit),
+  onNote: (id, o) => notes.open(id, o),
 });
+
+// Notes (design/notes.md): the card over the player's bottom, and the gestures that make and change notes.
+const card = createNoteCard($('player-box'), {
+  onSave: (id, text) => notes.save(id, text),
+  onColor: (id, c) => notes.color(id, c),
+  onDone: (id) => notes.done(id),
+  onReopen: (id) => notes.reopen(id),
+  onDelete: (id) => notes.remove(id),
+  onPlay: () => player.play(), // M, Space: the note stays empty and it plays on
+  // Fixing the note's problem (timeline, words), or making the next note, leaves the card open.
+  keepOpen: (t) => ['timeline', 'transcript', 'add-note', 'notes-chip'].some((id) => $(id).contains(t)),
+});
+const notes = createNoteControl({
+  history, commit, timeline, card, player, status, cuts: cutsNow, lengths,
+  parts: () => parts,
+  seek: (i, t) => seekTo(i, t),
+  chip: $('notes-chip'),
+});
+$('add-note').onclick = () => notes.add();
+$('notes-chip').onclick = () => notes.go(1);
+// The buttons don't take focus, so Space and the arrows keep working after a click.
+for (const id of ['add-note', 'notes-chip']) $(id).addEventListener('mousedown', (e) => e.preventDefault());
 
 // The panel around the words: its width, the rail, the search field (design/transcript-panel.md).
 mountDivider($('transcript-divider'), $('transcript-panel'));
@@ -239,6 +270,7 @@ async function undoRedo(redo) {
   }
   if (before.words !== history.edit.words) transcript.render();
   paintEdit();
+  notes.afterUndo(); // an open card shows its note as it is now, or closes
   const what = changed(before, history.edit); // bring the change into view, in both views
   const i = parts.findIndex((p) => p.id === what?.part);
   if (i >= 0) { timeline.reveal(i, what.s); transcript.reveal(what.part, what.s); }
@@ -306,16 +338,28 @@ listen('progress', ({ payload }) => {
 document.addEventListener('keydown', (e) => {
   const typing = e.target.closest('input, textarea, [contenteditable]');
   if (e.metaKey && e.key === 'o') { e.preventDefault(); choose(); return; }
-  if (e.metaKey && e.key === 'Enter') { e.preventDefault(); pressMagic(); return; }
+  if (e.metaKey && e.key === 'Enter') { // a note's card is open (even unfocused): ⌘Return finishes it, not Magic
+    e.preventDefault();
+    if (card.isOpen) notes.done(card.id);
+    else pressMagic();
+    return;
+  }
   if (e.metaKey && e.key === 'f' && parts.some((p) => p.transcript)) { e.preventDefault(); search.focus(); return; }
   if (typing) return;
   if (e.metaKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undoRedo(e.shiftKey); return; }
   if (e.metaKey && (e.key === '=' || e.key === '+')) { e.preventDefault(); timeline.zoomBy(0.1); return; }
   if (e.metaKey && e.key === '-') { e.preventDefault(); timeline.zoomBy(-0.1); return; }
   if (e.metaKey && e.key === '0') { e.preventDefault(); timeline.zoomTo(0); return; }
+  if (e.altKey && !e.metaKey && !e.ctrlKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && parts.length) {
+    e.preventDefault(); // ⌥→ / ⌥←: the next / previous open note
+    notes.go(e.key === 'ArrowRight' ? 1 : -1);
+    return;
+  }
   if (e.metaKey || e.ctrlKey || e.altKey || !parts.length) return;
   const sel = timeline.selection;
   if (e.key === 'F10' && e.shiftKey) { e.preventDefault(); openMenu(null); return; }
+  // M: a note at the playhead (or over the selection). Before writeKey, so it never opens the fix field.
+  if (e.key === 'm' || e.key === 'M') { e.preventDefault(); notes.add(); return; }
   if (sel && !sel.cut && writeKey(e)) { e.preventDefault(); transcript.write(e.key === 'Enter' ? null : e.key); return; }
   if (e.key === ' ' && !e.target.closest('button, [role=button]')) { e.preventDefault(); player.toggle(); }
   else if (e.key === 'ArrowLeft' && e.shiftKey) { e.preventDefault(); timeline.grow(-1); }
@@ -323,7 +367,7 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowLeft') { e.preventDefault(); stepPlayhead(-bit()); }
   else if (e.key === 'ArrowRight') { e.preventDefault(); stepPlayhead(bit()); }
   else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); cutSelection(); }
-  else if (e.key === 'Escape') timeline.clearSelection();
+  else if (e.key === 'Escape') { if (card.isOpen) card.close(); else timeline.clearSelection(); }
 });
 $('play').onclick = () => player.toggle();
 
@@ -357,15 +401,34 @@ function cutSelection() {
  */
 const writeKey = (e) => (e.key.length === 1 && e.key !== ' ') || (e.key === 'Enter' && !e.target.closest('button'));
 
-/** Right-click (or ⇧F10) on the selection: the native menu (context-menu.js). Items run their shortcut's code. */
-function openMenu(at) {
+/**
+ * Right-click (or ⇧F10): the native menu (context-menu.js) for the selection, plus Add Note (Here). Items run their
+ * shortcut's code. `where` = { part, t, lane } from the timeline: the spot Add Note Here uses with nothing selected.
+ */
+function openMenu(at, where = null) {
   const sel = timeline.selection;
-  if (live || !sel) return;
-  const words = history.edit.words[sel.part] ?? [];
-  const restore = !!sel.cut || toggleSelection(history.edit.cuts, sel, words, lengths()).label.startsWith('Restored');
-  const items = menuFor(sel, { words: !!wordsIn(sel, words), restore });
-  popup(items, { write: () => transcript.write(null), toggle: cutSelection, removeText: removeSelectedText }, at)
-    .catch((e) => console.error('menu', e));
+  if (live || !parts.length) return;
+  const words = sel ? history.edit.words[sel.part] ?? [] : [];
+  const restore = !!sel && (!!sel.cut || toggleSelection(history.edit.cuts, sel, words, lengths()).label.startsWith('Restored'));
+  const items = menuFor(sel, { words: !!sel && !!wordsIn(sel, words), restore, notes: true, lane: !!where?.lane, showDone: notes.showDone });
+  popup(items, {
+    write: () => transcript.write(null),
+    toggle: cutSelection,
+    removeText: removeSelectedText,
+    addNote: () => notes.add(sel || !where ? null : { part: where.part, t: where.t }),
+    showDone: () => notes.toggleShowDone(),
+  }, at).catch((e) => console.error('menu', e));
+}
+
+/** Right-click on a note in the lane: Done (or Reopen) and Delete, the card's buttons for the mouse. */
+function openNoteMenu(id, at) {
+  const note = notesOf(history.edit).find((n) => n.id === id);
+  if (!note || live) return;
+  popup(noteMenu(note), {
+    done: () => notes.done(id),
+    reopen: () => notes.reopen(id),
+    deleteNote: () => notes.remove(id),
+  }, at).catch((e) => console.error('menu', e));
 }
 
 /** Remove Text: the highlighted words leave the transcript, the video stays. One undo step. */
@@ -401,6 +464,7 @@ function render() {
   rail.paintTrack();
   rail.paintHead();
   renderTime();
+  notes.refresh(); // a part's notes come and go with it
   magic.update();
   status.render();
 }

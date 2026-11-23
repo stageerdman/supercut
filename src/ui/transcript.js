@@ -13,6 +13,7 @@ import { unheard } from './unheard.js';
 import { createFollow, followTarget } from './follow.js';
 import { blocksOf } from './blocks.js';
 import { findMatches, firstFrom, stepMatch } from './search.js';
+import { NOTE_RGB, noteName } from './note-view.js';
 
 export { isCut };
 
@@ -50,9 +51,35 @@ export function transcriptKey(e, hasSelection) {
   if (e.key === 'ArrowRight') return e.shiftKey ? 'extendNext' : 'next';
   if (!hasSelection) return null;
   if (e.key === 'Enter') return 'fix';
+  if (e.key === 'm' || e.key === 'M') return null; // M is the app's: a note over the selected words
   if (e.key.length === 1 && e.key !== ' ') return 'type';
   return null;
 }
+
+/**
+ * Pure: the notes in the words. `under[k]`: the open section note over word k (its middle is inside the note);
+ * `bars`: [{ k, note }] for open moment notes, each before the word under its time (or the next word after a gap).
+ * Done notes mark nothing. Tested in test/transcript.test.mjs.
+ */
+export function noteMarks(words, notes) {
+  const under = new Array(words.length).fill(null);
+  const bars = [];
+  const open = notes.filter((n) => !n.done).sort((a, b) => a.s - b.s || b.e - a.e);
+  for (const n of open) {
+    if (n.s === n.e) {
+      const k = words.findIndex((w) => w.e > n.s);
+      if (k >= 0) bars.push({ k, note: n });
+      continue;
+    }
+    words.forEach((w, k) => {
+      const mid = (w.s + w.e) / 2;
+      if (!under[k] && n.s <= mid && mid <= n.e) under[k] = n;
+    });
+  }
+  return { under, bars };
+}
+
+const underline = (color) => `linear-gradient(rgb(${NOTE_RGB[color]} / 0.6), rgb(${NOTE_RGB[color]} / 0.6))`;
 
 const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End']);
 const reduceMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -68,6 +95,7 @@ const reduceMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: red
  *   onMenu?: (at:{x:number,y:number}) => void}} o
  *   onView: the stretch of the video on screen changed (for the rail, rail.js)
  *   onMenu: right-click (or ⇧F10) on the words; the selection is already what was clicked (context-menu.js)
+ *   notes?: () => Array (the edit's notes, notes.js), onNote?: (id, {focus, seek?}) => void: a note's mark was clicked
  */
 export function createTranscript(box, panel, o) {
   let parts = []; // [{ id, i, words, spans }] of the parts with a transcript
@@ -136,20 +164,46 @@ export function createTranscript(box, panel, o) {
     viewChanged();
   }
 
-  /** Strike the cut words, in place (selection and scroll stay). Call after any change to `cuts()`. */
+  /**
+   * Strike the cut words and mark the noted ones, in place (selection and scroll stay). Call after any change to
+   * `cuts()` or `notes()`. A section note underlines its words in its colour (with the strike, if cut too).
+   */
   function paintCuts() {
     const cuts = o.cuts();
+    const notes = o.notes?.() ?? [];
     for (const p of parts) {
       const mineCuts = cutsOf(cuts, p.id);
+      const marks = noteMarks(p.words, notes.filter((n) => n.part === p.id));
       p.spans.forEach((span, k) => {
         const w = p.words[k];
         const cut = cutAt(w, mineCuts) ?? null;
-        if (cut === span.state.cut && span.title) return;
+        const note = marks.under[k];
+        if (cut === span.state.cut && note === span.state.note && span.title) return;
         span.state.cut = cut;
-        span.title = cutTitle(cut, w.s);
-        span.setAttribute('aria-label', wordLabel(w.w, cut));
+        span.state.note = note;
+        span.title = cutTitle(cut, w.s) + (note ? `\nNote: ${note.text.trim() || 'Empty note'}` : '');
+        span.setAttribute('aria-label', wordLabel(w.w, cut) + (note ? ', has a note' : ''));
+        if (note) Object.assign(span.style, { backgroundImage: underline(note.color), backgroundSize: '100% 2px', backgroundPosition: '0 100%', backgroundRepeat: 'no-repeat' });
+        else if (span.style?.backgroundImage) span.style.backgroundImage = '';
         look(span);
       });
+      paintBars(p, marks.bars);
+    }
+  }
+
+  /** A moment note: a 2 × 14 bar in its colour before the word under its time. Click opens its card. */
+  function paintBars(p, bars) {
+    for (const b of p.bars ?? []) b.remove();
+    p.bars = [];
+    for (const { k, note } of bars) {
+      const bar = el('span', 'mr-1 inline-block h-[14px] w-[2px] cursor-pointer rounded-full align-[-2px]');
+      bar.style.background = `rgb(${NOTE_RGB[note.color]})`;
+      bar.dataset.noteBar = note.id;
+      bar.title = `Note: ${note.text.trim() || 'Empty note'}`;
+      bar.setAttribute('role', 'button');
+      bar.setAttribute('aria-label', noteName(note));
+      p.spans[k].before(bar);
+      p.bars.push(bar);
     }
   }
 
@@ -195,13 +249,19 @@ export function createTranscript(box, panel, o) {
     follow.scrolled();
     if (e.button !== 0 || e.target.closest('[contenteditable]')) return;
     if (fixing) { e.preventDefault(); return fixing.close(); } // a click away commits the fix (the words may change)
+    const bar = e.target.closest('[data-note-bar]');
+    if (bar) { e.preventDefault(); return o.onNote?.(bar.dataset.noteBar, { focus: true }); } // a moment note: write in it
     const span = e.target.closest('span[data-i]');
     if (!span) { mine = null; o.onSelect(null); return; } // the space around the words clears the selection
     e.preventDefault(); // no native text selection: the words are the selection
     box.focus({ preventScroll: true });
     const id = +span.dataset.id, k = +span.dataset.i;
     if (e.shiftKey && cursor) choose(cursor.id, cursor.anchor, clampTo(cursor.id, span));
-    else choose(id, k, k);
+    else {
+      choose(id, k, k);
+      // A noted word: selected as usual, and its note's card opens without focus (so ⌫ still cuts the word).
+      if (span.state.note) o.onNote?.(span.state.note.id, { focus: false, seek: false });
+    }
     pressing = true;
   });
   box.addEventListener('pointerover', (e) => {

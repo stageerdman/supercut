@@ -165,6 +165,20 @@ test('card: sync shows the note as it is now and keeps what you typed', async ()
   delete globalThis.document;
 });
 
+test('menus: Add Note on a selection, Add Note Here on nothing, Show / Hide Done Notes in the lane, a note\'s own', async () => {
+  const { menuFor, noteMenu } = await import('../src/ui/context-menu.js');
+  const ids = (items) => items.map((i) => i.id ?? '—');
+  assert.deepEqual(ids(menuFor(null, { notes: true })), ['addNote']);
+  assert.equal(menuFor(null, { notes: true })[0].text, 'Add Note Here');
+  assert.deepEqual(ids(menuFor({ part: 1, s: 1, e: 2 }, { words: true, notes: true })), ['write', 'toggle', '—', 'removeText', '—', 'addNote']);
+  assert.equal(menuFor({ part: 1, s: 1, e: 2 }, { notes: true }).at(-1).text, 'Add Note');
+  assert.deepEqual(menuFor(null, { notes: true, lane: true }).map((i) => i.text), ['Add Note Here', 'Show Done Notes']);
+  assert.equal(menuFor(null, { notes: true, lane: true, showDone: true })[1].text, 'Hide Done Notes');
+  assert.deepEqual(menuFor(null), [], 'without notes: as before');
+  assert.deepEqual(noteMenu(note('n', 1)).map((i) => i.text), ['Done', 'Delete Note']);
+  assert.deepEqual(noteMenu(note('n', 1, 1, { done: true })).map((i) => i.text), ['Reopen', 'Delete Note']);
+});
+
 // ---------- the gestures (note-control.js) ----------
 
 async function rig({ playing = false, time = 10, current = 0, notes = [], cuts = [], storage = {} } = {}) {
