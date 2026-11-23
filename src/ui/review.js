@@ -35,26 +35,60 @@ function magicItems(run, cuts, parts) {
   });
 }
 
-/** Your cuts, minus head and tail trims: they're deliberate and have no join to judge. */
-function yourItems(cuts, parts) {
-  const len = Object.fromEntries(parts.map((p) => [p.id, p.duration || Infinity]));
-  return cuts
-    .filter((c) => c.part in len && c.s > EPS && c.e < len[c.part] - EPS)
-    .map((c) => ({ key: `you:${c.part}:${c.s.toFixed(3)}`, index: null, part: c.part, s: c.s, e: c.e, by: 'you', reason: 'Your cut', restored: false }));
+/** "Your cut", naming a head or tail trim: its window plays what the viewer hears first or last. */
+function yourReason(c, len) {
+  if (c.s <= EPS) return 'Your cut · start of the video';
+  if (c.e >= len - EPS) return 'Your cut · end of the video';
+  return 'Your cut';
 }
 
+/** Every cut no Magic item covers, trims included. A cut Magic agreed with is yours. */
+function yourItems(cuts, parts, magic) {
+  const len = Object.fromEntries(parts.map((p) => [p.id, p.duration || Infinity]));
+  return cuts
+    .filter((c) => c.part in len && !magic.some((m) => overlaps(m, c)))
+    .map((c) => ({ key: yourKey(c), index: null, part: c.part, s: c.s, e: c.e, by: 'you', reason: yourReason(c, len[c.part]), restored: false }));
+}
+
+/** An own cut's key: where it starts, so it outlives edits elsewhere. */
+export const yourKey = (c) => `you:${c.part}:${c.s.toFixed(3)}`;
+
 /**
- * The cuts to review, in play order: Magic's from the latest run while any of them is still cut, else your own.
- * A Magic cut put back stays an item (counted as checked), so "Cut 7 of 38" holds while you work.
+ * Every cut to review, in play order: Magic's from the latest run (put back ones stay, counted as checked, so
+ * "Cut 7 of 38" holds), then each cut of yours no Magic item overlaps, head and tail trims included. `kept`: your
+ * cuts put back during this review, still items (restored) until it stops, unless cut again.
  * @returns {Array<{key:string, index:number|null, part, s, e, by:'magic'|'you', reason:string, restored:boolean}>}
  */
-export function reviewCuts(trace, cuts, parts) {
+export function reviewCuts(trace, cuts, parts, kept = []) {
   const order = parts.map((p) => p.id);
   const run = trace.runs.at(-1);
   const magic = run ? magicItems(run, cuts, parts).filter((i) => order.includes(i.part)) : [];
-  const items = magic.some((i) => !i.restored) ? magic : yourItems(cuts, parts);
-  return items.sort(byPlay(order));
+  const yours = yourItems(cuts, parts, magic);
+  const back = kept.filter((k) => order.includes(k.part) && !yours.some((y) => y.key === k.key));
+  return [...magic, ...yours, ...back].sort(byPlay(order));
 }
+
+// ── the which-cuts choice (design/cut-review.md, "Which cuts are reviewed") ──
+
+export const CHOICES = ['all', 'magic', 'unapproved'];
+
+/** Still a cut and no "Looks good" yet: unchecked ones and Nos. */
+const unapproved = (item, verdicts) => !item.restored && verdicts[item.key]?.says !== 'yes';
+
+/**
+ * The items a choice reviews. `taken`: the keys "Not approved yet" took when it was chosen (a Y doesn't make the
+ * cut vanish under you); without it, the set as it is now.
+ */
+export function inSet(items, only, verdicts, taken = null) {
+  if (only === 'magic') return items.filter((i) => i.by === 'magic');
+  if (only === 'unapproved') return items.filter((i) => (taken ? taken.has(i.key) : unapproved(i, verdicts)));
+  if (only === 'all') return items;
+  throw new RangeError(`review: no such choice "${only}"`);
+}
+
+/** How many cuts each choice would review now (a choice with none is dimmed). */
+export const setCounts = (items, verdicts) =>
+  Object.fromEntries(CHOICES.map((only) => [only, inSet(items, only, verdicts).length]));
 
 /** Where a cut's join is heard, in edited time. */
 function joinOf(item, parts, cuts) {
@@ -113,6 +147,20 @@ export function reviewWindow(stop, parts, cuts) {
   return { from, to, edge, spans: spansBetween(parts, cuts, from, to) };
 }
 
+/**
+ * What the timeline frames for a window: the source extent from its first played span's start to its last one's
+ * end, cuts inside included. `{ i0, t0, i1, t1 }` (part index, source time), plus `seconds` of source it covers and
+ * the part `gaps` it crosses, for the zoom (timeline-geometry.js zoomFor).
+ */
+export function stretchOf(window, parts) {
+  const first = window.spans[0], last = window.spans.at(-1);
+  const i0 = parts.findIndex((p) => p.id === first.part), i1 = parts.findIndex((p) => p.id === last.part);
+  if (i0 < 0 || i1 < 0) throw new RangeError('review: a window outside the parts');
+  let seconds = last.e - first.s;
+  for (let i = i0; i < i1; i++) seconds += parts[i].duration;
+  return { i0, t0: first.s, i1, t1: last.e, seconds, gaps: i1 - i0 };
+}
+
 // ── where the user is. `verdicts` = { [item.key]: { says, how? } } ──
 
 const itemChecked = (item, verdicts) => item.restored || !!verdicts[item.key];
@@ -130,6 +178,14 @@ export function openingStop(list, verdicts) {
 export function nextUnchecked(list, verdicts, i) {
   const k = list.slice(i + 1).findIndex((s) => !checked(s, verdicts));
   return k >= 0 ? i + 1 + k : -1;
+}
+
+/** After a new choice: the first unchecked stop whose join is at or after `fromTime` (edited s), else the first
+ * unchecked from the start, else -1 (the end line). */
+export function nearestUnchecked(list, verdicts, fromTime) {
+  const open = (s) => !checked(s, verdicts);
+  const i = list.findIndex((s) => open(s) && s.joins[0] >= fromTime - EPS);
+  return i >= 0 ? i : list.findIndex(open);
 }
 
 /** ↓ (1) / ↑ (-1), no verdict and no wrap: `{ i, edge }`, edge 'last' / 'first' when it couldn't move. */

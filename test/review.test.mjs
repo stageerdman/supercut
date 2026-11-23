@@ -3,7 +3,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { withMagic, normalize, restoreRange, moveEdge, cutRange } from '../src/ui/cuts.js';
 import { emptyTrace, newRun, withRun } from '../src/ui/trace.js';
-import { reviewCuts, stops, stopCount, removed, reviewWindow, checked, openingStop, nextUnchecked, step, progress } from '../src/ui/review.js';
+import {
+  reviewCuts, inSet, setCounts, stops, stopCount, removed, reviewWindow, stretchOf, checked, openingStop, nextUnchecked,
+  nearestUnchecked, step, progress,
+} from '../src/ui/review.js';
 
 const PARTS = [{ id: 1, duration: 60 }];
 const L = { 1: 60, 2: 30 };
@@ -81,22 +84,88 @@ test('cuts further apart than 3 s of edited time are separate stops', () => {
   assert.equal(list.length, 2);
 });
 
-test('with no Magic run your own cuts are reviewed, head and tail trims left out', () => {
+test('your own cuts are reviewed, head and tail trims included and named', () => {
   const cuts = normalize([you(0, 2), you(20, 21), you(58, 60)], L);
   const items = reviewCuts(emptyTrace(), cuts, PARTS);
-  assert.deepEqual(items.map((i) => [i.s, i.e, i.by, i.reason]), [[20, 21, 'you', 'Your cut']]);
+  assert.deepEqual(items.map((i) => [i.s, i.e, i.by, i.reason]), [
+    [0, 2, 'you', 'Your cut · start of the video'],
+    [20, 21, 'you', 'Your cut'],
+    [58, 60, 'you', 'Your cut · end of the video'],
+  ]);
 });
 
-test("Magic's run comes first; agreed proposals are not stops", () => {
-  const before = [you(30, 32)];
+test('a head trim and a tail trim are stops with the start and the end window', () => {
+  const cuts = normalize([you(0, 2), you(58, 60)], L);
+  const list = stops(reviewCuts(emptyTrace(), cuts, PARTS), PARTS, cuts);
+  assert.deepEqual(list.map((s) => reviewWindow(s, PARTS, cuts).edge), ['start', 'end']);
+  assert.deepEqual(reviewWindow(list[0], PARTS, cuts).spans, [{ part: 1, s: 2, e: 8 }]);
+});
+
+test("Magic's and yours together in play order; a cut Magic agreed with is counted once, as yours", () => {
+  const before = [you(5, 6), you(30, 32)];
   const { items } = setup([prop(10, 11), prop(30, 32)], PARTS, before);
-  assert.deepEqual(items.map((i) => [i.index, i.by]), [[0, 'magic']]);
+  assert.deepEqual(items.map((i) => [i.s, i.by]), [[5, 'you'], [10, 'magic'], [30, 'you']]);
 });
 
-test('a Magic step undone as a whole falls back to your cuts', () => {
+test('a cut joining a Magic cut and a range of yours counts once, as Magic\'s', () => {
+  const { trace, cuts } = setup([prop(10, 11)]);
+  const merged = cutRange(cuts, { part: 1, s: 10.5, e: 12 }, L);
+  assert.deepEqual(reviewCuts(trace, merged, PARTS).map((i) => i.by), ['magic']);
+});
+
+test('a Magic step undone as a whole: its cuts stay, put back (checked), beside yours', () => {
   const trace = traced([prop(10, 11)]);
   const cuts = normalize([you(20, 21)], L);
-  assert.deepEqual(reviewCuts(trace, cuts, PARTS).map((i) => i.by), ['you']);
+  const items = reviewCuts(trace, cuts, PARTS);
+  assert.deepEqual(items.map((i) => [i.by, i.restored]), [['magic', true], ['you', false]]);
+});
+
+test('your cut put back during review stays an item, unless it is cut again', () => {
+  const kept = [{ key: 'you:1:20.000', index: null, part: 1, s: 20, e: 21, by: 'you', reason: 'Your cut', restored: true }];
+  assert.deepEqual(reviewCuts(emptyTrace(), [], PARTS, kept).map((i) => i.restored), [true]);
+  const again = normalize([you(20, 21)], L);
+  assert.deepEqual(reviewCuts(emptyTrace(), again, PARTS, kept).map((i) => i.restored), [false]);
+});
+
+test('the which-cuts sets: all, Magic\'s only, and not approved yet (unchecked and Nos)', () => {
+  const { trace, cuts } = setup([prop(10, 11), prop(20, 21), prop(30, 31)], PARTS, [you(40, 41)]);
+  const items = reviewCuts(trace, cuts, PARTS);
+  const verdicts = { 0: { says: 'yes' }, 1: { says: 'no' } };
+  const keys = (only, taken) => inSet(items, only, verdicts, taken).map((i) => i.key);
+  assert.deepEqual(keys('all'), ['0', '1', '2', 'you:1:40.000']);
+  assert.deepEqual(keys('magic'), ['0', '1', '2']);
+  assert.deepEqual(keys('unapproved'), ['1', '2', 'you:1:40.000']);
+  assert.deepEqual(keys('unapproved', new Set(['0', '2'])), ['0', '2'], 'taken: a Y does not drop it');
+  assert.deepEqual(setCounts(items, verdicts), { all: 4, magic: 3, unapproved: 3 });
+  assert.throws(() => inSet(items, 'mine', {}), RangeError);
+});
+
+test("Magic's cuts is empty before any run; a put-back cut is approved already", () => {
+  const cuts = normalize([you(20, 21)], L);
+  assert.deepEqual(setCounts(reviewCuts(emptyTrace(), cuts, PARTS), {}), { all: 1, magic: 0, unapproved: 1 });
+  const proposals = [prop(10, 11)];
+  const back = restoreRange(magicCut(proposals), { part: 1, s: 10, e: 11 }, L);
+  assert.equal(setCounts(reviewCuts(traced(proposals), back, PARTS), {}).unapproved, 0);
+});
+
+test('nearest unchecked: at or after a time, else from the start, else -1', () => {
+  const { list } = setup([prop(10, 11), prop(20, 21), prop(30, 31)]);
+  assert.equal(nearestUnchecked(list, {}, 19), 1);
+  assert.equal(nearestUnchecked(list, { 1: { says: 'yes' } }, 19), 2);
+  assert.equal(nearestUnchecked(list, { 0: { says: 'no' } }, 40), 1, 'none after: wraps to the first unchecked');
+  assert.equal(nearestUnchecked(list, { 0: { says: 'no' }, 1: { says: 'yes' }, 2: { says: 'yes' } }, 0), -1);
+});
+
+test('the stretch to frame: a middle cut, a head trim, a window across two parts', () => {
+  const mid = setup([prop(20, 22)]);
+  assert.deepEqual(stretchOf(reviewWindow(mid.list[0], PARTS, mid.cuts), PARTS), { i0: 0, t0: 17, i1: 0, t1: 25, seconds: 8, gaps: 0 });
+  const head = normalize([you(0, 2)], L);
+  const [trim] = stops(reviewCuts(emptyTrace(), head, PARTS), PARTS, head);
+  assert.deepEqual(stretchOf(reviewWindow(trim, PARTS, head), PARTS), { i0: 0, t0: 2, i1: 0, t1: 8, seconds: 6, gaps: 0 });
+  const parts = [{ id: 2, duration: 30 }, { id: 1, duration: 60 }];
+  const two = setup([prop(1, 2, 1)], parts);
+  const s = stretchOf(reviewWindow(two.list[0], parts, two.cuts), parts);
+  assert.deepEqual(s, { i0: 0, t0: 28, i1: 1, t1: 5, seconds: 7, gaps: 1 }, '2 s of part 2, then 0–5 s of part 1');
 });
 
 test('a proposal put back counts as checked and is skipped by the next-unchecked step', () => {
