@@ -85,7 +85,7 @@ export function toggleWords(cuts, part, picked, words, lengths = {}) {
 }
 
 /** Is all of [s, e) of that part already cut? (cuts normalized) */
-const covered = (cuts, { part, s, e }) => {
+export const covered = (cuts, { part, s, e }) => {
   let at = s;
   for (const c of cutsOf(cuts, part)) if (c.s <= at + EPS && c.e > at) at = c.e;
   return at >= e - EPS;
