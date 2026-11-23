@@ -24,7 +24,13 @@ pub struct Dropped {
 pub struct Check {
     pub line: u32,
     pub why: String,
+    /// One of the note colours (`NOTE_COLORS` in the app), only when the user's rules ask for one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
 }
+
+/// The note colours, as the app names them (src/ui/notes.js `NOTE_COLORS`).
+pub const NOTE_COLORS: [&str; 5] = ["yellow", "red", "blue", "violet", "teal"];
 
 pub fn schema() -> Value {
     json!({
@@ -38,7 +44,7 @@ pub fn schema() -> Value {
             }},
             "check": {"type": "array", "items": {
                 "type": "object",
-                "properties": {"line": {"type": "integer"}, "why": {"type": "string"}},
+                "properties": {"line": {"type": "integer"}, "why": {"type": "string"}, "color": {"type": "string", "enum": NOTE_COLORS}},
                 "required": ["line", "why"]
             }}
         },
@@ -74,7 +80,14 @@ mod tests {
     #[test]
     fn the_check_list_is_read_when_there() {
         let p = parse(json!({"keep": [1], "drop": [], "check": [{"line": 1, "why": "Listen?"}]}), 1).unwrap();
-        assert_eq!(p.check, [Check { line: 1, why: "Listen?".into() }]);
+        assert_eq!(p.check, [Check { line: 1, why: "Listen?".into(), color: None }]);
+    }
+
+    #[test]
+    fn a_check_may_name_a_note_colour() {
+        let p = parse(json!({"keep": [1], "drop": [], "check": [{"line": 1, "why": "Fix", "color": "red"}]}), 1).unwrap();
+        assert_eq!(p.check[0].color.as_deref(), Some("red"));
+        assert_eq!(schema()["properties"]["check"]["items"]["properties"]["color"]["enum"][1], "red");
     }
 
     #[test]

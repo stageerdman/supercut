@@ -2,7 +2,7 @@
 //! lines, never from Claude. The app applies its own rules on top (`withMagicNotes`: your notes win).
 
 use super::lines::Line;
-use crate::claude::picks::Check;
+use crate::claude::picks::{Check, NOTE_COLORS};
 use serde::Serialize;
 
 /// Never more than this many notes per run.
@@ -17,6 +17,9 @@ pub struct Note {
     pub s: f64,
     pub e: f64,
     pub text: String,
+    /// A note colour Claude chose (only a known one); none means the app's default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
 }
 
 /// One note per known, distinct line with something to say: the first `MAX` in time order.
@@ -25,8 +28,12 @@ pub fn notes(lines: &[Line], checks: &[Check]) -> Vec<Note> {
         .iter()
         .filter_map(|l| checks.iter().find(|c| c.line == l.id && !c.why.trim().is_empty()).map(|c| (l, c)))
         .take(MAX)
-        .map(|(l, c)| Note { part: l.part, s: l.s, e: l.e, text: shorten(c.why.trim()) })
+        .map(|(l, c)| Note { part: l.part, s: l.s, e: l.e, text: shorten(c.why.trim()), color: known(c.color.as_deref()) })
         .collect()
+}
+
+fn known(color: Option<&str>) -> Option<String> {
+    color.map(str::trim).filter(|c| NOTE_COLORS.contains(c)).map(str::to_owned)
 }
 
 fn shorten(text: &str) -> String {
@@ -43,7 +50,15 @@ mod tests {
     use super::*;
 
     fn check(line: u32, why: &str) -> Check {
-        Check { line, why: why.into() }
+        Check { line, why: why.into(), color: None }
+    }
+
+    #[test]
+    fn a_known_colour_comes_through_an_unknown_one_is_dropped() {
+        let lines = split(&[part(1, "Take one. Take two.")]);
+        let with = |c: &str| Check { color: Some(c.into()), ..check(1, "x") };
+        assert_eq!(notes(&lines, &[with("red")])[0].color.as_deref(), Some("red"));
+        assert_eq!(notes(&lines, &[with("pink")])[0].color, None);
     }
 
     #[test]
@@ -51,7 +66,7 @@ mod tests {
         let lines = split(&[part(1, "Take one. Take two."), part(2, "Bye now.")]);
         assert_eq!(
             notes(&lines, &[check(3, "  Listen to both?  ")]),
-            [Note { part: 2, s: 0.0, e: 0.9, text: "Listen to both?".into() }]
+            [Note { part: 2, s: 0.0, e: 0.9, text: "Listen to both?".into(), color: None }]
         );
     }
 

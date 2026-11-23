@@ -13,7 +13,8 @@ You may also list a few lines under check, where the user should listen or decid
 two takes nearly as good as each other, a line you almost cut or almost kept (an aside, a tangent), \
 or speech you couldn't make out. Never use check to explain a cut. \
 Zero is the normal answer: at most one per 3 minutes of speech and never more than 5. \
-Each why is one plain line under 70 characters that says what to do, like \"Two good takes. I kept the second. Listen to both?\"";
+Each why is one plain line under 70 characters that says what to do, like \"Two good takes. I kept the second. Listen to both?\" \
+Leave color out unless the user's rules ask for a note colour (yellow, red, blue, violet or teal).";
 
 /// The built-in rules, then the user's own rules (feature "Custom AI editing rules"), which win where they differ.
 pub fn system(custom: &[String]) -> String {

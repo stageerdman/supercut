@@ -33,10 +33,13 @@ Transcript text uses `body` at 15 / regular with 1.5 line height (reading, not s
 | Token | Value |
 |---|---|
 | `noteYellow` (default) | #F2C94C |
+| `noteRed` | #F05252 (cooler than `accent` and `danger`; ≈ 4.9 : 1) |
 | `noteBlue` | #5AA9FF |
 | `noteViolet` | #B48CFF |
 | `noteTeal` | #3CC8B4 |
 Each is ≥ 3 : 1 on `bg`. Text on them uses `onAccent`.
+
+`doneGreen` #34C759 (≈ 8.6 : 1 on `bg`): only the note card's round Done button, with an `onAccent` check.
 
 Rules: accent appears in at most three places at once. User cuts are neutral (`textSecondary` hatch at 35 %); AI cuts are accent hatch at 45 %. No gradients, no shadows except the system window shadow.
 

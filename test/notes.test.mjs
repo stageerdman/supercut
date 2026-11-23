@@ -67,7 +67,8 @@ test('editNote: text or colour, labelled; a Magic note becomes yours; no change 
   assert.equal(c.edit.notes[0].by, 'you');
   assert.equal(c.label, 'Changed note colour');
   assert.equal(editNote(e, 'a', { text: 'Listen?' }).edit, e);
-  assert.throws(() => editNote(e, 'a', { color: 'red' }), RangeError);
+  assert.equal(editNote(e, 'a', { color: 'red' }).edit.notes[0].color, 'red', 'red is a note colour');
+  assert.throws(() => editNote(e, 'a', { color: 'pink' }), RangeError);
   assert.throws(() => editNote(e, 'nope', { text: 'x' }), RangeError);
 });
 
@@ -142,6 +143,12 @@ test('withMagicNotes caps at 5 in time order and one per started 3 min of speech
   assert.deepEqual(at(3600), [10, 20, 30, 40, 50]);
   assert.deepEqual(at(200), [10, 20]);
   assert.deepEqual(at(0), []);
+});
+
+test('withMagicNotes keeps a known colour Magic chose (red); an unknown one is yellow', () => {
+  const fresh = [{ part: 1, s: 1, e: 1, text: '', color: 'red' }, { part: 1, s: 9, e: 9, text: '', color: 'pink' }];
+  const out = withMagicNotes(emptyEdit(), fresh, { order: [1], speech: 600 });
+  assert.deepEqual(out.notes.map((n) => n.color), ['red', 'yellow']);
 });
 
 // ---------- living in the edit ----------

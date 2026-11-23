@@ -21,7 +21,7 @@ The loop the whole feature serves:
 | Required text, title + comment fields | Most notes are made mid-playback with no text (A16). One optional text field. |
 | A text box that pops up while playing | It would grab focus and stop the flow. Playing: `M` adds and nothing else happens. |
 | Dragging notes, resizing a section | Rare (L5 F2). A note dropped half a second late is fine, because jumping to it starts 1 s early. If it's wrong: delete it and press `M` again. |
-| A free colour picker | Four fixed colours, yellow by default. Most people never change it (A17). |
+| A free colour picker | Five fixed colours, yellow by default (red added on request). Most people never change it (A17). |
 | A note from Magic on every cut | The cut's hover already says why it was cut. A note per cut is noise, and then people stop reading their own notes too. |
 | Note text popping up as the playhead passes | Distracting while listening (Q6). Hover and "next note" show the text when you want it. |
 | A separate "resolved" screen or filter bar | Done notes are hidden. ⌘Z brings one back. A small "Show done notes" toggle handles the rare "what did I fix?" (Phase 7). |
@@ -36,7 +36,7 @@ note = {
   id,                    // stable, for the card, undo and cut review
   part, s, e,            // source time, like cuts. s === e → a moment note; s < e → a section note
   text: '',              // can be empty
-  color: 'yellow',       // 'yellow' | 'blue' | 'violet' | 'teal'
+  color: 'yellow',       // 'yellow' | 'red' | 'blue' | 'violet' | 'teal'
   by: 'you' | 'magic',   // any touch on a Magic note makes it yours (as with cuts)
   done: false, doneAt?,  // done notes stay in the state, hidden from the lane
   about?: { s, e, by },  // the cut it's about: set by M on a selected cut and by cut review later
@@ -126,7 +126,7 @@ point when you're fixing what the note says.
 │ Two good takes here; I kept the      │  text field, body 13, placeholder "Note to self…"
 │ second. Listen to both?              │
 │                                      │
-│ ● ○ ○ ○                  🗑  [✓ Done] │  colours · delete (quiet) · Done (primary)
+│ ● ○ ○ ○ ○                    🗑  (✓) │  colours · delete (quiet) · Done (primary, green circle)
 └──────────────────────────────────────┘
 ```
 - **Where**: it floats over the bottom of the player, 8 pt above the transport row, centred on the note's x and kept
@@ -135,9 +135,11 @@ point when you're fixing what the note says.
 - **Text field**: grows up to 4 lines, then scrolls. Return saves and closes, ⇧Return adds a new line. Esc or ✕ closes
   and **keeps the text**. Clicking anywhere outside the card and the timeline also closes it and keeps the text.
   Text is never lost.
-- **Colours**: four swatches, 16 pt dots with a 28 pt hit area, in a radio group. The chosen one has a 1.5 pt `text`
-  ring. A change applies at once.
-- **Done** is the one primary button: `accent` fill, `onAccent` label "✓ Done", 28 pt tall. **⌘Return does the same
+- **Colours**: five swatches (yellow, red, blue, violet, teal), 16 pt dots with a 28 pt hit area, in a radio group.
+  The chosen one has a 1.5 pt `text` ring. A change applies at once.
+- **Done** is the one primary button: a 28 pt circle in `doneGreen` (#34C759) with only a 14 pt `onAccent` check, no
+  words. Its name is "Mark note done". Green, not coral: coral means "cut" and Magic, and Done is neither. On a done
+  note it turns hollow (1.5 pt green ring, green check), named "Reopen note", and the same press reopens it. **⌘Return does the same
   whenever a card is open, focused or not**, so after ⌥→ and a fix on the timeline, one press ends the note. (⌘Return
   is Magic everywhere else. While a card is open it means Done; close the card and it's Magic again. A wrong guess
   costs nothing: Done undoes with ⌘Z.) The button's tooltip is "Done (⌘Return)".
@@ -216,8 +218,8 @@ does that).
 - **How many**: zero is the normal answer. At most one per 3 minutes of speech, and never more than 5 per run. The
   prompt asks for this and the app enforces it (it keeps the first 5 in time order).
 - **Wording**: plain, under 70 characters, and it says what to do.
-- **Shape**: `by: 'magic'` with a ✦ on the marker, in yellow. Magic doesn't pick colours, because colours belong to
-  you.
+- **Shape**: `by: 'magic'` with a ✦ on the marker, in yellow. Colours belong to you, so Magic picks one (any of the
+  five, e.g. red) only when your own rules ask it to ("mark mumbles red"); an unknown colour is yellow.
 - **Re-run** (`withMagicNotes`): Magic's old untouched notes are dropped and its new ones added, except where a new
   note overlaps one you **deleted** before (`edit.dismissed`) or one of your open notes. Notes you wrote, edited,
   recoloured or marked done are yours (`by: 'you'`) and are never touched. This is the same rule `withMagic` uses for
@@ -244,7 +246,7 @@ should also look for a hand edit near `about`, not only the tick.
 | Going to a note | Ring on it | — | Open, unfocused |
 | Magic running | Your notes stay; its notes fade in (200 ms) with its cuts | Count updates | An open card stays open |
 | A Magic re-run replaces the untouched Magic note whose card is open | The old note fades out | Count updates | The card closes. If you had changed anything, the note was already yours and stays |
-| Show done notes (Phase 7) | Done notes at 35 % with a ✓ instead of the colour | — | Has "Reopen" where Done was |
+| Show done notes (Phase 7) | Done notes at 35 % with a ✓ instead of the colour | — | The Done circle is hollow: "Reopen note" |
 | Increase Contrast | Section fill 32 %, border 100 %, label text 100 % | — | — |
 | Reduce Motion | Fades only, no pop scale | — | — |
 
@@ -257,7 +259,7 @@ should also look for a hand edit near `about`, not only the tick.
   Delete are named buttons, each at least 28 pt.
 - **Status messages** go through the status line's existing live region ("Note added", "Done · 2 notes left").
 - **Not by colour alone**: the shape tells moment from section, the ✦ marks Magic, and the text and peek say the rest.
-  All four note colours are at least 3 : 1 against `bg` (they're graphics, not text). Text on a note colour uses
+  All five note colours are at least 3 : 1 against `bg` (they're graphics, not text). Text on a note colour uses
   `onAccent`.
 - **Keyboard only** works end to end: `M`, ⌥→ / ⌥←, Return (open), typing, ⌘Return (Done), ⌘⌫ (Delete), Esc.
 

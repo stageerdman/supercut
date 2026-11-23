@@ -135,6 +135,11 @@ test('card: ⌘Return is Done, ⌘⌫ is Delete, keys typed in the field reach n
 test('card: a swatch changes the colour at once; arrows move between swatches; a done note offers Reopen', async () => {
   const { card, calls, doneBtn } = await cardRig();
   card.open(note('n1', 5), {});
+  const done = doneBtn();
+  assert.equal(done.attrs['aria-label'], 'Mark note done');
+  assert.equal(done.title, 'Done (⌘Return)');
+  assert.ok(done.classes.has('rounded-full'), 'a round button');
+  assert.match(done.style.cssText, /#34C759/, 'green');
   const blue = card.el.querySelector('[data-color="blue"]');
   blue.click();
   assert.deepEqual(calls.at(-1), ['color', 'n1', 'blue']);
@@ -144,9 +149,14 @@ test('card: a swatch changes the colour at once; arrows move between swatches; a
   assert.deepEqual(calls.at(-1), ['color', 'n1', 'violet']);
   assert.equal(document.activeElement, card.el.querySelector('[data-color="violet"]'));
   assert.equal(card.el.querySelector('[role=radiogroup]').attrs['aria-label'], 'Colour');
+  assert.equal(card.el.querySelectorAll('[data-color]').length, 5);
+  card.el.querySelector('[data-color="red"]').click();
+  assert.deepEqual(calls.at(-1), ['color', 'n1', 'red']);
+  assert.equal(card.el.querySelector('[data-color="red"]').attrs['aria-label'], 'Red');
   card.close();
   card.open(note('n2', 5, 9, { done: true }), {});
-  assert.equal(doneBtn().textContent, 'Reopen');
+  assert.equal(doneBtn().attrs['aria-label'], 'Reopen note');
+  assert.equal(doneBtn().textContent, '', 'only the check, no words');
   assert.equal(card.el.attrs['aria-label'], 'Note from 00:05 to 00:09');
   doneBtn().click();
   assert.deepEqual(calls.at(-1), ['reopen', 'n2']);

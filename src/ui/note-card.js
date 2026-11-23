@@ -16,6 +16,9 @@ export const cardLeft = (x, width) => Math.max(EDGE, Math.min(x - CARD_W / 2, wi
 export const cardTitle = (n) => (n.s === n.e ? `Note at ${clock(n.s)}` : `Note from ${clock(n.s)} to ${clock(n.e)}`);
 
 const TRASH = '<svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+const CHECK = '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+/** Done green (≈ 8.6 : 1 on bg; the dark check on it ≈ 8.6 : 1). Only for the Done button. */
+export const DONE_GREEN = '#34C759';
 
 /**
  * @param {HTMLElement} host  the player's box (position: relative)
@@ -64,7 +67,10 @@ export function createNoteCard(host, o) {
   trash.innerHTML = TRASH;
   trash.setAttribute('aria-label', 'Delete note');
   trash.title = 'Delete note (⌘⌫)';
-  const doneBtn = el('button', 'ml-1 h-7 rounded-md bg-accent px-3 text-[13px] font-medium text-on-accent hover:brightness-110');
+  // Done: a round green check, the card's one primary action. A done note shows it hollow (press to reopen).
+  const doneBtn = el('button', 'ml-1 flex size-7 items-center justify-center rounded-full outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-raised');
+  doneBtn.innerHTML = CHECK;
+  doneBtn.dataset.done = '';
   const foot = el('div', 'mt-2 flex items-center');
   foot.append(swatches, trash, doneBtn);
   card.append(head, text, foot);
@@ -85,8 +91,11 @@ export function createNoteCard(host, o) {
     card.setAttribute('aria-label', cardTitle(n));
     when.textContent = noteTime(n) + (n.by === 'magic' ? ' · ✦ Magic' : '');
     paintColor(n.color);
-    doneBtn.textContent = n.done ? 'Reopen' : '✓ Done';
-    doneBtn.title = n.done ? 'Reopen note' : 'Done (⌘Return)';
+    doneBtn.setAttribute('aria-label', n.done ? 'Reopen note' : 'Mark note done');
+    doneBtn.title = n.done ? 'Reopen note (⌘Return)' : 'Done (⌘Return)';
+    doneBtn.style.cssText = n.done
+      ? `background:transparent;color:${DONE_GREEN};box-shadow:inset 0 0 0 1.5px ${DONE_GREEN}`
+      : `background:${DONE_GREEN};color:var(--color-on-accent)`;
   }
 
   function grow() {

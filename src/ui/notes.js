@@ -9,7 +9,7 @@ import { cutsOf } from './cuts.js';
 import { cutHere, firstKept } from './playback.js';
 import { notesOf, dismissedOf } from './edit.js';
 
-export const NOTE_COLORS = ['yellow', 'blue', 'violet', 'teal'];
+export const NOTE_COLORS = ['yellow', 'red', 'blue', 'violet', 'teal'];
 export const TWIN_SLACK = 0.5; // s: a press this close to an open moment note means that note (no twin)
 export const PRE_ROLL = 1; // s of kept time played before a note you go to (people press M about half a second late)
 export const MAGIC_MAX = 5; // notes per Magic run, at most
@@ -139,7 +139,7 @@ export function preRoll(note, cuts, len = Infinity, lead = PRE_ROLL) {
 const overlaps = (a, b) => a.part === b.part && a.s <= b.e + EPS && b.s <= a.e + EPS;
 
 /**
- * A Magic run's notes `fresh = [{ part, s, e, text }]`: Magic's old untouched notes go, yours all stay (done ones too).
+ * A Magic run's notes `fresh = [{ part, s, e, text, color? }]` (a known colour, else yellow): Magic's old untouched notes go, yours all stay (done ones too).
  * A new note over a spot you deleted or over one of your open notes is dropped. Then at most MAGIC_MAX in play order,
  * and one per started MAGIC_EVERY seconds of `speech`. Goes into the same "Magic Cut" step as the cuts.
  */
@@ -151,6 +151,9 @@ export function withMagicNotes(edit, fresh, { order, speech, id = freshId }) {
     .filter((f) => order.includes(f.part) && !blocked.some((b) => overlaps(b, f)))
     .sort(byPlay(order))
     .slice(0, cap)
-    .map((f) => makeNote(f, { id: id(), by: 'magic', text: f.text }));
+    .map((f) => {
+      const n = makeNote(f, { id: id(), by: 'magic', text: f.text });
+      return NOTE_COLORS.includes(f.color) ? { ...n, color: f.color } : n;
+    });
   return { ...edit, notes: [...yours, ...added] };
 }

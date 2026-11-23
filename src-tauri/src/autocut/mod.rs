@@ -111,7 +111,7 @@ mod tests {
         let answer = json!({"keep": [1, 3, 4], "drop": [{"id": 2, "reason": "earlier take"}], "check": [{"line": 3, "why": "Two good takes. Listen?"}]});
         let p = propose(&[part(1, RETAKES)], &[], |_| Ok(answer)).unwrap();
         assert_eq!(p.cuts.len(), 1);
-        assert_eq!(p.notes, [Note { part: 1, s: 3.5, e: 6.4, text: "Two good takes. Listen?".into() }]);
+        assert_eq!(p.notes, [Note { part: 1, s: 3.5, e: 6.4, text: "Two good takes. Listen?".into(), color: None }]);
     }
 
     #[test]

@@ -2,10 +2,10 @@
 // (hover / focus for 150 ms). Positions come from note-layout.js. Spec: design/notes.md ("The lane", "Reading a note").
 import { el, clock } from './dom.js';
 
-/** The four note colours, as "r g b" (for alpha) and hex. Each is ≥ 3 : 1 against the app's bg (they're graphics). */
-export const NOTE_RGB = { yellow: '242 201 76', blue: '90 169 255', violet: '180 140 255', teal: '60 200 180' };
-export const NOTE_HEX = { yellow: '#F2C94C', blue: '#5AA9FF', violet: '#B48CFF', teal: '#3CC8B4' };
-export const COLOR_NAME = { yellow: 'Yellow', blue: 'Blue', violet: 'Violet', teal: 'Teal' };
+/** The five note colours, as "r g b" (for alpha) and hex. Each is ≥ 3 : 1 against the app's bg (they're graphics). */
+export const NOTE_RGB = { yellow: '242 201 76', red: '240 82 82', blue: '90 169 255', violet: '180 140 255', teal: '60 200 180' };
+export const NOTE_HEX = { yellow: '#F2C94C', red: '#F05252', blue: '#5AA9FF', violet: '#B48CFF', teal: '#3CC8B4' };
+export const COLOR_NAME = { yellow: 'Yellow', red: 'Red', blue: 'Blue', violet: 'Violet', teal: 'Teal' };
 const GREY = '158 161 168'; // textSecondary: a cluster of mixed colours, a done note
 const rgb = (color, a = 1) => `rgb(${NOTE_RGB[color] ?? GREY} / ${a})`;
 
