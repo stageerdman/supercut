@@ -25,7 +25,12 @@ whether it works:
 cut (now or later), where you are and when you're done, and the edge cases Jony asked for.
 **Out (and why):** the learning logs' storage and processing (engineering, covered by `design/magic-trace.md`),
 watching the whole edited video start to end (a separate behaviour that normal playback already covers), reviewing
-your own cuts (the adopted decision is that review covers Magic's cuts only), and screen layout (Jony's job).
+your own cuts in depth, and screen layout (Jony's job).
+**Conflict to settle:** the feature text says review works "when AI **or User** made cuts", but an earlier adopted
+decision (`INIT/update v1.md`) says review covers Magic's cuts only. **(A)** People rarely want to re-judge cuts they
+just made on purpose. But a user with no Magic run who presses Review expects it to walk their own cuts rather than
+show nothing. This doc assumes Magic's cuts first, and your cuts only when there are no Magic cuts. Jony or Pixel
+should decide (Q8).
 
 ## What similar tools teach
 | Tool | What people do there | What it teaches us |
@@ -213,3 +218,4 @@ ran again, 12 new cuts to check") and progress that starts from the new run. Nev
 | Q5 | Is an edge nudge inside review (← → on a focused edge) needed in the MVP, or is "N, fix later" enough? | Count N notes that end up as small edge moves (`adjusted` with small `ds`/`de`) |
 | Q6 | Group cap: 3 cuts, or by window length? | Run it on a real filler-heavy talk and count the stops |
 | Q7 | **(A)** How many people review at all past cut 5? | Log how far review gets per session |
+| Q8 | Review your own cuts too (the feature text), or Magic's only (the earlier decision)? | Decision for Jony/Pixel. Then ask 3 users who cut by hand whether they'd use it |
