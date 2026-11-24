@@ -134,12 +134,17 @@ test('play clock: glides between coarse readings, never steps back, takes seeks 
   // 2× speed runs twice as fast
   const c2 = createPlayClock();
   c2.read(5, 0, { rate: 2 });
-  near(c2.read(5, 100, { rate: 2 }), 5.2);
-  // a stall: never more than half a second past the last reading
-  assert.ok(c.read(10.04, 5000) <= 10.54 + 1e-9);
-  // a skipped cut or seek: straight there (either way)
+  near(c2.read(5, 50, { rate: 2 }), 5.1);
+  // a stall: never more than 0.15 s past the last reading
+  assert.ok(c.read(10.04, 5000) <= 10.19 + 1e-9);
+  // a skipped cut: straight there
   assert.equal(c.read(20, 5016), 20);
-  assert.equal(c.read(3, 5032), 3);
+  // a reading behind the line (a swap, a settling video), even far behind: held, never back
+  assert.ok(c.read(19.8, 5032) >= 20);
+  assert.ok(c.read(3, 5048) >= 20);
+  // only a seek you make (reset) goes back
+  c.reset();
+  assert.equal(c.read(3, 5064), 3);
   // a new part starts at its own time
   assert.equal(c.read(0.5, 5048, { key: 1 }), 0.5);
   // paused: exactly the video's time
@@ -374,15 +379,101 @@ function fakeVideo({ twin = false } = {}) {
   };
 }
 
-async function rigPlayer(cuts, opts) {
+async function rigPlayer(cuts, { preview, onFrame, ...opts } = {}) {
   globalThis.window = { __TAURI__: { core: { convertFileSrc: (p) => p } } };
   globalThis.document = { getElementById: () => null };
   const { createPlayer } = await import('../src/ui/player.js');
   const video = fakeVideo(opts);
   const parts = [{ id: 1, path: 'a', duration: 10 }, { id: 2, path: 'b', duration: 5 }];
-  const player = createPlayer(video, { parts: () => parts, cuts: () => cuts, onTime() {}, onPart() {}, onError() {} });
-  return { video, player };
+  const player = createPlayer(video, {
+    parts: () => parts, cuts: () => cuts, onTime() {}, onPart() {}, onError() {}, onFrame,
+    ...(preview ? { preview: () => preview.now } : {}),
+  });
+  return { video, player, parts };
 }
+
+// Display frames on demand: each pump runs the frames asked for since the last.
+function fakeFrames() {
+  const asked = [];
+  globalThis.requestAnimationFrame = (f) => asked.push(f);
+  return { pump: () => asked.splice(0).forEach((f) => f()), done: () => delete globalThis.requestAnimationFrame };
+}
+
+const forwardOnly = (times, msg) => times.forEach((x, k) => k && assert.ok(x >= times[k - 1] - 1e-9, `${msg}: ${times[k - 1]} then ${x}`));
+
+test('player: with a preview ready, playing plays the preview over every cut (no seek, no start at a cut); the playhead only moves forward', async () => {
+  const { laidOut } = await import('../src/ui/edit-map.js');
+  const frames = fakeFrames();
+  const seen = [];
+  const cuts = [you(2, 3), you(8, 10)];
+  const preview = { now: null };
+  const { video, player, parts } = await rigPlayer(cuts, { twin: true, preview, onFrame: (i, t) => seen.push(editedTime(parts, cuts, i, t)) });
+  preview.now = { key: 'k', file: 'preview.mp4', map: laidOut(keptSpans(parts, cuts)) };
+  const pv = video.twin.twin;
+  player.show(0, 1);
+  player.play();
+  assert.ok(video.paused && !pv.paused, 'the preview plays, the source waits');
+  assert.equal(pv.src, 'preview.mp4');
+  assert.equal(pv.currentTime, 1, 'part 1 at 1 s is the edit at 1 s');
+  assert.ok(pv.classList.contains('opacity-0'), 'hidden until its first frame plays');
+  pv.emit('playing');
+  assert.ok(!pv.classList.contains('opacity-0'));
+  // the preview's clock: steady, a stall, a reading a little behind (as WebKit's does), across both cuts
+  for (const T of [1.5, 1.98, 2.02, 2.02, 2.02, 1.99, 2.1, 4, 6.95, 7.01, 7.0, 7.5, 11.9]) {
+    pv.currentTime = T;
+    frames.pump();
+  }
+  assert.equal(player.current, 1, 'into part 2 as the preview crosses into it');
+  assert.equal(video.currentTime, 1, 'the source never seeked');
+  forwardOnly(seen, 'edited time of the playhead');
+  assert.ok(seen.at(-1) > 11.5);
+  player.pause();
+  assert.ok(pv.paused && video.paused);
+  assert.equal(video.dataset.path, 'b');
+  near(video.currentTime, 4.9, 'paused, the source shows the same spot');
+  frames.done();
+});
+
+test('player: playing from inside a cut, or with an outdated preview, plays the source; an edit mid-play hands back to it', async () => {
+  const { laidOut } = await import('../src/ui/edit-map.js');
+  const cuts = [you(2, 3)];
+  const preview = { now: null };
+  const { video, player, parts } = await rigPlayer(cuts, { twin: true, preview });
+  const pv = video.twin.twin;
+  preview.now = { key: 'k', file: 'preview.mp4', map: laidOut(keptSpans(parts, cuts)) };
+  player.show(0, 2.5);
+  player.play();
+  assert.ok(!video.paused && pv.paused, 'you asked to hear the cut: the source plays it');
+  player.pause();
+  player.show(0, 1);
+  player.play();
+  assert.ok(!pv.paused);
+  pv.currentTime = 1.5;
+  preview.now = null; // you edited: the new preview is being made
+  pv.emit('timeupdate');
+  assert.ok(pv.paused && !video.paused, 'the source plays on');
+  near(video.currentTime, 1.5, 'from the same spot');
+});
+
+test('player: twin mode: a swap whose twin reads a little behind never moves the playhead back', async () => {
+  const frames = fakeFrames();
+  const seen = [];
+  const cuts = [you(2, 3)];
+  const { video, player, parts } = await rigPlayer(cuts, { twin: true, onFrame: (i, t) => seen.push(editedTime(parts, cuts, i, t)) });
+  const spare = video.twin;
+  player.show(0, 1);
+  video.play();
+  player.tick();
+  player.tick();
+  for (const t of [1.5, 1.9, 1.99]) { video.currentTime = t; frames.pump(); }
+  spare.currentTime = 3.04;
+  player.tick();
+  await afterSwap();
+  assert.equal(player.element, spare);
+  for (const t of [3.04, 2.97, 2.97, 3.0, 3.05, 3.2]) { spare.currentTime = t; frames.pump(); }
+  forwardOnly(seen, 'edited time of the playhead');
+  frames.done();
+});
 
 const afterSwap = () => new Promise((r) => setTimeout(r, 30)); // the swap waits for the cut's exact moment
 

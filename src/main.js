@@ -24,6 +24,7 @@ import { createReviewSession } from './ui/review-session.js';
 import { createReviewBar } from './ui/review-bar.js';
 import { createReviewControl, reviewButton } from './ui/review-control.js';
 import { createPlayer } from './ui/player.js';
+import { createPreview } from './ui/preview.js';
 import { createRulesStore, mountRules } from './ui/rules.js';
 import { emptyTrace, newRun, withRun, renameTracePart } from './ui/trace.js';
 import { learningLog, learningClips } from './ui/learning.js';
@@ -63,6 +64,7 @@ function paintEdit() {
   timeline.paintCuts(); // with the notes lane
   notes.paint(); // the open-notes chip
   renderTime();
+  preview.changed();
 }
 
 /** Record one user gesture as one undo step and repaint the cuts. */
@@ -90,12 +92,22 @@ const status = createStatusLine({ box: $('work'), text: $('status'), track: $('p
   }),
 );
 
+// A rendered preview of the edit: playing it crosses every cut with no seek (src/ui/preview.js, preview-play.js).
+const preview = createPreview({
+  invoke,
+  parts: () => parts,
+  cuts: cutsNow,
+  size: () => ({ width: player.element.videoWidth, height: player.element.videoHeight }),
+  log: (m) => console.error(m),
+});
+
 const player = createPlayer($('player'), {
   parts: () => parts,
   cuts: cutsNow,
+  preview: () => preview.current(),
   onTime: (i, t) => { renderTime(); transcript.highlight(i, t); rail.paintHead(); if (!player.playing) timeline.paintPlayhead(false); windowPlay.at(i, t); },
   onFrame: (i, t) => { timeline.paintPlayhead(true, { i, t }); windowPlay.at(i, t); }, // while playing: every display frame, smooth
-  onPart: () => { timeline.render(); rail.paintTrack(); rail.paintHead(); },
+  onPart: () => { timeline.render(); rail.paintTrack(); rail.paintHead(); preview.changed(); }, // a part's length may be known now
   onError: (name) => showBanner(`${name} can't be played here. Its transcript still works.`),
 });
 

@@ -5,10 +5,14 @@
 // cut the two swap (shown and heard ↔ hidden and silent), so nothing seeks or starts at the cut; then the old one,
 // hidden, seeks on for the cut after (a kept stretch of FIX_BEFORE is time enough). One twin, not two: measured, a
 // second playing twin starves WebKit's decoders. Why it is done this way, and what stalls WebKit's picture:
-// twin-sync.js. Spec: design/timeline.md § Playback.
+// twin-sync.js. Even one twin can't hide a seek after a kept stretch under ~0.85 s, so when a rendered preview of the
+// edit is ready (on.preview) playing plays that instead: one file, the kept spans back to back, no seek at any cut
+// (preview-play.js). The twin stays for playing before the preview is ready, or from inside a cut.
+// Spec: design/timeline.md § Playback.
 import { clock } from './dom.js';
 import { skipTarget, cutHere, editedTime, editedLength } from './playback.js';
 import { createPlayClock } from './play-clock.js';
+import { createPreviewPlay } from './preview-play.js';
 import { createJumps } from './jumps.js';
 import { twinStep, drift, parked, seekLoss, QUIET, TOLERANCE, SEEK_LAG, SETTLE } from './twin-sync.js';
 
@@ -19,7 +23,8 @@ const STANDBY = ['absolute', 'opacity-0', 'pointer-events-none'];
 /**
  * @param {HTMLVideoElement} first  the visible video; the hidden twin is made next to it
  * @param {{parts: () => Array<{id:number,path:string,name:string,duration:number}>, cuts: () => Array,
- *          onTime: (i:number, t:number)=>void, onFrame?: (i:number, t:number)=>void, onPart: (i:number)=>void, onError: (name:string)=>void}} on
+ *          onTime: (i:number, t:number)=>void, onFrame?: (i:number, t:number)=>void, onPart: (i:number)=>void, onError: (name:string)=>void,
+ *          preview?: () => ({key:string, file:string, map:Array}|null)}} on  the preview of the edit as it is now (preview.js)
  */
 export function createPlayer(first, on) {
   const { convertFileSrc } = window.__TAURI__.core;
@@ -38,6 +43,20 @@ export function createPlayer(first, on) {
     twin.removeAttribute('id');
     standby(twin);
     first.after(twin);
+  }
+  const preview = on.preview && first.cloneNode ? previewOver(twin ?? first) : null;
+
+  function previewOver(prev) {
+    const pv = first.cloneNode(false);
+    pv.removeAttribute('id');
+    standby(pv);
+    prev.after(pv);
+    pv.addEventListener('play', () => { paintPlay(true); startGlide(); });
+    pv.addEventListener('timeupdate', previewTimeUpdate);
+    const stopped = () => { if (preview.shown) leave(false); else if (video.paused) paintPlay(false); };
+    pv.addEventListener('pause', stopped);
+    pv.addEventListener('ended', stopped); // the end of the edit
+    return createPreviewPlay(pv, { convertFileSrc, onFail: () => leave(true) });
   }
 
   /** Dress `n` as a hidden twin (inaudible, out of the tab order and the accessibility tree). */
@@ -171,7 +190,7 @@ export function createPlayer(first, on) {
     standby(old); // it plays on, hidden and inaudible, as the twin for the next cut
     if (focused) video.focus?.();
     meant(); // a twin a hair short of the far side plays that hair, not seeks over it (the seek is the hitch)
-    glideClock.reset();
+    // The glide clock runs on: the twin's clock reads a little behind and settles, and the line must not follow it back.
     if (moved) on.onPart(current);
     on.onTime(current, video.currentTime);
   }
@@ -200,10 +219,55 @@ export function createPlayer(first, on) {
   let frameReq = 0;
   function glide() {
     frameReq = 0;
-    if (video.paused) return;
-    const t = glideClock.read(video.currentTime, performance.now(), { rate: video.playbackRate, key: current });
-    on.onFrame?.(current, t);
+    if (!playing()) return;
+    if (preview?.shown) previewAt(glideClock.read(preview.element.currentTime, performance.now(), { rate: preview.element.playbackRate, key: 'preview' }));
+    else shownAt = { i: current, t: glideClock.read(video.currentTime, performance.now(), { rate: video.playbackRate, key: current }) };
+    on.onFrame?.(shownAt.i, shownAt.t);
     frameReq = requestAnimationFrame(glide);
+  }
+  let shownAt = { i: 0, t: 0 }; // where the playhead is shown while playing
+
+  /** The preview is at edit time T: the part and time it plays (the part changes as it crosses into the next). */
+  function previewAt(T) {
+    const at = preview.where(T);
+    const i = on.parts().findIndex((p) => p.id === at.part);
+    if (i >= 0 && i !== current) {
+      current = i;
+      on.onPart(i);
+    }
+    shownAt = { i: current, t: at.t };
+  }
+
+  function previewTimeUpdate() {
+    if (!preview.shown) return;
+    if (on.preview() !== preview.shown) return leave(true); // you edited: the source plays on until the new one is made
+    on.onTime(shownAt.i, shownAt.t); // the glide's (forward-only) spot, not the coarser raw one
+  }
+
+  const playing = () => (preview?.shown ? !preview.element.paused : !video.paused);
+
+  /** Play: the preview when it has this spot (not a cut you start in), else the source with its twin. */
+  function play() {
+    if (playing()) return;
+    const p = on.preview?.(), id = part()?.id, t = video.currentTime;
+    const T = p && id !== undefined && !cutHere(on.cuts(), id, t) ? preview.editTime(p, id, t) : null;
+    if (T === null) return video.play();
+    idle();
+    if (twin && !twin.paused) twin.pause();
+    shownAt = { i: current, t };
+    preview.start(p, T, video);
+  }
+
+  /** Back from the preview to the source at the same spot; `play` keeps playing there. */
+  function leave(play) {
+    const at = preview.where();
+    preview.stop(video);
+    show(Math.max(0, on.parts().findIndex((p) => p.id === at.part)), at.t, play);
+  }
+
+  function pause() {
+    if (preview?.shown) leave(false);
+    else video.pause();
   }
   const startGlide = () => { glideClock.reset(); if (!frameReq && globalThis.requestAnimationFrame) frameReq = requestAnimationFrame(glide); };
 
@@ -225,10 +289,12 @@ export function createPlayer(first, on) {
   }, durationOf);
   listen('timeupdate', () => on.onTime(current, video.currentTime));
   listen('seeked', () => {
-    if (!selfSeek) meant();
+    if (!selfSeek) {
+      meant();
+      glideClock.reset(); // your seek: the line goes straight there (a skipped cut is a jump forward it takes anyway)
+    }
     selfSeek = false;
     idle(); // the twin's cue was timed to where you were
-    glideClock.reset(); // a seek or a skipped cut: the line goes straight there
     on.onTime(current, video.currentTime);
   });
   listen('play', () => { meant(); paintPlay(true); loop(++run); startGlide(); });
@@ -249,6 +315,22 @@ export function createPlayer(first, on) {
     btn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
   }
 
+  /** Go to part `i` at `at`; `play` plays from there (in the preview if it is playing and has that spot). */
+  function seek(i, at = 0, play = false) {
+    if (preview?.shown) {
+      const p = on.parts()[i];
+      const T = play && p && !cutHere(on.cuts(), p.id, at) ? preview.editTime(preview.shown, p.id, at) : null;
+      if (T !== null) return previewSeek(T);
+      leave(false);
+    }
+    show(i, at, play);
+  }
+
+  function previewSeek(T) {
+    preview.seek(T);
+    glideClock.reset(); // your seek: the line goes straight there, back too
+  }
+
   /** Move by `d` seconds, crossing into the neighbouring part when needed. */
   function step(d) {
     const parts = on.parts();
@@ -265,29 +347,41 @@ export function createPlayer(first, on) {
     n.load();
   };
 
+  /** The part list changed under the preview: back to the source, found by part (indexes moved). */
+  const leftPreview = () => {
+    if (!preview?.shown || !on.parts().length) return false;
+    leave(false);
+    return true;
+  };
+  const time = () => (preview?.shown ? shownAt.t : video.currentTime || 0);
+
   return {
-    show,
-    step,
+    show: seek,
+    step: (d) => (preview?.shown ? previewSeek(preview.element.currentTime + d) : step(d)),
     tick, // for tests
     get current() { return current; },
-    get time() { return video.currentTime || 0; },
-    get playing() { return !video.paused; },
+    get time() { return time(); },
+    get playing() { return playing(); },
     get element() { return video; }, // for tests
     get lag() { return seekLag; }, // the learned seek lag, for measuring
-    toggle: () => (video.paused ? video.play() : video.pause()),
-    play: () => video.play(),
-    pause: () => video.pause(),
+    toggle: () => (playing() ? pause() : play()),
+    play,
+    pause,
     /** A part was put back at index `i` (undo of a removal). */
     added(i) {
       idle();
+      if (leftPreview()) return;
       if (on.parts().length === 1) show(0);
       else if (i <= current) current++;
     },
     /** The part at index `i` was removed from the list. */
     removed(i) {
       idle();
+      if (leftPreview()) return;
       const parts = on.parts();
       if (!parts.length) {
+        if (preview?.shown) preview.stop(video);
+        if (preview) empty(preview.element);
         empty(video);
         if (twin) empty(twin);
         current = 0;
@@ -298,7 +392,7 @@ export function createPlayer(first, on) {
     times() {
       const parts = on.parts(), cuts = on.cuts();
       return {
-        at: clock(editedTime(parts, cuts, current, video.currentTime || 0)),
+        at: clock(editedTime(parts, cuts, current, time())),
         total: clock(editedLength(parts, cuts)),
         original: clock(parts.reduce((s, p) => s + (p.duration || 0), 0)),
       };
