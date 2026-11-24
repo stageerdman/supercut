@@ -2,6 +2,10 @@
 // Each region renders from `parts` through its own component in ./ui/.
 import { $ } from './ui/dom.js';
 import { VIDEO, paintDrag } from './ui/dropzone.js';
+import { AUDIO, dragKind, sortDrop, linedUpText, noFitText, isNoFit, audioOf } from './ui/audio.js';
+import { createAudioControl } from './ui/audio-panel.js';
+import { generateView, generateBlock, hintView, paintHint, regenerateIcon } from './ui/transcript-generate.js';
+import { mediaOf } from './ui/media.js';
 import { showBanner, hideBanner } from './ui/banner.js';
 import { workText, makeEta, createStatusLine } from './ui/status.js';
 import { createTimeline } from './ui/timeline.js';
@@ -28,7 +32,7 @@ import { createPreview } from './ui/preview.js';
 import { createRulesStore, mountRules } from './ui/rules.js';
 import { emptyTrace, newRun, withRun, renameTracePart } from './ui/trace.js';
 import { learningLog, learningClips } from './ui/learning.js';
-import { createTranscripts, transcribing as owesWords, markStale } from './ui/transcripts.js';
+import { createTranscripts, transcribing as owesWords, stale, regenerated } from './ui/transcripts.js';
 import { runner } from './ai.js';
 
 const { invoke } = window.__TAURI__.core;
@@ -39,9 +43,12 @@ const { open } = window.__TAURI__.dialog;
 
 const MAX_PARTS = 2;
 
-/** [{ id, name, path, swap, duration, transcript, error, wanted, stale }] in play order (wanted/stale: transcripts.js). */
+/** [{ id, name, path, swap, duration, transcript, heard, error, wanted }] in play order (heard/wanted: transcripts.js;
+ *  swap: Rust's, plus `matched`, the offset lining up found, so the nudge shows only your change). */
 let parts = [];
-let progress = null; // { part, stage, done, total } while working
+let progress = null; // { part, stage, done, total } while transcribing
+let lining = null; // the audio file's name while it is being lined up
+let hintOn = false; // the transcript panel's one-time "New audio" offer is up
 const history = createHistory(); // history.edit: { cuts, words } (design/edit-model.md); ⌘Z / ⇧⌘Z walk it
 // Magic Trace (design/magic-trace.md): every Magic run's record. Beside the history, outside undo, so an undone
 // Magic step still has its trace and reads as "restored".
@@ -82,16 +89,20 @@ const claude = () => (claudeCheck ??= invoke('claude_status').catch(() => ({ sta
 
 // ---------- Components ----------
 
-const status = createStatusLine({ box: $('work'), text: $('status'), track: $('progress-track'), bar: $('progress-bar') }, () =>
-  workText({
-    progress,
+// Transcription's progress shows in the transcript panel (design/transcript-panel.md §6); the toolbar says it only
+// while Magic waits for it.
+const status = createStatusLine({ box: $('work'), text: $('status'), track: $('progress-track'), bar: $('progress-bar') }, () => {
+  const magicQueued = magic.state.kind === 'queued';
+  return workText({
+    progress: magicQueued ? progress : null,
     partNo: progress && parts.length > 1 ? parts.findIndex((p) => p.id === progress.part) + 1 : null,
     secondsLeft: secondsLeft(progress),
-    waiting: transcribing(),
-    magicQueued: magic.state.kind === 'queued',
+    waiting: magicQueued && transcribing(),
+    magicQueued,
     magicStage: magic.state.kind === 'running' ? magic.state.stage : null,
-  }),
-);
+    lining,
+  });
+});
 
 // A rendered preview of the edit: playing it crosses every cut with no seek (src/ui/preview.js, preview-play.js).
 const preview = createPreview({
@@ -155,7 +166,23 @@ const transcript = createTranscript($('transcript'), $('transcript-panel'), {
   onMenu: (at) => openMenu(at),
   notes: () => notesOf(history.edit),
   onNote: (id, o) => notes.open(id, o),
+  pending: (p, i, count) => { // no words yet: Generate, its progress, or Try again (transcript-generate.js)
+    const v = generateView(p, progress, secondsLeft(progress));
+    return v && generateBlock(v, { id: p.id, single: count === 1, onPress: () => (v.kind === 'failed' ? retry(p.id) : transcribeParts()) });
+  },
 });
+
+/** The panel's header row and hint after new audio: ↻ by search, "New audio…" / "Regenerating… 42 %". */
+function paintWords() {
+  const v = hintView(parts, { on: hintOn, progress, secondsLeft: secondsLeft(progress) });
+  paintHint($('transcript-hint'), v, { onRegenerate: regenerate, onDismiss: () => { hintOn = false; paintWords(); } });
+  const icon = regenerateIcon(parts);
+  $('regenerate').classList.toggle('hidden', !icon.visible);
+  $('regenerate').classList.toggle('flex', icon.visible);
+  $('regenerate').disabled = icon.disabled;
+  $('transcript-search-box').classList.toggle('invisible', !parts.some((p) => p.transcript));
+}
+$('regenerate').onclick = () => regenerate();
 
 // Notes (design/notes.md): the card over the player's bottom, and the gestures that make and change notes.
 const card = createNoteCard($('player-box'), {
@@ -320,20 +347,29 @@ function paintToolbar() {
   const v = reviewButton(session.progress(), { on: review.on, busy: magicBusy(), end: !!session.view()?.end });
   paintReview(v);
   paintMagic(magic.state, { plain: v.primary, hidden: review.on, gap: v.visible });
+  audio.paint({ hidden: review.on, busy: !!lining }); // not a review action
 }
 
 // ---------- Drop + choose ----------
 
-const dragFeedback = (paths) => paintDrag(paths, parts.length + 1);
+const dragFeedback = (paths) => paintDrag(dragKind(paths, parts.length > 0), parts.length + 1);
 
 getCurrentWebview().onDragDropEvent(({ payload }) => {
   if (payload.type === 'enter') dragFeedback(payload.paths);
   else if (payload.type === 'leave') dragFeedback(null);
   else if (payload.type === 'drop') {
     dragFeedback(null);
-    addVideos(payload.paths);
+    dropped(payload.paths);
   }
 });
+
+/** A drop: videos open as parts (anything else is refused by Rust, with its banner); then audio lines up. Audio
+ *  with no video open does nothing (the drop zone said "Add the video first"). */
+async function dropped(paths) {
+  const { videos, audio: sounds, other } = sortDrop(paths);
+  if (videos.length || other.length) await addVideos([...videos, ...other]);
+  if (sounds.length && parts.length && !review.on) replaceAudio(sounds);
+}
 
 async function choose() {
   if (parts.length >= MAX_PARTS) return showBanner('Two parts at most. Remove one to add another.');

@@ -8,9 +8,11 @@ import { eta } from './dom.js';
  * @param {{progress?: {stage:string, done:number, total:number}|null, partNo?: number|null,
  *          secondsLeft?: number, waiting?: boolean, magicQueued?: boolean, magicStage?: string|null}} s
  *          magicStage: what Magic is doing while it runs ("Choosing the best takes")
+ *          lining: the audio file being lined up (Replace audio)
  * @returns {{text: string, pct: number|null}} pct null = no bar
  */
-export function workText({ progress, partNo, secondsLeft, waiting, magicQueued, magicStage }) {
+export function workText({ progress, partNo, secondsLeft, waiting, magicQueued, magicStage, lining }) {
+  if (lining) return { text: `Lining up ${lining}…`, pct: null }; // Replace audio: seconds, and you can play meanwhile
   const tail = magicQueued ? ' · Magic Cut starts when the transcript is ready' : '';
   if (progress) {
     const pct = progress.total ? progress.done / progress.total : 0;

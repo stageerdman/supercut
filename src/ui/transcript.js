@@ -107,7 +107,13 @@ export function createTranscript(box, panel, o) {
   let mine = null; // the last selection we made (so the cursor survives our own round trip)
   let pressing = false;
   let fixing = null;
+  let holders = []; // [{ p, i, count, holder }]: the parts without words, where o.pending paints
   const follow = createFollow();
+
+  /** Repaint only the no-words blocks (progress ticks), not the words. */
+  function paintPending() {
+    for (const { p, i, count, holder } of holders) holder.replaceChildren(...[o.pending?.(p, i, count)].filter(Boolean));
+  }
 
   box.setAttribute('role', 'listbox');
   box.setAttribute('aria-multiselectable', 'true');
@@ -120,18 +126,25 @@ export function createTranscript(box, panel, o) {
   function render() {
     if (fixing) { const f = fixing; fixing = null; f.close(); } // commit it before the words change under it
     const all = o.parts();
-    const done = all.some((p) => p.transcript);
-    panel.classList.toggle('hidden', !done);
-    panel.classList.toggle('flex', done);
+    // There once a video is loaded (§6): a part without words holds what to do next (o.pending).
+    panel.classList.toggle('hidden', !all.length);
+    panel.classList.toggle('flex', !!all.length);
     box.replaceChildren();
     lit = null;
     parts = [];
+    holders = [];
     all.forEach((p, i) => {
-      if (!p.transcript) return;
       const section = el('section', 'mt-6 first:mt-0');
       section.setAttribute('role', 'group');
       section.setAttribute('aria-label', `Part ${i + 1}`);
       if (all.length > 1) section.append(el('h3', 'mb-2 text-[11px] font-medium text-text-secondary', `Part ${i + 1}`));
+      if (!p.transcript) {
+        const holder = el('div');
+        holders.push({ p, i, holder, count: all.length });
+        section.append(holder);
+        box.append(section);
+        return;
+      }
       const { words, speech, seconds } = p.transcript;
       if (!words.length) section.append(el('p', 'text-text-secondary', 'No speech found.'));
       const spans = [];
@@ -157,6 +170,7 @@ export function createTranscript(box, panel, o) {
       box.append(section);
       parts.push({ id: p.id, i, words, spans, section, speech, seconds });
     });
+    paintPending();
     if (cursor && !partOf(cursor.id)?.words[cursor.end]) cursor = null;
     paintCuts();
     paintSelection();
@@ -502,7 +516,7 @@ export function createTranscript(box, panel, o) {
   if (globalThis.ResizeObserver) new ResizeObserver(viewChanged).observe(box);
 
   return {
-    render, paintCuts, paintSelection, highlight, goTo, reveal, search, step,
+    render, paintPending, paintCuts, paintSelection, highlight, goTo, reveal, search, step,
     focus: () => box.focus({ preventScroll: true }),
     /** Type on the shared selection from anywhere (the timeline): a letter, or null (Return) for the words' text. */
     write: (letter) => fix(letter),

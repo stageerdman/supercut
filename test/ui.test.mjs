@@ -10,7 +10,7 @@ import { editNote, deleteNote } from '../src/ui/notes.js';
 import { isCut } from '../src/ui/cuts.js';
 import { cutTitle } from '../src/ui/transcript.js';
 import { bit, setBit } from '../src/ui/bit.js';
-import { dropVerdict } from '../src/ui/dropzone.js';
+import { dragKind } from '../src/ui/audio.js';
 import { runner, summary } from '../src/ai.js';
 import { parseRules, rulesText, createRulesStore, mountRules } from '../src/ui/rules.js';
 
@@ -32,6 +32,7 @@ test('status line says one thing at a time', () => {
   const d = { part: 1, stage: 'download', done: 335e6, total: 670e6 };
   assert.equal(workText({ progress: d }).text, 'Downloading speech model · 670 MB · 50 %');
   assert.deepEqual(workText({ magicStage: 'Choosing the best takes' }), { text: 'Choosing the best takes…', pct: null });
+  assert.deepEqual(workText({ lining: 'shure-take.wav', waiting: true }), { text: 'Lining up shure-take.wav…', pct: null });
   assert.equal(workText({ progress: p, magicStage: 'Choosing the best takes' }).text, 'Transcribing… 12 %', 'a new part transcribing wins');
 });
 
@@ -88,10 +89,15 @@ test('← → step one bit: a frame until the timeline sets its zoom', () => {
   assert.equal(bit(), 1 / 30);
 });
 
-test('drop verdict', () => {
-  assert.equal(dropVerdict(null), null);
-  assert.equal(dropVerdict(['/a/Take.MOV', '/b.mp4']), true);
-  assert.equal(dropVerdict(['/a.mov', '/b.m4a']), false);
+test('drop kind (design/audio-swap.md: audio replaces the sound; video and audio together: the video opens first)', () => {
+  assert.equal(dragKind(null, false), null);
+  assert.equal(dragKind(['/a/Take.MOV', '/b.mp4'], false), 'video');
+  assert.equal(dragKind(['/a.mov', '/b.m4a'], false), 'video');
+  assert.equal(dragKind(['/mic.WAV'], true), 'audio');
+  assert.equal(dragKind(['/mic.wav'], false), 'audio-first');
+  assert.equal(dragKind(['/notes.txt'], true), 'no');
+  assert.equal(dragKind(['/a.mov', '/x.ogg'], true), 'no');
+  assert.equal(dragKind([], true), 'no');
 });
 
 test('magic button looks', () => {
