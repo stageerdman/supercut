@@ -1,7 +1,7 @@
 // Transcription on demand: src/ui/transcripts.js, and Magic asking for it (src/ui/magic.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTranscripts, transcribing, markStale, owes } from '../src/ui/transcripts.js';
+import { createTranscripts, transcribing, owes, stale, wordsState, regenerated } from '../src/ui/transcripts.js';
 import { createMagic } from '../src/ui/magic.js';
 import { mediaOf } from '../src/ui/media.js';
 
@@ -18,7 +18,7 @@ function rig(parts, say = () => 'hi') {
       const p = parts.find((x) => x.id === id);
       const w = say(id);
       if (w instanceof Error) p.error = String(w);
-      else { p.transcript = words(w); p.stale = false; }
+      else { p.transcript = words(w); p.heard = mediaOf(p); }
     },
   });
   return { t, ran };
@@ -73,24 +73,58 @@ test('a failed part stops owing (no endless wait), and can be asked again', asyn
   assert.equal(parts[0].transcript.words[0].w, 'hi');
 });
 
-test('a swap makes the old words stale; they stay until the new ones replace them', async () => {
+const swapped = { recording: '/m/mic.wav', offset: 1, media: '/cache/swap/1.mov' };
+
+test('a swap makes the old words stale but starts nothing; they stay on screen', async () => {
   const parts = [part(1)];
-  let say = 'old';
-  const { t } = rig(parts, () => say);
+  const { t } = rig(parts, () => 'old');
   await t.request();
-  markStale(parts[0]);
+  parts[0].heard = mediaOf(parts[0]);
+  parts[0].swap = swapped;
+  assert.equal(stale(parts[0]), true);
+  assert.equal(wordsState(parts[0]), 'stale');
   assert.equal(parts[0].transcript.words[0].w, 'old', 'still on screen');
-  assert.equal(owes(parts[0]), true);
-  say = 'new';
+  assert.equal(owes(parts[0]), false);
+  assert.equal(transcribing(parts), false, 'nothing starts by itself');
   await t.request([1]);
-  assert.equal(parts[0].transcript.words[0].w, 'new');
-  assert.equal(transcribing(parts), false);
+  assert.equal(parts[0].transcript.words[0].w, 'old', 'Generate does not redo words that exist');
 });
 
-test('a swap before any words were asked for starts nothing', () => {
-  const parts = [part(1)];
-  markStale(parts[0]);
-  assert.equal(transcribing(parts), false);
+test('the audio going back (undo, camera audio) makes the words fresh again', () => {
+  const p = part(1, { transcript: words('hi'), heard: '/v/1.mov', swap: swapped });
+  assert.equal(stale(p), true);
+  p.swap = null;
+  assert.equal(stale(p), false);
+  assert.equal(wordsState(p), 'ready');
+});
+
+test('a swap before any words were asked for starts nothing and is not stale', () => {
+  const p = part(1, { swap: swapped });
+  assert.equal(stale(p), false);
+  assert.equal(wordsState(p), 'generate');
+  assert.equal(transcribing([p]), false);
+});
+
+test('Regenerate runs only parts whose words are from other audio, and shows regenerating', async () => {
+  const parts = [part(1, { transcript: words('a'), heard: '/v/1.mov', swap: swapped }), part(2, { transcript: words('b'), heard: '/v/2.mov' })];
+  const { t, ran } = rig(parts, () => 'new');
+  const done = t.regenerate();
+  assert.equal(wordsState(parts[0]), 'regenerating');
+  assert.equal(wordsState(parts[1]), 'ready');
+  await done;
+  assert.deepEqual(ran, [1]);
+});
+
+test('regenerated words keep the ones you fixed and drop new words over them', () => {
+  const old = [{ w: 'Shure', s: 1, e: 1.5, fixed: true }, { w: 'uh', s: 2, e: 2.2 }];
+  const fresh = [{ w: 'Hi', s: 0, e: 0.5 }, { w: 'sure', s: 1.1, e: 1.4 }, { w: 'there', s: 2, e: 2.3 }];
+  assert.deepEqual(regenerated(old, fresh).map((w) => w.w), ['Hi', 'Shure', 'there']);
+});
+
+test('the panel state: generate, working, failed', () => {
+  assert.equal(wordsState(part(1)), 'generate');
+  assert.equal(wordsState(part(1, { wanted: true })), 'working');
+  assert.equal(wordsState(part(1, { error: 'x' })), 'failed');
 });
 
 test('Magic pressed with no words asks for them, queues, and runs once they arrive', async () => {

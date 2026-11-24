@@ -4,7 +4,8 @@ import { emptyEdit, renamePart, notesOf } from './edit.js';
 
 /**
  * A step is { edit, label, removed? }. `removed: { part, index }` marks "Removed part N": `part` is the removed
- * part's record (path, name, transcript…) so undo can add the same file back.
+ * part's record (path, name, transcript…) so undo can add the same file back. `audio: { before, after }` (each
+ * [{ id, swap }]) marks a change of sound: the edit is the same, the parts' audio goes back and forth.
  */
 export function createHistory(initial = emptyEdit()) {
   let past = [], now = { edit: initial, label: '' }, future = [];
@@ -49,12 +50,16 @@ export function createHistory(initial = emptyEdit()) {
         ...step,
         edit: renamePart(step.edit, from, to),
         ...(step.removed?.part.id === from && { removed: { ...step.removed, part: { ...step.removed.part, id: to } } }),
+        ...(step.audio && { audio: { before: renameIds(step.audio.before, from, to), after: renameIds(step.audio.after, from, to) } }),
       }));
     },
   };
 }
 
-const sameCut = (a, b) => a.part === b.part && a.s === b.s && a.e === b.e && a.by === b.by;
+/** An audio step's [{ id, swap }] with part `from` now called `to`. */
+const renameIds = (list, from, to) => list.map((a) => (a.id === from ? { ...a, id: to } : a));
+
+const sameCut =(a, b) => a.part === b.part && a.s === b.s && a.e === b.e && a.by === b.by;
 const sameWord = (a, b) => a.w === b.w && a.s === b.s && a.e === b.e;
 
 /** The time spans that differ between two cut lists: cuts in one and not the other. */

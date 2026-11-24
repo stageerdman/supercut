@@ -60,7 +60,7 @@ when the user asks (Generate), and after a swap the app offers Regenerate.
 4. **Transcription on demand.** `src/ui/transcripts.js`: nothing starts on load; Magic asks on press and waits; ⇧⌘T
    for now. A swap marks the words stale; a new request replaces them. Tests: `test/transcripts.test.mjs`.
 
-Hooks for the UI phases: `window.magicCut.transcribe(ids?)`, `window.magicCut.swapAudio(id, path, offset?)`.
+(The `window.magicCut` hooks and ⇧⌘T were removed once the UI landed; see "UI built".)
 
 ## Feature phases (to build; owners per the orchestrator)
 1. **Spike — lining up by sound:** cross-correlation on real camera + mic pairs, one long file over two parts, mic
@@ -82,7 +82,28 @@ Hooks for the UI phases: `window.magicCut.transcribe(ids?)`, `window.magicCut.sw
    words, one undo step. **Tests:** stale on/off through swap, ⌘Z and Use camera audio; fixed words survive.
 6. **Look and install:** a WebKit look at every state (panel, button, Audio panel, banners), `npm run install-app`.
 
+## UI built (Jony, item "Build the audio swap and transcript UI") — 2026-11-24
+Phases 3, 4 and 5 are built in the UI; ⇧⌘T and `window.magicCut` are gone.
+- **Replace audio:** toolbar button (`src/ui/audio-panel.js`, words in `src/ui/audio.js`). Before any swap it opens the
+  picker; after, it reads the mic file and opens the Audio panel: a row per part, a one-frame nudge (‹ › / arrow keys,
+  remade 300 ms after you stop), Replace…, Use camera audio. Drop audio anywhere (video + audio together: the video
+  opens, then the audio lines up). Each file goes to the first part it fits; a file that fits nowhere changes nothing
+  and says so once, with Choose another…. Status: "Lining up shure-take.wav…" → "Mic audio lined up · part 2".
+- **Undo:** Replaced audio, Nudged audio (one step per panel visit), Back to camera audio. Each is an `audio:
+  { before, after }` history step; cuts, notes and words stay. Undoing a part removal remakes its swap at its offset.
+- **Transcript panel:** always there. A part without words shows Generate transcript ("From shure-take.wav · on this
+  Mac"), its progress in place, or Couldn't transcribe + Try again (no banner). Nothing transcribes by itself.
+- **Regenerate:** a transcript remembers the file it heard (`heard`); words are stale while the part plays other audio,
+  fresh again when it goes back. One "New audio…" hint row after a swap, the ↻ by search while stale. A regenerate is
+  one undo step ("Regenerated transcript") that keeps words you fixed.
+- **Tests:** `test/audio.test.mjs` (words, drop kinds, button, panel, Generate, hint, ↻), `test/transcripts.test.mjs`
+  (stale through swap and back, regenerate only stale parts, fixed words kept).
+- **Engine gaps still open (design asks, the engine doesn't do yet):** no "not sure" band (a weak match either lines
+  up or is refused), no "camera fills" where the mic is shorter than the video (Rust pads with silence), one file over
+  two parts is first-fit only, the swap isn't saved with the project.
+
 ## Status
 - [x] Design
 - [x] Engine (sync, replace, on-demand transcription) — see above
-- [ ] Feature phases 1 – 6 (partly covered by the engine, as marked)
+- [x] Feature phases 3 – 5 in the UI — see "UI built"
+- [ ] Phase 1 open bits (real pairs, "not sure", drift), phase 2 open bits (confidence, covers, saving), phase 6 look

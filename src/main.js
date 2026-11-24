@@ -342,6 +342,12 @@ const magicBusy = () => magic.state.kind === 'queued' || magic.state.kind === 'r
 $('review').onclick = () => (review.on ? review.leave() : !magicBusy() && review.start());
 $('review').addEventListener('mousedown', (e) => e.preventDefault()); // Space and the keys stay review's
 
+// Replace audio (design/audio-swap.md): the toolbar button and, once a part has mic audio, its panel.
+const audio = createAudioControl(
+  { button: $('audio-button'), panel: $('audio-panel'), rows: $('audio-rows'), replace: $('audio-replace'), camera: $('audio-camera') },
+  { parts: () => parts, onPick: pickAudio, onCamera: useCameraAudio, onNudge: nudge, onClose: endNudge },
+);
+
 /** The toolbar's two actions. Reviewing: ✦ Magic is gone and the button reads Stop review. */
 function paintToolbar() {
   const v = reviewButton(session.progress(), { on: review.on, busy: magicBusy(), end: !!session.view()?.end });
@@ -429,6 +435,10 @@ async function undoRedo(redo) {
     await (redo ? takeOutAgain(step.removed) : putBack(step.removed));
     return render();
   }
+  if (step.audio) { // Replaced / Nudged audio, Back to camera audio: the sound goes back; words stay
+    status.flash(`${redo ? 'Redo' : 'Undo'}: ${step.label}`);
+    return setAudio(redo ? step.audio.after : step.audio.before);
+  }
   if (before.words !== history.edit.words) transcript.render();
   paintEdit();
   notes.afterUndo(); // an open card shows its note as it is now, or closes
@@ -444,7 +454,7 @@ async function putBack({ part, index }) {
   try {
     const { id } = await invoke('add_video', { path: part.path });
     const swap = part.swap && (await invoke('swap_audio', { id, recording: part.swap.recording, offset: part.swap.offset })
-      .then((p) => p.swap, (e) => { showBanner(`${part.name} is back with its own sound: ${e}`); return null; }));
+      .then((p) => ({ ...p.swap, matched: part.swap.matched, synced: part.swap.synced }), (e) => { showBanner(`${part.name} is back with its own sound: ${e}`); return null; }));
     history.rename(part.id, id);
     trace = renameTracePart(trace, part.id, id);
     if (waveforms.has(part.id)) waveforms.set(id, waveforms.get(part.id));
@@ -466,24 +476,45 @@ async function takeOutAgain({ part }) {
   player.removed(i);
 }
 
+/**
+ * One part's words. A first transcript arrives in every state (not an undo step); a regenerated one is one undo
+ * step that keeps the words you fixed. `heard` is the file it listened to, read before it starts: audio changed
+ * meanwhile leaves these words stale.
+ */
 async function transcribe(id) {
-  if (!parts.some((p) => p.id === id)) return; // removed while waiting
+  const start = parts.find((p) => p.id === id);
+  if (!start) return; // removed while waiting
+  const heard = mediaOf(start);
+  const again = !!start.transcript;
   try {
     const t = await invoke('transcribe_part', { id });
     const part = parts.find((p) => p.id === id);
+    progress = null;
     if (part) {
       part.transcript = t;
-      part.stale = false;
-      history.everywhere((e) => withWords(e, id, t.words)); // the words arrive; not an undo step
+      part.heard = heard;
+      part.wanted = false;
+      if (again) {
+        commit(withWords(history.edit, id, regenerated(history.edit.words[id] ?? [], t.words)), 'Regenerated transcript');
+        hintOn = false;
+        status.flash('Transcript regenerated · ⌘Z to undo');
+      } else {
+        history.everywhere((e) => withWords(e, id, t.words));
+        if (!transcribing()) status.flash('Transcript ready');
+      }
     }
-    progress = null;
-    if (!transcribing()) status.flash('Transcript ready');
   } catch (e) {
     const part = parts.find((p) => p.id === id);
-    if (part) part.error = String(e);
     progress = null;
-    showBanner(String(e), { label: 'Try again', run: () => { hideBanner(); retry(id); } });
+    if (part) { part.error = String(e); part.wanted = false; } // the panel says it, with Try again
+    console.error('transcribe', id, e);
   }
+  render();
+}
+
+/** Regenerate (the hint row, the ↻): new words for every part whose words are from other audio. */
+function regenerate() {
+  transcripts.regenerate();
   render();
 }
 
@@ -494,31 +525,140 @@ function retry(id) {
   transcribeParts([id]);
 }
 
-/**
- * Better audio: `recording` becomes part `id`'s sound, lined up by itself (or at `offset` s into the video). The
- * player, waveform and every later transcript use it; words already there are stale and come again from the new
- * sound. Resolves to the swap ({ recording, offset, synced, media }), so the caller can say how it lined up.
- */
-async function swapAudio(id, recording, offset) {
-  const { swap } = await invoke('swap_audio', { id, recording, offset });
-  const part = parts.find((p) => p.id === id);
-  if (!part) return swap; // removed meanwhile
-  part.swap = swap;
-  player.reload(parts.indexOf(part));
-  waveforms.delete(id);
-  loadWaveform(id);
-  markStale(part);
-  if (part.wanted) transcripts.request([id]);
-  render();
-  return swap;
+// ---------- Replace audio (design/audio-swap.md) ----------
+
+async function pickAudio() {
+  if (!parts.length || lining) return;
+  const picked = await open({ multiple: true, filters: [{ name: 'Audio', extensions: AUDIO }] });
+  if (picked) replaceAudio([].concat(picked));
 }
 
-// The engine's hooks for the controls the design adds (phase 5): Transcribe, and dropping in better audio.
-window.magicCut = { transcribe: transcribeParts, swapAudio };
+/** A part plays `swap` now (null: its camera audio): the player, waveform and preview follow. Words don't change. */
+function applySwap(part, swap) {
+  part.swap = swap;
+  const i = parts.indexOf(part);
+  if (i >= 0) player.reload(i);
+  waveforms.delete(part.id);
+  loadWaveform(part.id);
+  preview.changed();
+}
+
+/**
+ * Each file lines up with the parts it fits (one file per part; the first that fits wins). A file that fits nowhere
+ * changes nothing and says so once. The whole drop is one undo step. Words stay; Regenerate is offered.
+ */
+async function replaceAudio(files) {
+  if (lining || !parts.length) return;
+  const before = audioOf(parts);
+  const fitted = new Set();
+  for (const file of files) {
+    lining = file.split('/').pop();
+    paintToolbar();
+    status.render();
+    let fits = false, broken = false;
+    for (const part of parts.filter((p) => !fitted.has(p.id))) {
+      try {
+        const { swap } = await invoke('swap_audio', { id: part.id, recording: file });
+        if (!parts.includes(part)) continue; // removed meanwhile
+        applySwap(part, { ...swap, matched: swap.offset });
+        fitted.add(part.id);
+        fits = true;
+        break;
+      } catch (e) {
+        if (isNoFit(e)) continue;
+        showBanner(String(e));
+        broken = true;
+        break;
+      }
+    }
+    if (!fits && !broken) showBanner(noFitText(file), { label: 'Choose another…', run: () => { hideBanner(); pickAudio(); } });
+  }
+  lining = null;
+  if (fitted.size) {
+    history.push({ ...history.edit }, 'Replaced audio', { audio: { before, after: audioOf(parts) } });
+    hintOn = parts.some((p) => fitted.has(p.id) && stale(p));
+    const nos = parts.flatMap((p, i) => (fitted.has(p.id) ? [i + 1] : []));
+    status.flash(linedUpText(nos, parts.length));
+  }
+  render();
+}
+
+let audioWork = Promise.resolve(); // Rust's remuxes, one after another
+
+/**
+ * Make the parts' sound `list` ([{ id, swap }], from audioOf): undo/redo and the nudge. A part already playing it
+ * is left alone unless `force` (the nudge changed the offset in place). Mic audio is made again at its offset (no new
+ * search); its match and sync are kept.
+ */
+function setAudio(list, force = false) {
+  audioWork = audioWork.then(async () => {
+    for (const { id, swap } of list) {
+      const part = parts.find((p) => p.id === id);
+      if (!part || (!force && part.swap?.media === swap?.media && part.swap?.offset === swap?.offset)) continue;
+      try {
+        if (!swap) {
+          await invoke('use_camera_audio', { id });
+          applySwap(part, null);
+        } else {
+          const made = await invoke('swap_audio', { id, recording: swap.recording, offset: swap.offset });
+          applySwap(part, { ...made.swap, matched: swap.matched, synced: swap.synced });
+        }
+      } catch (e) {
+        showBanner(String(e));
+      }
+    }
+    render();
+  });
+  return audioWork;
+}
+
+/** The panel's Use camera audio: every part plays its own sound again. One undo step. */
+function useCameraAudio() {
+  const before = audioOf(parts);
+  if (!before.some((a) => a.swap)) return;
+  const after = before.map((a) => ({ id: a.id, swap: null }));
+  history.push({ ...history.edit }, 'Back to camera audio', { audio: { before, after } });
+  setAudio(after).then(() => status.flash('Camera audio'));
+}
+
+/** The nudge: the offset moves at once in the panel; the sound is made again once you stop for 300 ms. One undo
+ *  step per panel visit ("Nudged audio"). */
+let nudgeStart = null, nudgeTimer = null, nudged = new Set();
+function nudge(id, offset) {
+  const part = parts.find((p) => p.id === id);
+  if (!part?.swap) return;
+  nudgeStart ??= audioOf(parts);
+  part.swap = { ...part.swap, offset };
+  nudged.add(id);
+  audio.repaint();
+  clearTimeout(nudgeTimer);
+  nudgeTimer = setTimeout(flushNudge, 300);
+}
+
+function flushNudge() {
+  clearTimeout(nudgeTimer);
+  nudgeTimer = null;
+  const list = audioOf(parts).filter((a) => nudged.has(a.id));
+  nudged = new Set();
+  return list.length ? setAudio(list, true) : audioWork;
+}
+
+function endNudge() {
+  if (!nudgeStart) return;
+  const before = nudgeStart;
+  nudgeStart = null;
+  flushNudge();
+  const after = audioOf(parts);
+  if (after.some((a, i) => a.swap?.offset !== before[i]?.swap?.offset)) {
+    history.push({ ...history.edit }, 'Nudged audio', { audio: { before, after } });
+  }
+}
 
 listen('progress', ({ payload }) => {
   progress = payload;
   status.render();
+  transcript.paintPending();
+  paintWords();
 });
 
 // ---------- Keyboard (works from the first second) ----------
@@ -526,7 +666,6 @@ listen('progress', ({ payload }) => {
 document.addEventListener('keydown', (e) => {
   const typing = e.target.closest('input, textarea, [contenteditable]');
   if (e.metaKey && e.key === 'o') { e.preventDefault(); choose(); return; }
-  if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 't') { e.preventDefault(); transcribeParts(); return; } // until the Transcribe control lands
   if (e.metaKey && e.key === 'Enter') { // a note's card is open (even unfocused): ⌘Return finishes it, not Magic
     e.preventDefault();
     if (card.isOpen) notes.done(card.id);
@@ -657,6 +796,7 @@ function render() {
   $('title').textContent = has ? parts[0].name.replace(/\.[^.]+$/, '') : '';
   timeline.render();
   transcript.render();
+  paintWords();
   rail.paintTrack();
   rail.paintHead();
   renderTime();
