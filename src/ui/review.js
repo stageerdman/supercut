@@ -181,14 +181,6 @@ export function nextUnchecked(list, verdicts, i) {
   return k >= 0 ? i + 1 + k : -1;
 }
 
-/** After a new choice: the first unchecked stop whose join is at or after `fromTime` (edited s), else the first
- * unchecked from the start, else -1 (the end line). */
-export function nearestUnchecked(list, verdicts, fromTime) {
-  const open = (s) => !checked(s, verdicts);
-  const i = list.findIndex((s) => open(s) && s.joins[0] >= fromTime - EPS);
-  return i >= 0 ? i : list.findIndex(open);
-}
-
 /** ↓ (1) / ↑ (-1), no verdict and no wrap: `{ i, edge }`, edge 'last' / 'first' when it couldn't move. */
 export function step(list, i, dir) {
   const to = i + dir;

@@ -52,10 +52,10 @@ function rig() {
   return { control, session, history, log, said, timeline, key, rerun: () => { trace = withRun(trace, runOf('run-2', PROPOSALS), history.edit.cuts, [1]); } };
 }
 
-test('keys: Y / Return, N / M, ⌫, R, Space, ↑ ↓, ⌘Z; no key leaves (Esc, ⌥→ keep their app meaning)', () => {
+test('keys: Y / Return, ⌫, R, Space, ↑ ↓, ⌘Z; N / M are gone; no key leaves (Esc, ⌥→ keep their app meaning)', () => {
   const k = (key, more = {}) => reviewKey({ key, target: { closest: () => null }, ...more });
   assert.deepEqual(['y', 'Y', 'Enter', 'n', 'm', 'Backspace', 'r', ' ', 'ArrowDown', 'ArrowUp'].map((x) => k(x)),
-    ['yes', 'yes', 'yes', 'no', 'no', 'putBack', 'replay', 'toggle', 'down', 'up']);
+    ['yes', 'yes', 'yes', null, null, 'putBack', 'replay', 'toggle', 'down', 'up']);
   assert.equal(k('Escape'), null, 'Esc never ends review');
   assert.equal(k('z', { metaKey: true }), 'undo');
   assert.equal(k('z', { metaKey: true, shiftKey: true }), null, '⇧⌘Z stays redo');
@@ -95,7 +95,7 @@ test('Y with words selected never writes a word: it is a verdict, and the next c
   assert.equal(r.log.framed.length, 3, '↓ frames the next stop too');
 });
 
-test('‹ › and ← →: the previous / next cut, no verdict, each framed and ringed; the ends say so and stay', () => {
+test('‹ › and ← →: the previous / next cut, no verdict, each framed and ringed; › past the last opens the end line', () => {
   const r = rig();
   r.control.start();
   assert.equal(r.log.bar.at(-1).hasPrev, false);
@@ -107,10 +107,11 @@ test('‹ › and ← →: the previous / next cut, no verdict, each framed and 
   assert.equal(r.key('ArrowRight'), true);
   assert.equal(r.session.at, 2);
   assert.equal(r.log.framed.length, 3);
-  assert.equal(r.log.bar.at(-1).hasNext, false, 'the last cut: › dimmed');
+  assert.equal(r.log.bar.at(-1).hasNext, true, 'the last cut: › still on, to the end');
   r.control.next();
-  assert.equal(r.session.at, 2, 'no wrap');
-  assert.equal(r.said.at(-1), 'Last cut');
+  assert.deepEqual([r.session.at, r.log.bar.at(-1).end, r.said], [-1, true, []], 'no wrap, no Last cut: the end line');
+  r.control.prev();
+  assert.equal(r.session.at, 2);
   r.key('ArrowLeft');
   r.control.prev();
   assert.equal(r.session.at, 0);
@@ -141,14 +142,14 @@ test('an edit mid-review repaints the count but never frames or leaves', () => {
   assert.equal(r.log.framed.length, framed);
 });
 
-test('N makes one red note and moves on; ⌘Z takes it back to that stop; ⌘Z again is the usual undo', () => {
+test('Y moves on; ⌘Z takes it back to that stop; ⌘Z again is the usual undo; N does nothing', () => {
   const r = rig();
   r.control.start();
-  r.key('n');
-  assert.equal(notesOf(r.history.edit).length, 1);
+  assert.equal(r.key('n'), false);
+  assert.equal(notesOf(r.history.edit).length, 0);
+  r.key('y');
   assert.equal(r.session.at, 1);
   r.key('z', { metaKey: true });
-  assert.equal(notesOf(r.history.edit).length, 0);
   assert.equal(r.session.at, 0);
   r.key('z', { metaKey: true });
   assert.equal(r.log.undos, 1);
@@ -168,9 +169,9 @@ test('clicking another stop\'s cut makes it the current stop and frames it; our 
 test('the last verdict shows the end line and review stays on; Esc does nothing', () => {
   const r = rig();
   r.control.start();
-  r.key('y'); r.key('n'); r.key('y');
+  r.key('y'); r.key('Backspace'); r.key('y');
   assert.equal(r.log.bar.at(-1).end, true);
-  assert.equal(r.log.bar.at(-1).toFix, 1);
+  assert.equal(r.log.bar.at(-1).approved, 2);
   assert.equal(r.control.on, true);
   assert.equal(r.key('Escape'), false);
   assert.equal(r.control.on, true);

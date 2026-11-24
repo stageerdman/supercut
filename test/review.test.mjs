@@ -5,7 +5,7 @@ import { withMagic, normalize, restoreRange, moveEdge, cutRange } from '../src/u
 import { emptyTrace, newRun, withRun } from '../src/ui/trace.js';
 import {
   reviewCuts, inSet, setCounts, stops, stopCount, removed, reviewWindow, stretchOf, checked, openingStop, nextUnchecked,
-  nearestUnchecked, step, progress,
+  step, progress,
 } from '../src/ui/review.js';
 
 const PARTS = [{ id: 1, duration: 60 }];
@@ -145,14 +145,6 @@ test("Magic's cuts is empty before any run; a put-back cut is approved already",
   const proposals = [prop(10, 11)];
   const back = restoreRange(magicCut(proposals), { part: 1, s: 10, e: 11 }, L);
   assert.equal(setCounts(reviewCuts(traced(proposals), back, PARTS), {}).unapproved, 0);
-});
-
-test('nearest unchecked: at or after a time, else from the start, else -1', () => {
-  const { list } = setup([prop(10, 11), prop(20, 21), prop(30, 31)]);
-  assert.equal(nearestUnchecked(list, {}, 19), 1);
-  assert.equal(nearestUnchecked(list, { 1: { says: 'yes' } }, 19), 2);
-  assert.equal(nearestUnchecked(list, { 0: { says: 'no' } }, 40), 1, 'none after: wraps to the first unchecked');
-  assert.equal(nearestUnchecked(list, { 0: { says: 'no' }, 1: { says: 'yes' }, 2: { says: 'yes' } }, 0), -1);
 });
 
 test('the stretch to frame: a middle cut, a head trim, a window across two parts', () => {

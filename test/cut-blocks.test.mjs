@@ -42,6 +42,24 @@ test('cut block: base, hatch and border in its owner colour; length label from 4
   delete globalThis.document;
 });
 
+test('an approved cut: green outline, a green ✓ badge (corner, or over the top when thin), said and hovered', () => {
+  globalThis.document = makeDocument();
+  const badgeOf = (n) => n.children.find((c) => c.dataset.approved != null);
+  const plain = cutView(magic(2, 4.4), { left: 20, width: 80, selected: false, index: 0 });
+  assert.equal(badgeOf(plain), undefined);
+  assert.doesNotMatch(plain.attrs['aria-label'], /approved/);
+  const ok = cutView(magic(2, 4.4), { left: 20, width: 80, selected: false, index: 0, approved: true });
+  assert.match(ok.style.cssText, /1\.5px var\(--color-ok\)/, 'green outline');
+  assert.match(badgeOf(ok).style.cssText, /right:3px/, 'roomy: the top-right corner');
+  assert.match(ok.attrs['aria-label'], /, approved\./);
+  assert.match(ok.title, /^Approved · /);
+  const thin = cutView(you(2, 2.1), { left: 20, width: 6, selected: false, index: 0, approved: true });
+  assert.match(badgeOf(thin).style.cssText, /top:-7px/, 'thin: hangs over its top edge');
+  const mid = cutView(magic(2, 4.4), { left: 20, width: LABEL_W, selected: false, index: 0, approved: true });
+  assert.equal(mid.children.find((c) => c.tag === 'span' && c.textContent === '2.4 s'), undefined, 'the length gives way to the badge');
+  delete globalThis.document;
+});
+
 // ---------- timeline.js: the layer, click, ⌫ ⌫ ⌘Z ----------
 
 // Words every 0.5 s with a long gap at 6.2…8 s (a pause) and one at 12.2…13.5 s.

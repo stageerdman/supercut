@@ -1,4 +1,4 @@
-// Cut review session: Y, N, ⌫, ↑/↓, ⌘Z, Esc and the end line over a real history and trace: `npm run test:ui`.
+// Cut review session: Y, ⌫, ←/→, ⌘Z, the filter, Esc and the end line over a real history and trace: `npm run test:ui`.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { withMagic, normalize } from '../src/ui/cuts.js';
@@ -59,17 +59,6 @@ test('Y records yes with how far in and what was heard, and plays the next stop'
   assert.equal(s.history.edit.cuts.length, 3, 'a Yes changes nothing in the edit');
 });
 
-test('N makes one empty red note, records it on the verdict, says so and moves on', () => {
-  const s = setup();
-  s.session.start();
-  s.session.no();
-  const [note] = s.history.edit.notes;
-  assert.deepEqual([note.color, note.text, note.s, note.e], ['red', '', 10, 11]);
-  assert.equal(verdictsOf(s)[0].note, note.id);
-  assert.deepEqual(s.said, ['Noted, fix later']);
-  assert.equal(s.session.at, 1);
-});
-
 test('⌫ puts the cut back, counts as checked, and moves on', () => {
   const s = setup();
   s.session.start();
@@ -82,17 +71,6 @@ test('⌫ puts the cut back, counts as checked, and moves on', () => {
   assert.equal(s.session.view().count, 'Cut 2 of 3');
 });
 
-test('⌘Z right after N removes the note and the verdict and goes back', () => {
-  const s = setup();
-  s.session.start();
-  s.session.no();
-  assert.equal(s.session.undoLast(), true);
-  assert.deepEqual(s.history.edit.notes, []);
-  assert.deepEqual(verdictsOf(s), {});
-  assert.equal(s.session.at, 0);
-  assert.equal(s.session.undoLast(), false, 'only once');
-});
-
 test('⌘Z after another edit is the usual undo', () => {
   const s = setup();
   s.session.start();
@@ -101,23 +79,46 @@ test('⌘Z after another edit is the usual undo', () => {
   assert.equal(s.session.undoLast(), false);
 });
 
-test('↑ shows the verdict given; changing No to Yes drops the untouched note', () => {
+test('⌘Z right after Y removes the verdict and goes back; only once', () => {
   const s = setup();
   s.session.start();
-  s.session.no();
-  s.session.move(-1);
-  assert.equal(s.session.view().chosen, 'no');
   s.session.yes();
-  assert.deepEqual(s.history.edit.notes, []);
-  assert.equal(verdictsOf(s)[0].says, 'yes');
+  assert.equal(s.session.undoLast(), true);
+  assert.deepEqual(verdictsOf(s), {});
+  assert.equal(s.session.at, 0);
+  assert.equal(s.session.undoLast(), false, 'only once');
 });
 
-test('↓ on the last stop stays and says "Last cut"', () => {
+test('← shows the verdict given; there is no "fix later" any more', () => {
   const s = setup();
   s.session.start();
-  s.session.move(1); s.session.move(1); s.session.move(1);
+  s.session.yes();
+  s.session.move(-1);
+  assert.equal(s.session.view().chosen, 'yes');
+  assert.equal(s.session.no, undefined);
+  assert.equal(s.history.edit.notes.length, 0);
+});
+
+test('→ on the last stop opens the end line, quietly; ← there is the last stop again', () => {
+  const s = setup();
+  s.session.start();
+  s.session.move(1); s.session.move(1);
+  assert.equal(s.session.view().hasNext, true, 'the last stop can still go on: to the end');
+  s.session.move(1);
+  assert.deepEqual([s.session.at, s.session.view().end, s.said], [-1, true, []]);
+  s.session.move(-1);
   assert.equal(s.session.at, 2);
-  assert.deepEqual(s.said, ['Last cut']);
+});
+
+test('approved() lists the Looks good cuts, for the timeline, on or off', () => {
+  const s = setup();
+  assert.deepEqual(s.session.approved(), []);
+  s.session.start();
+  s.session.yes(); s.session.putBack();
+  assert.deepEqual(s.session.approved(), [{ part: 1, s: 10, e: 11 }]);
+  assert.equal(s.session.view().approved, 1);
+  s.session.leave(true);
+  assert.deepEqual(s.session.approved(), [{ part: 1, s: 10, e: 11 }]);
 });
 
 test('Esc keeps progress; starting again opens the first unchecked', () => {
@@ -133,11 +134,11 @@ test('Esc keeps progress; starting again opens the first unchecked', () => {
 
 const endOf = (v) => ({ end: v.end, empty: v.empty, checked: v.checked, total: v.total, toFix: v.toFix });
 
-test('the last verdict keeps review on, on the end line, with Nos or without', () => {
+test('the last verdict keeps review on, on the end line', () => {
   const s = setup();
   s.session.start();
-  s.session.yes(); s.session.no(); s.session.yes();
-  assert.deepEqual(endOf(s.session.view()), { end: true, empty: false, checked: 3, total: 3, toFix: 1 });
+  s.session.yes(); s.session.putBack(); s.session.yes();
+  assert.deepEqual(endOf(s.session.view()), { end: true, empty: false, checked: 3, total: 3, toFix: 0 });
   const t = setup();
   t.session.start();
   t.session.yes(); t.session.yes(); t.session.yes();
@@ -166,14 +167,6 @@ test('a stop skipped with ↓ is counted at the end and opened first next time',
   assert.equal(s.said.at(-1), '2 of 3 checked · R to go on');
   s.session.start();
   assert.equal(s.session.at, 0);
-});
-
-test('Stop review with Nos points to the first one', () => {
-  const s = setup();
-  s.session.start();
-  s.session.no();
-  s.session.leave();
-  assert.equal(s.said.at(-1), '1 cut to fix · ⌥→ for the first');
 });
 
 test('▶ Play replays the clip from its start, as often as wanted, as the edit is now; never a verdict', () => {
@@ -211,32 +204,31 @@ test('every start opens on All cuts, Magic\'s and yours together', () => {
   assert.equal(s.session.only, 'all');
 });
 
-test("choosing Magic's cuts numbers within the set and moves to the next unchecked at or after now", () => {
+test("choosing Magic's cuts numbers within the set and starts at its first cut", () => {
   const cuts = normalize([{ part: 1, s: 5, e: 6, by: 'you' }, ...withMagic([], PROPOSALS, L)], L);
   const s = setup({ cuts });
   s.session.start();
   s.session.yes(); // your cut at 5
   s.session.move(1); // on Magic's 20
   assert.equal(s.session.choose('magic'), true);
-  assert.deepEqual([s.session.at, s.session.view().count], [1, 'Cut 2 of 3']);
+  assert.deepEqual([s.session.at, s.session.view().count], [0, 'Cut 1 of 3']);
   assert.deepEqual(s.session.view().counts, { all: 4, magic: 3, unapproved: 3 });
 });
 
-test('a choice moves on past checked stops, wraps to the start, else shows its end line', () => {
+test('a new choice always resets to the first cut of its list; the choice already on does nothing', () => {
   const s = setup();
   s.session.start();
   s.session.yes(); s.session.yes(); // on 30
   s.session.choose('all');
-  assert.equal(s.session.at, 2);
-  s.session.move(-1); s.session.move(-1); // back on 10, checked
+  assert.equal(s.session.at, 2, 'same choice: stays');
   s.session.choose('magic');
-  assert.equal(s.session.at, 2, 'the first unchecked at or after 10');
-  s.session.yes();
-  s.session.choose('magic');
-  assert.deepEqual([s.session.at, s.session.view().end], [-1, true]);
+  assert.equal(s.session.at, 0, 'first cut, checked or not');
+  s.session.move(1);
+  s.session.choose('all');
+  assert.equal(s.session.at, 0, 'and back: first again');
 });
 
-test('Not approved yet is taken once: a Y keeps "Cut 1 of 2"; taking it again drops that cut', () => {
+test('Unapproved is taken once: a Y keeps "Cut 1 of 2"; taking it again drops that cut', () => {
   const s = setup();
   s.session.start();
   s.session.yes(); // 10 approved
@@ -245,8 +237,18 @@ test('Not approved yet is taken once: a Y keeps "Cut 1 of 2"; taking it again dr
   s.session.yes();
   s.session.move(-1);
   assert.deepEqual([s.session.view().count, s.session.view().chosen], ['Cut 1 of 2', 'yes']);
+  s.session.choose('all');
   s.session.choose('unapproved');
   assert.deepEqual([s.session.view().count, s.session.view().total], ['Cut 1 of 1', 1]);
+});
+
+test('every cut approved: Unapproved is empty and dimmed; the end line counts them all', () => {
+  const s = setup();
+  s.session.start();
+  s.session.yes(); s.session.yes(); s.session.yes();
+  assert.equal(s.session.view().counts.unapproved, 0);
+  assert.equal(s.session.choose('unapproved'), false);
+  assert.deepEqual([s.session.view().end, s.session.view().approved, s.session.view().total], [true, 3, 3]);
 });
 
 test("an empty choice can't be picked: Magic's cuts before any Magic run", () => {
@@ -269,7 +271,8 @@ test('undoing the Magic step mid-review keeps review on; the count updates to wh
   s.session.start();
   s.history.push({ ...s.history.edit, cuts: s.history.edit.cuts.filter((c) => c.by === 'you') }, 'undo Magic');
   assert.equal(s.session.on, true);
-  s.session.move(1);
+  s.session.choose('magic');
+  s.session.choose('all');
   assert.equal(s.session.view().count, 'Cut 1 of 1');
 });
 
@@ -291,10 +294,10 @@ test('a Magic re-run makes the session stale', () => {
 test('your own cuts are reviewed without touching the trace', () => {
   const s = setup({ magic: false, cuts: normalize([{ part: 1, s: 20, e: 21, by: 'you' }], L) });
   assert.equal(s.session.start(), true);
-  s.session.no();
+  s.session.yes();
   assert.equal(s.trace().runs.length, 0);
-  assert.equal(s.history.edit.notes[0].about.by, 'you');
-  assert.deepEqual(endOf(s.session.view()), { end: true, empty: false, checked: 1, total: 1, toFix: 1 });
+  assert.deepEqual(s.session.approved(), [{ part: 1, s: 20, e: 21 }]);
+  assert.deepEqual(endOf(s.session.view()), { end: true, empty: false, checked: 1, total: 1, toFix: 0 });
 });
 
 test('⌫ on your own cut keeps it in the count, checked, until review stops; ⌘Z takes it back', () => {
