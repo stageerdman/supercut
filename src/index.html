@@ -86,8 +86,9 @@
         </div>
       </main>
 
-      <!-- Empty state: the whole window is the drop target -->
-      <main id="empty" class="flex hidden flex-1 items-center justify-center p-8">
+      <!-- Home with no projects yet: the big drop zone (the whole window is the drop target), and one line saying
+           where projects will be, so a first launch reads as Home (design/home-screen.md, States) -->
+      <main id="empty" class="flex hidden flex-1 flex-col items-center justify-center gap-6 p-8">
         <section
           id="dropzone"
           aria-label="Drop a video, or choose one"
@@ -99,6 +100,7 @@
           </button>
           <p class="text-text-secondary">MP4 · MOV · M4V — up to 2 parts</p>
         </section>
+        <p id="empty-note" class="text-[11px] text-text-secondary">Your projects will appear here, saved as you work.</p>
       </main>
 
       <!-- Editor -->
@@ -169,6 +171,7 @@
         </div>
       </main>
     </div>
+    <script src="boot-log.js"></script>
     <script type="module" src="main.js"></script>
   </body>
 </html>

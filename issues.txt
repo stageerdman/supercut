@@ -5,7 +5,7 @@ Running list. Newest at top. Move resolved items to the bottom with a strikethro
 OPEN
 ----
 - Home (updates/2026-11-24 HOME SCREEN - OPEN): a project whose video was moved or deleted has no Locate… yet (design/home-screen.md): Rust has no relink command. The card opens and the editor shows the missing file as it does today.
-- Home: nobody has looked at Home in the window yet (phase 5, a WebKit look at every state). The real main.js is proven to launch to Home and open a card on a fake DOM (test/boot.test.mjs); the built app opens.
+- Home: nobody has *looked* at Home in the window yet (agents here can't screenshot). The release app's own log proves launch → Home → card → editor → ‹ → Home with no errors (src/boot-log.js, `ui window showing …` lines). The delete alert's look on screen is unchecked; its Cancel default is tested in confirm.rs.
 - Better audio (updates/2026-11-24 BETTER AUDIO SWAP): no screen control yet. Transcription now starts only when asked (Magic, or ⇧⌘T for now); the Transcribe control and dropping audio on a part are phase 5. Dropping an audio file today still says "Better audio comes in a later version" (error.rs AudioOnly): change it when the drop lands.
 - Better audio: one offset per take; clock drift between camera and recorder is not corrected. A swap made while that part is transcribing can leave words from the old sound marked fresh (ask again).
 - Export isn't shown at all until export exists.

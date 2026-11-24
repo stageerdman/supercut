@@ -431,6 +431,14 @@ async function showHome() {
   home.show(list, swept);
   render();
   home.focusFirst();
+  window.uiLog?.(`showing ${screenShown()}`);
+}
+
+/** Which screen is up, for the app's log: "home (3 projects)", "drop zone (no projects)" or "editor (2 parts)". */
+function screenShown() {
+  if (!$('editor').classList.contains('hidden')) return `editor (${parts.length} part${parts.length === 1 ? '' : 's'})`;
+  if (!$('home').classList.contains('hidden')) return `home (${home.count} project${home.count === 1 ? '' : 's'})`;
+  return 'drop zone (no projects)';
 }
 
 /** Drop / Choose Video… on Home: a new project, or the one already made from this video. */
@@ -468,6 +476,7 @@ function load(o) {
     if (runner) claude().then((c) => c.state !== 'ready' && showBanner(...claudeBanner(c)));
   }
   render();
+  window.uiLog?.(`showing ${screenShown()}`);
   parts.forEach((p) => loadWaveform(p.id));
   if (!o.ui) scheduleSave(); // a new project's first save makes its card's picture
 }
@@ -920,6 +929,7 @@ function render() {
   const cards = !project && home.count > 0; // Home with projects; else the big drop zone when there's no video
   $('home').classList.toggle('hidden', !cards);
   $('empty').classList.toggle('hidden', has || cards);
+  $('empty-note').classList.toggle('hidden', !!project); // only Home's empty state; a project with no video left has none
   $('editor').classList.toggle('hidden', !has);
   $('editor').classList.toggle('flex', has);
   $('home-button').classList.toggle('hidden', !project);

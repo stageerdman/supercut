@@ -25,6 +25,7 @@ const summary = { id: 'p1', name: 'Take one', usedAt: Date.now(), deletesAt: Dat
 const answers = { close_project: null, sweep_projects: 1, list_projects: [summary], claude_status: { state: 'ready' }, waveform: { seconds: 72, peaks: [] } };
 const noop = () => {};
 const store = {};
+const logged = []; // what main.js tells the app's log (src/boot-log.js's window.uiLog)
 
 Object.assign(globalThis, {
   document: doc,
@@ -37,6 +38,7 @@ Object.assign(globalThis, {
   addEventListener: noop,
   removeEventListener: noop,
   devicePixelRatio: 2,
+  uiLog: (m) => logged.push(m),
   __TAURI__: {
     core: {
       invoke: async (cmd, args) => { calls.push(cmd); return cmd in answers ? answers[cmd] : null; },
@@ -64,6 +66,7 @@ test('launch reaches Home: close, sweep, list, then the cards, with nothing thro
   assert.ok(byId['home-button'].classes.has('hidden'), 'no ‹ on Home');
   assert.equal(byId['home-grid'].children.length, 1, 'one card');
   assert.ok(!calls.includes('save_project'), 'nothing open, nothing saved');
+  assert.deepEqual(logged, ['showing home (1 project)'], 'the app log says which screen launch showed');
 });
 
 test('⌫ on a card asks Rust’s confirm (Cancel the default); answered with Return or Esc, the project stays', async () => {
@@ -90,4 +93,5 @@ test('a click on the card opens it: the editor and ‹ show, and the new project
   assert.ok(!byId['home-button'].classes.has('hidden'));
   assert.equal(byId.title.textContent, 'Take one');
   assert.ok(calls.includes('save_project'), `calls: ${calls.join(', ')}`);
+  assert.equal(logged.at(-1), 'showing editor (1 part)');
 });

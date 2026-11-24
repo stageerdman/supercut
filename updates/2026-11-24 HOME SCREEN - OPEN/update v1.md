@@ -92,3 +92,11 @@ Owners per the orchestrator. Phases 1–3 are backend (contract: `design/project
     when deps are missing or older than the lock (`scripts/deps.js`, `test/deps.test.mjs`), then `install-app`
     (build, build-id check, install, open before the Spotlight wait). Ran it at `9ffaecc`: installed and running
     app embeds frontend `42f5847abc23c30b`, the same as main's `src/`.
+  - **Proven in the real window (Jony, 2026-11-24).** Agents can't screenshot or use accessibility here, so the web
+    view now writes to the app's log (`src/boot-log.js` → Rust `ui_log`): every uncaught error or failed script, and
+    which screen is up (`magic-cut INFO ui window showing home (1 project)`). A throwaway probe build clicked the
+    first card and then ‹ in the release app: log read `showing home (1 project)` → `store … opened` →
+    `showing editor (1 part)` → `store … closed` → `showing home (1 project)`, no errors. Not seen on screen: the
+    delete alert itself (its button order and Cancel default are proven only by `confirm.rs`).
+  - **No projects now reads as Home**: one line under the big drop zone, "Your projects will appear here, saved as
+    you work." Without it, a first launch looked exactly like the old app and Home seemed missing.

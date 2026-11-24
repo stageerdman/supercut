@@ -29,7 +29,7 @@ launch ──► Home ──click a card / Return──► Editor (that project,
              ◄────────── ‹ in the toolbar ─────┘  (saves first)
 ```
 - **Launch always lands on Home**, with the last project first and focused: **Return** goes straight back to work.
-  With no projects yet, Home *is* today's empty drop zone (main-screen state 1), unchanged.
+  With no projects yet, Home *is* today's empty drop zone (main-screen state 1), with one line under it saying projects will appear here.
 - **One project open at a time.** Opening another means going Home first.
 - **Dropping a video you already have a project for opens that project** (matched by the path of its first part),
   with the status line "Opened your project from Nov 22" for 4 s. No duplicate is made. (A34)
@@ -129,7 +129,7 @@ Delete…             ⌫
 ## States
 | State | What shows |
 |---|---|
-| **No projects** | Exactly main-screen state 1 (big drop zone, Choose Video…). No heading, no rule line, no "Recent". |
+| **No projects** | Main-screen state 1 (big drop zone, Choose Video…), plus one `caption` line 24 below it, `textSecondary`: "Your projects will appear here, saved as you work." No heading, no grid. (Added 2026-11-24: without it a first launch looked exactly like the old app, and Home read as missing.) The line is not shown in a project whose video was removed. |
 | **Loading the list** | Nothing extra: it's local and quick. The window paints `bg` until the list arrives; no skeletons. |
 | **Projects** | Strip, heading, grid (newest `usedAt` first), rule line. The first card has focus. |
 | **Just swept** | Heading reads "Projects · 2 old projects were deleted" (1: "1 old project was deleted") for this visit to Home. |

@@ -297,6 +297,17 @@ fn sweep_projects(session: State<Shared>, library: State<Library>) -> u32 {
     library.sweep(now_ms(), s.open_id())
 }
 
+/// The web view's own lines in the app's log (src/boot-log.js): which screen launch showed, and any uncaught error,
+/// so what the real window did can be read without seeing it.
+#[tauri::command]
+fn ui_log(error: bool, msg: String) {
+    if error {
+        log::error("ui", "window", msg)
+    } else {
+        log::info("ui", "window", msg)
+    }
+}
+
 /// Prints the result as JSON, or the plain error and exit code 1.
 fn print_and_exit<T: Serialize>(result: Result<T, AppError>) -> ! {
     match result {
@@ -348,7 +359,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip,
             add_video, remove_part, swap_audio, use_camera_audio, transcribe_part, waveform, preview,
-            list_projects, new_project, open_project, save_project, close_project, set_locked, delete_project, confirm_delete, sweep_projects
+            list_projects, new_project, open_project, save_project, close_project, set_locked, delete_project, confirm_delete, sweep_projects,
+            ui_log
         ])
         .run(tauri::generate_context!())
         .expect("error while running Magic Cut");
