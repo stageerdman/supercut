@@ -65,8 +65,22 @@ Owners per the orchestrator. Phases 1–3 are backend (contract: `design/project
   lock, delete, sweep), `session.rs` (the one open project: new/open/save/close), `thumb.rs`. Commands in `main.rs`:
   `list_projects`, `new_project`, `open_project`, `save_project`, `close_project`, `set_locked`, `delete_project`,
   `sweep_projects`. Swaps of an open project write into its `audio/`. 26 tests, all listed in the phase above.
-- [ ] Phase 2 Autosave and reopen
+- [x] Phase 2 Autosave and reopen (Jony, 2026-11-24): `src/ui/project-doc.js` (`toDoc`, `fromDoc`, `lengthOfEdit`,
+  `coverOf`). `main.js` saves 1 s after any change (every history step and render; an unchanged doc is not
+  rewritten), and flushes on ‹ and on window close. A new project saves at once, so its card gets a picture.
 - [x] Phase 3 Thumbnails (backend, with phase 1): `save_project` makes `thumb.jpg` in the background when the cover
   moved or there is none; failures are logged only. Tested on a real fixture (480×270 JPEG; past the end → no file).
-- [ ] Phase 4 Home screen
+- [x] Phase 4 Home screen (Jony, 2026-11-24): `src/ui/home.js`, `project-card.js`, `home-view.js`; `#home` in
+  `index.html`, the ‹ `#home-button` before the title. Launch: `close_project` → `sweep_projects` → `list_projects`
+  → Home, newest card focused. Click / Return reopens; lock button; right-click Open · Lock · Delete…; delete asks
+  first; drop or Choose Video… starts a project (the same video reopens its own, with a "reopened" line).
+  Tests: `test/home.test.mjs`, `test/home-view.test.mjs`, `test/project-doc.test.mjs`, and `test/boot.test.mjs`
+  (the real `main.js` on a fake DOM: launch reaches Home; a card click opens the editor and autosaves).
+  Decisions made while building:
+  - **Going Home reloads the page** after saving and closing the project in Rust. Every editor state starts fresh,
+    so nothing from one project can leak into the next. It costs a short blink.
+  - **The delete alert's default button is Delete**: the native `ask` can't make Cancel the default. The alert still
+    names the project and says the videos stay.
+  - **Not built: Locate… for a moved video.** Rust has no relink command yet; a card whose video is gone still opens
+    and the editor shows the missing file the usual way. In issues.txt.
 - [ ] Phase 5 Look and install
