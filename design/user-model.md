@@ -120,6 +120,19 @@ What they asked for after trying it (the "why" after each is my reading, a guess
 | A32 | Users without a mic don't mind pressing Generate (or just press Magic) | Time from open to first transcript, before vs after |
 | A33 | Keeping fixed words on Regenerate is what people expect | Ask after a regenerate on a fixed transcript |
 
+## Coming back (2026-11-24, reasoned)
+- The job: **"Get back to the video I was cutting."** Almost always the last one, within a few days (a long talk is
+  cut over two or three evenings). Starting a new one comes second; keeping or throwing away an old one is rare.
+- They know a project by **its video** (the picture, the file name), not by a project file. Spec: `design/home-screen.md`.
+
+| # | Assumption | Quick check |
+|---|---|---|
+| A34 | Dropping a video that already has a project means "continue it", not "start over" | Ask 3 users what they expect; count Delete right after an "Opened your project" |
+| A35 | People rarely leave a project while it's transcribing or running Magic, so stopping that work is fine | Log leaves during running work |
+| A36 | 30 days after last use is long enough that nobody loses a project they still wanted | Count re-imports of a video whose project was swept |
+| A37 | Few projects are locked; the list stays short enough to need no search | Log list length and locked count |
+| A38 | People open the last project far more than any other (so it goes first, focused) | Log the index of the opened card |
+
 ## Editing by hand (2026-11-22, reasoned)
 - Two views, one thing: cuts show in the transcript (struck) and on the timeline (hatched) at the same place, grey for
   yours, coral for Magic's. Specs: `design/edit-model.md`, `design/timeline.md`, `design/transcript-editing.md`.

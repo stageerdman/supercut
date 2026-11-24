@@ -89,9 +89,11 @@ when Magic hides during review or its label becomes "Stop review".
 │                  MP4 · MOV · M4V — up to 2 parts             │
 │              └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘               │
 │                                                              │
-│              Recent   ▢ my-video · Yesterday                 │ ← Phase 10, only if any
 └──────────────────────────────────────────────────────────────┘
 ```
+**Since 2026-11-24** this is Home with no projects yet. Once there are projects, Home shows them as a grid under a
+smaller drop strip, and the editor's toolbar gets a ‹ "All projects" button left of the name: `design/home-screen.md`.
+(The "Recent" line once sketched here is replaced by that grid.)
 - Drop zone: 520 × 280, centred, dashed 1.5 pt hairline, radius 16.
 - Headline (20 pt semibold): "Drop a video here". One button. One quiet hint line (13 pt secondary).
 - The **whole window** accepts drops, not only the zone. Also ⌘O and dropping on the Dock icon.
