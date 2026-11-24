@@ -65,6 +65,7 @@ export const NOT_CONNECTED = "Magic Cut isn't connected yet. Soon it will pick y
  *   flash: (text:string, ms:number) => void,
  *   banner: (text:string, action?: {label:string, run:()=>void}) => void,
  *   onResult: (result: {cuts:Array, notes?:Array}) => number | void,  // returns how many of Magic's notes are open
+ *   transcribe?: () => void,  // ask for every part's words (transcripts.js); `project().transcribing` then says so
  *   store?: {getItem:(k:string)=>string|null, setItem:(k:string,v:string)=>void},
  * }} deps
  */
@@ -103,6 +104,7 @@ export function createMagic(deps) {
     if (!deps.runner) return deps.banner(NOT_CONNECTED);
     const claude = await deps.claude();
     if (claude.state !== 'ready') return deps.banner(...claudeBanner(claude));
+    deps.transcribe?.(); // transcripts start only on demand: Magic is a demand, and waits for them
     if (deps.project().transcribing) return set({ kind: 'queued' });
     return run();
   }

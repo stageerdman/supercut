@@ -4,6 +4,8 @@ Running list. Newest at top. Move resolved items to the bottom with a strikethro
 
 OPEN
 ----
+- Better audio (updates/2026-11-24 BETTER AUDIO SWAP): no screen control yet. Transcription now starts only when asked (Magic, or ⇧⌘T for now); the Transcribe control and dropping audio on a part are phase 5. Dropping an audio file today still says "Better audio comes in a later version" (error.rs AudioOnly): change it when the drop lands.
+- Better audio: one offset per take; clock drift between camera and recorder is not corrected. A swap made while that part is transcribing can leave words from the old sound marked fresh (ask again).
 - Export isn't shown at all until export exists.
 - Magic replaces the cut list with its own cuts (one ⌘Z step back): your own Backspace cuts made before pressing Magic are gone until you undo. Decide whether Magic should add to your cuts instead.
 - Magic cuts whole lines word-exact; the pause before a cut stays, and "um"s inside kept lines stay. Cut reasons aren't shown in the transcript yet.

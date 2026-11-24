@@ -3,6 +3,7 @@
 // that freezes WebKit's picture. After an edit it waits a moment (a drag edits many times), then asks for a new one;
 // only the answer for the edit you have now is ever used. No DOM. Tested in test/preview.test.mjs.
 import { keptSpans } from './playback.js';
+import { mediaOf } from './media.js';
 
 const WAIT = 400; // ms after the last edit before a render starts
 
@@ -24,7 +25,8 @@ export function createPreview(on) {
     size ??= on.size();
     if (!size?.width || !size?.height) return null;
     const spans = keptSpans(parts, on.cuts()).map(({ part, s, e }) => ({ part, s: round(s), e: round(e) }));
-    return spans.length ? { spans, key: JSON.stringify(spans) } : null;
+    // A swapped sound is a new preview too, though no span moved.
+    return spans.length ? { spans, key: JSON.stringify([spans, parts.map(mediaOf)]) } : null;
   }
 
   function render() {

@@ -28,6 +28,7 @@ import { createPreview } from './ui/preview.js';
 import { createRulesStore, mountRules } from './ui/rules.js';
 import { emptyTrace, newRun, withRun, renameTracePart } from './ui/trace.js';
 import { learningLog, learningClips } from './ui/learning.js';
+import { createTranscripts, transcribing as owesWords, markStale } from './ui/transcripts.js';
 import { runner } from './ai.js';
 
 const { invoke } = window.__TAURI__.core;
@@ -38,7 +39,7 @@ const { open } = window.__TAURI__.dialog;
 
 const MAX_PARTS = 2;
 
-/** [{ id, name, path, duration, transcript, error }] in play order. */
+/** [{ id, name, path, swap, duration, transcript, error, wanted, stale }] in play order (wanted/stale: transcripts.js). */
 let parts = [];
 let progress = null; // { part, stage, done, total } while working
 const history = createHistory(); // history.edit: { cuts, words } (design/edit-model.md); ⌘Z / ⇧⌘Z walk it
@@ -46,7 +47,7 @@ const history = createHistory(); // history.edit: { cuts, words } (design/edit-m
 // Magic step still has its trace and reads as "restored".
 let trace = emptyTrace();
 const secondsLeft = makeEta();
-const transcribing = () => parts.some((p) => !p.transcript && !p.error);
+const transcribing = () => owesWords(parts);
 /** Each part's length where known, so cuts stay inside it. */
 const lengths = () => Object.fromEntries(parts.map((p) => [p.id, p.transcript?.seconds || p.duration || undefined]));
 /** The parts as the views and Magic see them: with the edit's words (fixes included). */
@@ -221,6 +222,7 @@ const magic = createMagic({
   flash: (text, ms) => status.flash(text, ms),
   banner: showBanner,
   reviewable: () => session.progress().stops > 0,
+  transcribe: () => { transcribeParts(); },
   onResult: (r) => { // one ⌘Z undoes the whole run, cuts and notes
     if (r.run) traceRun(r);
     const seconds = edited().map((p) => ({ id: p.id, seconds: p.transcript?.seconds }));
@@ -340,9 +342,16 @@ async function choose() {
 }
 document.addEventListener('click', (e) => e.target.closest('[data-choose]') && choose());
 
-// ---------- Project: add, remove, transcribe one at a time ----------
+// ---------- Project: add, remove, swap the sound, transcribe on demand ----------
 
-let queue = Promise.resolve();
+const transcripts = createTranscripts({ parts: () => parts, run: transcribe });
+
+/** Ask for words: these parts (all when no ids), one at a time. Nothing asks on load. */
+function transcribeParts(ids) {
+  const done = transcripts.request(ids);
+  render();
+  return done;
+}
 
 async function addVideos(paths) {
   for (const path of paths) {
@@ -356,7 +365,6 @@ async function addVideos(paths) {
       }
       render();
       loadWaveform(part.id);
-      queue = queue.then(() => transcribe(part.id));
     } catch (e) {
       showBanner(String(e));
     }
@@ -394,17 +402,20 @@ async function undoRedo(redo) {
   review.changed(); // the review count follows (review stays on)
 }
 
-/** Undo of a removal: same file, new id (renamed through the history), same place. No re-transcribing. */
+/** Undo of a removal: same file and sound (the swap is made again at its offset, no new search), new id (renamed
+ *  through the history), same place. No re-transcribing; words still owed are asked for again. */
 async function putBack({ part, index }) {
   try {
     const { id } = await invoke('add_video', { path: part.path });
+    const swap = part.swap && (await invoke('swap_audio', { id, recording: part.swap.recording, offset: part.swap.offset })
+      .then((p) => p.swap, (e) => { showBanner(`${part.name} is back with its own sound: ${e}`); return null; }));
     history.rename(part.id, id);
     trace = renameTracePart(trace, part.id, id);
     if (waveforms.has(part.id)) waveforms.set(id, waveforms.get(part.id));
     else loadWaveform(id);
-    parts.splice(index, 0, { ...part, id });
+    parts.splice(index, 0, { ...part, id, swap });
     player.added(index);
-    if (!part.transcript && !part.error) queue = queue.then(() => transcribe(id));
+    if (part.wanted) transcripts.request([id]);
   } catch (e) {
     history.redo(); // the file is gone: the history stays as it was
     showBanner(String(e));
@@ -426,6 +437,7 @@ async function transcribe(id) {
     const part = parts.find((p) => p.id === id);
     if (part) {
       part.transcript = t;
+      part.stale = false;
       history.everywhere((e) => withWords(e, id, t.words)); // the words arrive; not an undo step
     }
     progress = null;
@@ -443,9 +455,30 @@ function retry(id) {
   const part = parts.find((p) => p.id === id);
   if (!part) return;
   part.error = null;
-  queue = queue.then(() => transcribe(id));
-  render();
+  transcribeParts([id]);
 }
+
+/**
+ * Better audio: `recording` becomes part `id`'s sound, lined up by itself (or at `offset` s into the video). The
+ * player, waveform and every later transcript use it; words already there are stale and come again from the new
+ * sound. Resolves to the swap ({ recording, offset, synced, media }), so the caller can say how it lined up.
+ */
+async function swapAudio(id, recording, offset) {
+  const { swap } = await invoke('swap_audio', { id, recording, offset });
+  const part = parts.find((p) => p.id === id);
+  if (!part) return swap; // removed meanwhile
+  part.swap = swap;
+  player.reload(parts.indexOf(part));
+  waveforms.delete(id);
+  loadWaveform(id);
+  markStale(part);
+  if (part.wanted) transcripts.request([id]);
+  render();
+  return swap;
+}
+
+// The engine's hooks for the controls the design adds (phase 5): Transcribe, and dropping in better audio.
+window.magicCut = { transcribe: transcribeParts, swapAudio };
 
 listen('progress', ({ payload }) => {
   progress = payload;
@@ -457,6 +490,7 @@ listen('progress', ({ payload }) => {
 document.addEventListener('keydown', (e) => {
   const typing = e.target.closest('input, textarea, [contenteditable]');
   if (e.metaKey && e.key === 'o') { e.preventDefault(); choose(); return; }
+  if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 't') { e.preventDefault(); transcribeParts(); return; } // until the Transcribe control lands
   if (e.metaKey && e.key === 'Enter') { // a note's card is open (even unfocused): ⌘Return finishes it, not Magic
     e.preventDefault();
     if (card.isOpen) notes.done(card.id);

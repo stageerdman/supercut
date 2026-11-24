@@ -44,7 +44,14 @@ voice, or music. Transcription no longer starts on its own when a video loads: i
 
 ## Status
 - Phase 1: done.
-- Phase 2–4: in progress (see below as they land).
+- Phase 2: done. Rust tests in `swap/sync.rs` (both offset signs through a "different mic", clap, unrelated → no
+  match, real speech when `models/retakes.wav` exists).
+- Phase 3: done. Rust tests in `swap/plan.rs` and `swap/mod.rs` (trim, pad, picture untouched, voice-over on a
+  silent video).
+- Phase 4: done. `src/ui/transcripts.js`; Magic asks for words on press; the player and the preview follow
+  `mediaOf(part)`; undo of a removal re-makes the swap at its offset. Tests: `test/transcripts.test.mjs`.
+- Phase 5: next item (UX team). Hooks: `window.magicCut.transcribe(ids?)`, `window.magicCut.swapAudio(id, path,
+  offset?)`. Lessons: `wiki.md`.
 
 ## Decisions
 - Remux rather than playing a second audio element beside the video: one file means picture and sound can never

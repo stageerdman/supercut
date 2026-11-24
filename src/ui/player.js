@@ -14,6 +14,7 @@ import { skipTarget, cutHere, editedTime, editedLength } from './playback.js';
 import { createPlayClock } from './play-clock.js';
 import { createPreviewPlay } from './preview-play.js';
 import { createJumps } from './jumps.js';
+import { mediaOf } from './media.js';
 import { twinStep, drift, parked, seekLoss, QUIET, TOLERANCE, SEEK_LAG, SETTLE } from './twin-sync.js';
 
 const EPS = 1e-6;
@@ -79,9 +80,10 @@ export function createPlayer(first, on) {
   const len = () => video.duration || part()?.duration || 0;
 
   function load(n, p) {
-    if (n.dataset.path === p.path) return;
-    n.src = convertFileSrc(p.path);
-    n.dataset.path = p.path;
+    const file = mediaOf(p);
+    if (n.dataset.path === file) return;
+    n.src = convertFileSrc(file);
+    n.dataset.path = file;
   }
 
   function show(i, at = 0, play = false) {
@@ -109,7 +111,7 @@ export function createPlayer(first, on) {
   /** Where playing lands after the cut at time `from` (and any cut touching it): { i, t }, or null (stop). */
   const landing = (from) => jumps().landing(current, from);
 
-  const pathAt = (dest) => on.parts()[dest.i]?.path;
+  const pathAt = (dest) => mediaOf(on.parts()[dest.i]);
   const holds = (dest) => !!cue && cue.path === pathAt(dest) && Math.abs(cue.t - dest.t) < EPS;
 
   /** Every frame before a cut: get the twin in step on the far side of the next jump (twinStep says how). */
@@ -279,7 +281,7 @@ export function createPlayer(first, on) {
     for (const n of elements) n.addEventListener(k, () => (n === video ? f() : twinF?.(n)));
   };
   const durationOf = (n) => {
-    const p = on.parts().find((q) => q.path === n.dataset.path);
+    const p = on.parts().find((q) => mediaOf(q) === n.dataset.path);
     if (p && n.duration) p.duration = n.duration;
   };
   listen('loadedmetadata', () => {
@@ -373,6 +375,12 @@ export function createPlayer(first, on) {
       if (leftPreview()) return;
       if (on.parts().length === 1) show(0);
       else if (i <= current) current++;
+    },
+    /** The part at index `i` plays from another file now (its sound was swapped): same place, play/pause kept. */
+    reload(i) {
+      idle();
+      if (leftPreview()) return;
+      if (i === current) show(i, video.currentTime, playing());
     },
     /** The part at index `i` was removed from the list. */
     removed(i) {
