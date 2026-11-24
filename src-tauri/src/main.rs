@@ -167,7 +167,13 @@ async fn swap_audio(project: State<'_, Shared>, id: u32, recording: PathBuf, off
         made
     });
     let swap = made.await.map_err(|e| AppError::Swap(e.to_string()))??;
-    project.lock().unwrap().set_swap(id, swap)
+    project.lock().unwrap().set_swap(id, Some(swap))
+}
+
+/// "Use camera audio": part `id` plays its video's own sound again (the remux stays cached for ⌘Z).
+#[tauri::command]
+fn use_camera_audio(project: State<Shared>, id: u32) -> Result<Part, AppError> {
+    project.lock().unwrap().set_swap(id, None)
 }
 
 /// The timeline's waveform for one part, from what it plays (its new sound once swapped).
@@ -248,7 +254,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Shared::default())
-        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip, add_video, remove_part, swap_audio, transcribe_part, waveform, preview])
+        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip, add_video, remove_part, swap_audio, use_camera_audio, transcribe_part, waveform, preview])
         .run(tauri::generate_context!())
         .expect("error while running Magic Cut");
 }

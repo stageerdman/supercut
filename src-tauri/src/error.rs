@@ -30,6 +30,10 @@ pub enum AppError {
     /// A file that can't be a part's new sound (by its extension).
     NotSound { ext: String },
     NoSound { name: String },
+    /// A new sound that ffmpeg can't decode.
+    SoundUnreadable { file: String, why: String },
+    /// The recording's sound matches no stretch of the video's: it's not a recording of this take.
+    NoMatch { name: String },
     Swap(String),
 }
 
@@ -61,6 +65,8 @@ impl fmt::Display for AppError {
             Self::PreviewStale => write!(f, "The edit changed before its preview was ready."),
             Self::NotSound { ext } => write!(f, ".{ext} files can't be used as sound. Try WAV, M4A or MP3."),
             Self::NoSound { name } => write!(f, "{name} has no sound in it."),
+            Self::SoundUnreadable { file, why } => write!(f, "This audio file can't be read. ({file}: {why})"),
+            Self::NoMatch { name } => write!(f, "{name} doesn't match this video's sound. Nothing changed."),
             Self::Swap(why) => write!(f, "Couldn't use the new sound. ({why})"),
         }
     }

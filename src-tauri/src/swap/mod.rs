@@ -74,16 +74,25 @@ fn mux(ffmpeg: &Path, video: &Path, recording: &Path, offset: f64, seconds: f64,
     made
 }
 
-/// `video` with `recording` as its sound, at `offset` if given, else where the sounds match. `trace` tags the log.
+/// `video` with `recording` as its sound, at `offset` if given, else where the sounds match. A video with sound
+/// that the recording matches nowhere is refused (`NoMatch`, nothing written): "Replace" means a better recording
+/// of the same moment. A video without sound takes it from 0 s. `trace` tags the log.
 pub fn make(ffmpeg: &Path, dir: &Path, video: &Path, recording: &Path, offset: Option<f64>, trace: &str) -> Result<Swap, AppError> {
     let name = |p: &Path| p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    if !probe(ffmpeg, recording)?.has_sound {
+    let sound = probe(ffmpeg, recording).map_err(|e| match e {
+        AppError::Unreadable { file, why } => AppError::SoundUnreadable { file, why },
+        e => e,
+    })?;
+    if !sound.has_sound {
         return Err(AppError::NoSound { name: name(recording) });
     }
     let shape = probe(ffmpeg, video)?;
     let (offset, synced) = match offset {
         Some(o) => (o, false),
-        None => find_offset(ffmpeg, video, shape.has_sound, recording)?,
+        None => match find_offset(ffmpeg, video, shape.has_sound, recording)? {
+            (_, false) if shape.has_sound => return Err(AppError::NoMatch { name: name(recording) }),
+            found => found,
+        },
     };
     let media = dir.join(plan::media_name(video, recording, offset));
     if !media.exists() {
@@ -185,6 +194,28 @@ mod tests {
         let silent = video(&ff, &d, None);
         assert_eq!(make(&ff, &d.join("cache"), &silent, &silent, None, "test"), Err(AppError::NoSound { name: "silent.mp4".into() }));
         assert!(!d.join("cache").exists(), "nothing written");
+    }
+
+    #[test]
+    fn a_recording_of_something_else_is_refused_unless_placed() {
+        let Some(ff) = testkit::ffmpeg() else { return };
+        let d = testkit::temp_dir("swap-nomatch");
+        let cam = camera(&ff, &d, &speech(24, 20.0));
+        let other = wav(&ff, &speech(25, 6.0), &d.join("other.wav"));
+        assert_eq!(make(&ff, &d.join("cache"), &cam, &other, None, "test"), Err(AppError::NoMatch { name: "other.wav".into() }));
+        assert!(!d.join("cache").exists(), "nothing written");
+        let placed = make(&ff, &d.join("cache"), &cam, &other, Some(0.5), "test").unwrap();
+        assert!(placed.offset == 0.5 && !placed.synced, "a given offset needs no match");
+    }
+
+    #[test]
+    fn an_unreadable_recording_says_it_is_the_audio() {
+        let Some(ff) = testkit::ffmpeg() else { return };
+        let d = testkit::temp_dir("swap-bad");
+        std::fs::create_dir_all(&d).unwrap();
+        let bad = d.join("broken.wav");
+        std::fs::write(&bad, b"not a wav").unwrap();
+        assert!(matches!(make(&ff, &d.join("cache"), &bad, &bad, None, "test"), Err(AppError::SoundUnreadable { .. })));
     }
 
     /// Real speech (`npm run sample-retakes` makes models/retakes.wav; skipped without it): the camera's copy is

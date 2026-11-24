@@ -55,10 +55,11 @@ impl Project {
         self.parts.iter().find(|p| p.id == id).ok_or(AppError::NoSuchPart(id))
     }
 
-    /// The part's sound from now on (replacing an earlier swap); the part as it is now.
-    pub fn set_swap(&mut self, id: u32, swap: Swap) -> Result<Part, AppError> {
+    /// The part's sound from now on (replacing an earlier swap; None = the video's own sound again); the part as
+    /// it is now.
+    pub fn set_swap(&mut self, id: u32, swap: Option<Swap>) -> Result<Part, AppError> {
         let part = self.parts.iter_mut().find(|p| p.id == id).ok_or(AppError::NoSuchPart(id))?;
-        part.swap = Some(swap);
+        part.swap = swap;
         Ok(part.clone())
     }
 
@@ -107,10 +108,11 @@ mod tests {
         let a = p.add(Path::new("/v/a.mov")).unwrap();
         assert_eq!(a.media(), Path::new("/v/a.mov"));
         let swap = Swap { recording: "/r/mic.wav".into(), offset: -1.2, synced: true, media: "/c/swap-1.mov".into() };
-        let b = p.set_swap(a.id, swap).unwrap();
+        let b = p.set_swap(a.id, Some(swap)).unwrap();
         assert_eq!((b.media(), b.path.as_path()), (Path::new("/c/swap-1.mov"), Path::new("/v/a.mov")));
         assert_eq!(p.get(a.id).unwrap().media(), Path::new("/c/swap-1.mov"));
-        assert_eq!(p.set_swap(9, b.swap.unwrap()), Err(AppError::NoSuchPart(9)));
+        assert_eq!(p.set_swap(9, b.swap.clone()), Err(AppError::NoSuchPart(9)));
+        assert_eq!(p.set_swap(a.id, None).unwrap().media(), Path::new("/v/a.mov"), "back to camera audio");
     }
 
     #[test]
