@@ -4,6 +4,7 @@ import { $ } from './ui/dom.js';
 import { VIDEO, paintDrag } from './ui/dropzone.js';
 import { AUDIO, dragKind, sortDrop, linedUpText, noFitText, isNoFit, audioOf } from './ui/audio.js';
 import { createAudioControl } from './ui/audio-panel.js';
+import { createAudioPopup } from './ui/audio-popup.js';
 import { generateView, generateBlock, hintView, paintHint, regenerateIcon } from './ui/transcript-generate.js';
 import { mediaOf } from './ui/media.js';
 import { showBanner, hideBanner } from './ui/banner.js';
@@ -357,10 +358,15 @@ const magicBusy = () => magic.state.kind === 'queued' || magic.state.kind === 'r
 $('review').onclick = () => (review.on ? review.leave() : !magicBusy() && review.start());
 $('review').addEventListener('mousedown', (e) => e.preventDefault()); // Space and the keys stay review's
 
-// Replace audio (design/audio-swap.md): the toolbar button and, once a part has mic audio, its panel.
+// Replace audio (design/audio-swap.md): the toolbar button, its drop-or-choose popup and, once a part has mic audio,
+// its panel (whose Replace… opens the popup too).
+const audioPopup = createAudioPopup(
+  { popup: $('audio-popup'), area: $('audio-popup-area'), headline: $('audio-popup-headline'), sub: $('audio-popup-sub'), anchor: $('audio-button') },
+  { onChoose: pickAudio },
+);
 const audio = createAudioControl(
   { button: $('audio-button'), panel: $('audio-panel'), rows: $('audio-rows'), replace: $('audio-replace'), camera: $('audio-camera') },
-  { parts: () => parts, onPick: pickAudio, onCamera: useCameraAudio, onNudge: nudge, onClose: endNudge },
+  { parts: () => parts, onPick: () => !lining && audioPopup.toggle(), onCamera: useCameraAudio, onNudge: nudge, onClose: endNudge },
 );
 
 /** The toolbar's two actions. Reviewing: ✦ Magic is gone and the button reads Stop review. */
@@ -369,13 +375,16 @@ function paintToolbar() {
   paintReview(v);
   paintMagic(magic.state, { plain: v.primary, hidden: review.on, gap: v.visible });
   audio.paint({ hidden: review.on, busy: !!lining }); // not a review action
+  if (review.on || lining || !parts.length) audioPopup.close();
 }
 
 // ---------- Drop + choose ----------
 
 function dragFeedback(paths) {
   const kind = dragKind(paths, parts.length > 0);
-  paintDrag(kind, parts.length + 1);
+  const popupTakes = audioPopup.isOpen() && kind === 'audio'; // one lit target: the popup's area, not the timeline
+  paintDrag(popupTakes ? null : kind, parts.length + 1);
+  audioPopup.drag(kind);
   if (!project) home.drag(kind);
 }
 
@@ -384,6 +393,7 @@ getCurrentWebview().onDragDropEvent(({ payload }) => {
   else if (payload.type === 'leave') dragFeedback(null);
   else if (payload.type === 'drop') {
     dragFeedback(null);
+    audioPopup.close(); // the drop answers it, whatever was dropped
     dropped(payload.paths);
   }
 });

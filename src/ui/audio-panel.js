@@ -1,5 +1,5 @@
 // The toolbar's Replace audio button and the Audio panel under it (design/audio-swap.md). Before any swap the
-// button opens the picker; after, it reads the file name and opens the panel: one row per part (its sound and, for
+// button reports onPick (main.js opens the drop-or-choose popup, audio-popup.js); after, it reads the file name and opens the panel: one row per part (its sound and, for
 // mic rows, a one-frame nudge), Replace… and Use camera audio. Esc or a click away closes it. Paints and reports
 // intents; main.js does the work. Tested in test/audio.test.mjs (with test/fake-dom.mjs).
 import { el } from './dom.js';
@@ -32,8 +32,8 @@ export function createAudioControl({ button, panel, rows, replace, camera }, o) 
     button.classList.toggle('text-text-secondary', !v.swapped);
     button.title = v.title;
     button.setAttribute('aria-label', v.label);
-    if (v.swapped) button.setAttribute('aria-haspopup', 'dialog');
-    else button.removeAttribute('aria-haspopup');
+    button.setAttribute('aria-haspopup', 'dialog'); // the drop-or-choose popup, or after a swap the panel
+    button.setAttribute('aria-controls', v.swapped ? 'audio-panel' : 'audio-popup');
     if ((hidden || busy || !v.swapped) && isOpen()) close();
     if (isOpen()) paintRows();
   }

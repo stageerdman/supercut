@@ -25,8 +25,17 @@ check.
 │ my-video     Lining up shure-take.wav… ▬▬──   [∿ Replace audio]  ⚙  [✦ Magic Cut]  Review cuts │
 ```
 - **Button:** in the toolbar, left of the gear. Plain (no fill: ✦ Magic Cut stays the one primary), 32 tall,
-  radius 10, waveform glyph 15 pt + "Replace audio" (`body`, `textSecondary`, `text` on hover). Opens the file
-  picker (WAV · M4A · MP3 · AIFF · AAC). Shown once a video is loaded; hidden while reviewing.
+  radius 10, waveform glyph 15 pt + "Replace audio" (`body`, `textSecondary`, `text` on hover). Opens the
+  **Replace audio popup** (below). Shown once a video is loaded; hidden while reviewing.
+- **Popup** (`src/ui/audio-popup.js`): floats under the button like the Audio panel (radius 10, `surface`, hairline,
+  16 padding, 320 wide). One thing in it: a drop area, 140 tall, 1.5 pt dashed hairline, radius 10, waveform glyph,
+  "Drop your mic recording" (`bodyStrong`) over "or click to choose · WAV · M4A · MP3 · AIFF" (`textSecondary`).
+  No title, no buttons: the area *is* the button (focused on open; Return/Space or a click opens the picker and
+  closes the popup). Dragging audio over the window while it is open lights **the area** (solid `accent`, 8 % fill,
+  "Drop to replace audio") instead of the timeline, so only one target lights. Any drop closes it; the audio lines up
+  as below. Esc (focus back to the button) or a click away closes it, nothing changed. The panel's **Replace…** opens
+  the same popup; the no-fit banner's **Choose another…** goes straight to the picker (they've seen the popup).
+  Removed: a heading and a separate "Choose…" button — the area says both.
 - **Drop:** any audio file dropped anywhere on the window = replace audio. Dragging one over the editor: the timeline's
   track area gets a 1.5 pt `accent` outline, `accent` 8 % fill and a centred label "Drop to replace audio"
   (`bodyStrong`). 120 ms ease. Nothing appears over the video.
@@ -71,7 +80,7 @@ like the rules panel (radius 10, `surface`, hairline, 16 padding, 320 wide). Esc
 - **Nudge** (mic rows only): ‹ › move that part's audio one frame earlier / later; the value is **your** change from
   the match ("0.00 s" = as matched, "+0.07 s" = later). Space still plays and pauses while the panel is open, so you
   can watch the lips while nudging. Nudges in one opening of the panel are one undo step ("Nudged audio").
-- **Replace…** opens the picker (same as the button before a swap).
+- **Replace…** opens the Replace audio popup (same as the button before a swap).
 - **Use camera audio** puts the camera audio back on every part (one undo step, "Back to camera audio"). The button
   returns to "Replace audio".
 - No confirmation anywhere: ⌘Z undoes each step.
@@ -89,6 +98,7 @@ like the rules panel (radius 10, `surface`, hairline, 16 padding, 320 wide). Esc
 
 ## Accessibility
 - Button: "Replace audio" / "Audio: shure-take.wav" (`aria-haspopup=dialog`, `aria-expanded`).
+- Popup: `role=dialog`, label "Replace audio"; focus on the drop area (a real button), Esc returns it to the button.
 - Audio panel: `role=dialog`, label "Audio"; focus goes to the first nudge (or Replace…), Esc returns it to the button.
 - Nudge: `role=spinbutton`, label "Audio timing, part 1", ← → / ↑ ↓ one frame, `aria-valuetext` "7 hundredths of a
   second later".

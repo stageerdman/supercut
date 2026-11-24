@@ -9,6 +9,7 @@ import { generateView, hintView, regenerateIcon, progressText } from '../src/ui/
 
 globalThis.document = makeDocument();
 const { createAudioControl, nudgeOf } = await import('../src/ui/audio-panel.js');
+const { createAudioPopup, IDLE, OVER } = await import('../src/ui/audio-popup.js');
 
 const mic = (offset = 1.2, more = {}) => ({ recording: '/m/shure-take.wav', offset, matched: 1.2, synced: true, media: '/c/1.mov', ...more });
 const part = (id, more = {}) => ({ id, name: `${id}.mov`, path: `/v/${id}.mov`, swap: null, transcript: null, error: null, ...more });
@@ -134,6 +135,76 @@ test('Esc closes the panel and ends the nudge; Use camera audio and Replace… r
   r.button.click();
   r.replace.click();
   assert.equal(r.said.at(-1), 'pick');
+});
+
+// ---------- audio-popup.js ----------
+
+function popupRig() {
+  const doc = globalThis.document;
+  const [anchor, popup, area, headline, sub, outside] = ['button', 'section', 'button', 'span', 'span', 'div'].map((t) => doc.createElement(t));
+  popup.classList.add('hidden');
+  area.append(headline, sub);
+  popup.append(area);
+  doc.body.append(anchor, popup, outside);
+  const said = [];
+  const p = createAudioPopup({ popup, area, headline, sub, anchor }, { onChoose: () => said.push('choose') });
+  return { p, anchor, popup, area, headline, sub, outside, said };
+}
+
+test('the popup opens on the drop area, focused, saying drop or click', () => {
+  const r = popupRig();
+  assert.equal(r.p.isOpen(), false);
+  r.p.toggle();
+  assert.equal(r.p.isOpen(), true);
+  assert.equal(r.anchor.getAttribute('aria-expanded'), 'true');
+  assert.equal(document.activeElement, r.area);
+  assert.equal(r.headline.textContent, IDLE.headline);
+  assert.match(r.sub.textContent, /click to choose/);
+  assert.ok(r.area.classes.has('border-dashed'));
+});
+
+test('clicking the area closes the popup and opens the picker', () => {
+  const r = popupRig();
+  r.p.open();
+  r.area.click();
+  assert.equal(r.p.isOpen(), false);
+  assert.deepEqual(r.said, ['choose']);
+});
+
+test('Esc or a click away closes the popup with no change; the button toggles it', () => {
+  const r = popupRig();
+  r.p.open();
+  document.listeners.keydown.forEach((f) => f({ key: 'Escape', preventDefault() {} }));
+  assert.equal(r.p.isOpen(), false);
+  assert.equal(document.activeElement, r.anchor, 'focus back on the button');
+  r.p.open();
+  r.area.fire('mousedown');
+  assert.equal(r.p.isOpen(), true, 'a press inside stays open');
+  r.anchor.fire('mousedown');
+  assert.equal(r.p.isOpen(), true, 'the button is not "away": its click toggles');
+  r.p.toggle();
+  assert.equal(r.p.isOpen(), false);
+  r.p.open();
+  r.outside.fire('mousedown');
+  assert.equal(r.p.isOpen(), false);
+  assert.equal(r.anchor.getAttribute('aria-expanded'), 'false');
+  assert.deepEqual(r.said, [], 'nothing chosen');
+});
+
+test('dragging audio over lights the area; anything else, or closed, stays calm', () => {
+  const r = popupRig();
+  r.p.drag('audio');
+  assert.ok(!r.area.classes.has('border-accent'), 'closed: the timeline takes the drag');
+  r.p.open();
+  r.p.drag('audio');
+  assert.ok(r.area.classes.has('border-accent') && r.area.classes.has('bg-accent/8') && r.area.classes.has('border-solid'));
+  assert.equal(r.headline.textContent, OVER.headline);
+  r.p.drag('video');
+  assert.ok(!r.area.classes.has('border-accent'));
+  assert.equal(r.headline.textContent, IDLE.headline);
+  r.p.drag('audio');
+  r.p.drag(null);
+  assert.ok(r.area.classes.has('border-dashed'), 'drag left: back to idle');
 });
 
 // ---------- transcript-generate.js ----------

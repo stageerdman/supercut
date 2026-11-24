@@ -63,6 +63,17 @@
         </div>
       </section>
 
+      <!-- Replace audio, before a swap (and Replace…): drop a file on the area or click it to choose (src/ui/audio-popup.js) -->
+      <section id="audio-popup" role="dialog" aria-label="Replace audio"
+               class="absolute top-[56px] right-4 z-10 hidden w-[320px] rounded-[10px] border border-hairline bg-surface p-4">
+        <button id="audio-popup-area"
+                class="flex h-[140px] w-full flex-col items-center justify-center gap-1.5 rounded-[10px] border-[1.5px] border-dashed border-hairline text-center transition-colors duration-[120ms] hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+          <svg aria-hidden="true" class="mb-1 text-text-secondary" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 12h2M6 8v8M10 4v16M14 7v10M18 10v4M22 12h0"/></svg>
+          <span id="audio-popup-headline" aria-live="polite" class="font-semibold text-text"></span>
+          <span id="audio-popup-sub" class="text-text-secondary"></span>
+        </button>
+      </section>
+
       <!-- Banner: one sentence, at most one action, ✕ -->
       <div id="banner" role="alert" class="hidden h-11 shrink-0 items-center gap-3 border-b border-hairline bg-raised px-4">
         <p id="banner-text" class="flex-1 truncate"></p>
