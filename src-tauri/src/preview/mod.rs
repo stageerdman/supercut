@@ -159,17 +159,10 @@ pub fn render(ffmpeg: &Path, dir: &Path, spans: &[Span], (width, height): (u32, 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testkit::{ffmpeg, lengths};
 
     fn temp_dir(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("supercut-preview-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&d);
-        d
-    }
-
-    /// The ffmpeg `npm ci` puts in node_modules; the render tests skip without it.
-    fn ffmpeg() -> Option<PathBuf> {
-        let f = Path::new(env!("CARGO_MANIFEST_DIR")).join("../node_modules/ffmpeg-static/ffmpeg");
-        f.exists().then_some(f)
+        crate::testkit::temp_dir(&format!("preview-{name}"))
     }
 
     fn source(ffmpeg: &Path, dir: &Path) -> PathBuf {
@@ -184,18 +177,6 @@ mod tests {
             .unwrap();
         assert!(st.success());
         file
-    }
-
-    /// (video seconds, audio seconds) as ffprobe-less ffmpeg reports them: decode each stream and read the last time.
-    fn lengths(ffmpeg: &Path, file: &Path) -> (f64, f64) {
-        let time = |stream: &str| {
-            let out = Command::new(ffmpeg).args(["-hide_banner", "-i"]).arg(file).args(["-map", stream, "-f", "null", "-"]).output().unwrap();
-            let text = String::from_utf8_lossy(&out.stderr).into_owned();
-            let at = text.rfind("time=").expect("ffmpeg reports the time") + 5;
-            let hms: Vec<f64> = text[at..at + 11].split(':').map(|x| x.parse().unwrap()).collect();
-            hms[0] * 3600.0 + hms[1] * 60.0 + hms[2]
-        };
-        (time("0:v"), time("0:a"))
     }
 
     #[test]

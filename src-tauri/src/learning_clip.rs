@@ -80,16 +80,10 @@ mod tests {
         Span { path: PathBuf::from(path), s, e }
     }
 
-    fn temp_dir(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("supercut-clip-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&d);
-        d
-    }
+    use crate::testkit::ffmpeg;
 
-    /// The ffmpeg `npm ci` puts in node_modules; the clip tests that need a real one skip without it.
-    fn ffmpeg() -> Option<PathBuf> {
-        let f = Path::new(env!("CARGO_MANIFEST_DIR")).join("../node_modules/ffmpeg-static/ffmpeg");
-        f.exists().then_some(f)
+    fn temp_dir(name: &str) -> PathBuf {
+        crate::testkit::temp_dir(&format!("clip-{name}"))
     }
 
     fn source(ffmpeg: &Path, dir: &Path, name: &str, size: &str) -> PathBuf {

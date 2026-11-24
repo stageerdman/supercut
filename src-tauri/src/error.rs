@@ -27,6 +27,10 @@ pub enum AppError {
     Preview(String),
     /// A newer edit's preview began: this one is no longer wanted.
     PreviewStale,
+    /// A file that can't be a part's new sound (by its extension).
+    NotSound { ext: String },
+    NoSound { name: String },
+    Swap(String),
 }
 
 impl fmt::Display for AppError {
@@ -55,6 +59,9 @@ impl fmt::Display for AppError {
             Self::Learning(why) => write!(f, "Couldn't save Magic's learning log. ({why})"),
             Self::Preview(why) => write!(f, "Couldn't make the smooth preview; playing the original instead. ({why})"),
             Self::PreviewStale => write!(f, "The edit changed before its preview was ready."),
+            Self::NotSound { ext } => write!(f, ".{ext} files can't be used as sound. Try WAV, M4A or MP3."),
+            Self::NoSound { name } => write!(f, "{name} has no sound in it."),
+            Self::Swap(why) => write!(f, "Couldn't use the new sound. ({why})"),
         }
     }
 }

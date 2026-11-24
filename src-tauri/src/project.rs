@@ -3,6 +3,7 @@
 
 use crate::error::AppError;
 use crate::media;
+use crate::swap::Swap;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -15,6 +16,15 @@ pub struct Part {
     pub path: PathBuf,
     /// The file name, for labels and banners.
     pub name: String,
+    /// Better audio, once the user gave it (swap/mod.rs).
+    pub swap: Option<Swap>,
+}
+
+impl Part {
+    /// What the part plays, previews and transcribes from: the video with its new sound, else the video.
+    pub fn media(&self) -> &Path {
+        self.swap.as_ref().map_or(&self.path, |s| &s.media)
+    }
 }
 
 #[derive(Default)]
@@ -36,13 +46,20 @@ impl Project {
         }
         self.next_id += 1;
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        let part = Part { id: self.next_id, path: path.to_path_buf(), name };
+        let part = Part { id: self.next_id, path: path.to_path_buf(), name, swap: None };
         self.parts.push(part.clone());
         Ok(part)
     }
 
     pub fn get(&self, id: u32) -> Result<&Part, AppError> {
         self.parts.iter().find(|p| p.id == id).ok_or(AppError::NoSuchPart(id))
+    }
+
+    /// The part's sound from now on (replacing an earlier swap); the part as it is now.
+    pub fn set_swap(&mut self, id: u32, swap: Swap) -> Result<Part, AppError> {
+        let part = self.parts.iter_mut().find(|p| p.id == id).ok_or(AppError::NoSuchPart(id))?;
+        part.swap = Some(swap);
+        Ok(part.clone())
     }
 
     pub fn remove(&mut self, id: u32) -> Result<(), AppError> {
@@ -82,6 +99,18 @@ mod tests {
         let mut p = Project::default();
         assert_eq!(p.add(Path::new("voice.m4a")), Err(AppError::AudioOnly));
         assert!(p.parts().is_empty());
+    }
+
+    #[test]
+    fn a_swapped_part_plays_its_new_media_and_keeps_its_video() {
+        let mut p = Project::default();
+        let a = p.add(Path::new("/v/a.mov")).unwrap();
+        assert_eq!(a.media(), Path::new("/v/a.mov"));
+        let swap = Swap { recording: "/r/mic.wav".into(), offset: -1.2, synced: true, media: "/c/swap-1.mov".into() };
+        let b = p.set_swap(a.id, swap).unwrap();
+        assert_eq!((b.media(), b.path.as_path()), (Path::new("/c/swap-1.mov"), Path::new("/v/a.mov")));
+        assert_eq!(p.get(a.id).unwrap().media(), Path::new("/c/swap-1.mov"));
+        assert_eq!(p.set_swap(9, b.swap.unwrap()), Err(AppError::NoSuchPart(9)));
     }
 
     #[test]

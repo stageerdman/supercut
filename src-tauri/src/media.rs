@@ -22,6 +22,16 @@ pub fn require_video(path: &Path) -> Result<(), AppError> {
     }
 }
 
+/// Ok for a file a part's new sound can come from: an audio file, or another camera's video.
+pub fn require_sound(path: &Path) -> Result<(), AppError> {
+    let ext = ext(path);
+    if AUDIO.contains(&ext.as_str()) || VIDEO.contains(&ext.as_str()) {
+        Ok(())
+    } else {
+        Err(AppError::NotSound { ext })
+    }
+}
+
 /// Ok if the file is there. Undoing a removed part re-adds its file, which may have moved since.
 pub fn require_file(path: &Path) -> Result<(), AppError> {
     if path.is_file() {
@@ -53,5 +63,12 @@ mod tests {
         assert_eq!(require_video(Path::new("voice.m4a")), Err(AppError::AudioOnly));
         assert_eq!(require_video(Path::new("x.mkv")), Err(AppError::Unsupported { ext: "mkv".into() }));
         assert_eq!(require_video(Path::new("README")), Err(AppError::Unsupported { ext: "".into() }));
+    }
+
+    #[test]
+    fn new_sound_comes_from_audio_or_video() {
+        assert_eq!(require_sound(Path::new("mic.WAV")), Ok(()));
+        assert_eq!(require_sound(Path::new("cam2.mov")), Ok(()));
+        assert_eq!(require_sound(Path::new("notes.txt")), Err(AppError::NotSound { ext: "txt".into() }));
     }
 }

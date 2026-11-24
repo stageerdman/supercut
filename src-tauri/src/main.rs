@@ -21,6 +21,8 @@ mod preview;
 mod rules;
 mod speech;
 mod swap;
+#[cfg(test)]
+mod testkit;
 mod transcribe;
 mod vad;
 mod waveform;
@@ -105,7 +107,7 @@ struct PartSpan {
 async fn save_learning_clip(project: State<'_, Shared>, id: String, spans: Vec<PartSpan>) -> Result<(), AppError> {
     let spans = {
         let p = project.lock().unwrap();
-        spans.iter().map(|x| Ok(learning_clip::Span { path: p.get(x.part)?.path.clone(), s: x.s, e: x.e })).collect::<Result<Vec<_>, AppError>>()?
+        spans.iter().map(|x| Ok(learning_clip::Span { path: p.get(x.part)?.media().to_path_buf(), s: x.s, e: x.e })).collect::<Result<Vec<_>, AppError>>()?
     };
     let file = tauri::async_runtime::spawn_blocking(move || learning_clip::save(&audio::bundled_ffmpeg(), &learning::dir(), &id, &spans))
         .await
@@ -120,7 +122,7 @@ async fn save_learning_clip(project: State<'_, Shared>, id: String, spans: Vec<P
 async fn preview(project: State<'_, Shared>, spans: Vec<PartSpan>, width: u32, height: u32) -> Result<preview::Preview, AppError> {
     let spans = {
         let p = project.lock().unwrap();
-        spans.iter().map(|x| Ok(preview::Span { part: x.part, path: p.get(x.part)?.path.clone(), s: x.s, e: x.e })).collect::<Result<Vec<_>, AppError>>()?
+        spans.iter().map(|x| Ok(preview::Span { part: x.part, path: p.get(x.part)?.media().to_path_buf(), s: x.s, e: x.e })).collect::<Result<Vec<_>, AppError>>()?
     };
     let t = preview::ticket();
     let trace = format!("preview-{t}");
@@ -148,19 +150,40 @@ fn remove_part(project: State<Shared>, id: u32) -> Result<(), AppError> {
     project.lock().unwrap().remove(id)
 }
 
-/// The timeline's waveform for one part. Runs right after the part is added, beside transcription.
+/// Better audio: `recording` becomes part `id`'s sound, lined up with the video's own sound, or at `offset` s when
+/// given (a voice-over, a nudge, an undo putting a swap back). Returns the part, now playing `swap.media`. Its
+/// waveform and transcript are then stale: ask for them again.
+#[tauri::command]
+async fn swap_audio(project: State<'_, Shared>, id: u32, recording: PathBuf, offset: Option<f64>) -> Result<Part, AppError> {
+    media::require_sound(&recording)?;
+    media::require_file(&recording)?;
+    let video = project.lock().unwrap().get(id)?.path.clone();
+    let trace = format!("part-{id}");
+    let made = tauri::async_runtime::spawn_blocking(move || {
+        let made = swap::make(&audio::bundled_ffmpeg(), &swap::dir(), &video, &recording, offset, &trace);
+        if let Err(e) = &made {
+            log::error("swap", &trace, e.to_string());
+        }
+        made
+    });
+    let swap = made.await.map_err(|e| AppError::Swap(e.to_string()))??;
+    project.lock().unwrap().set_swap(id, swap)
+}
+
+/// The timeline's waveform for one part, from what it plays (its new sound once swapped).
 #[tauri::command]
 async fn waveform(project: State<'_, Shared>, id: u32) -> Result<waveform::Waveform, AppError> {
-    let path = project.lock().unwrap().get(id)?.path.clone();
+    let path = project.lock().unwrap().get(id)?.media().to_path_buf();
     tauri::async_runtime::spawn_blocking(move || waveform::of_file(&audio::bundled_ffmpeg(), &path))
         .await
         .map_err(|e| AppError::Unreadable { file: String::new(), why: e.to_string() })?
 }
 
-/// Downloads the model first if needed, then transcribes. Emits `progress` (see `Progress`).
+/// Only when asked (nothing transcribes on load). Reads what the part plays now, so asking again after a swap
+/// regenerates the words from the new sound. Downloads the model first if needed. Emits `progress` (see `Progress`).
 #[tauri::command]
 async fn transcribe_part(app: tauri::AppHandle, project: State<'_, Shared>, id: u32) -> Result<transcribe::Transcript, AppError> {
-    let path = project.lock().unwrap().get(id)?.path.clone();
+    let path = project.lock().unwrap().get(id)?.media().to_path_buf();
     tauri::async_runtime::spawn_blocking(move || {
         let emit = |stage, done, total| {
             let _ = app.emit("progress", Progress { part: id, stage, done, total });
@@ -221,10 +244,11 @@ fn main() {
     }
 
     preview::clear(&preview::dir());
+    swap::clear(&swap::dir());
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Shared::default())
-        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip, add_video, remove_part, transcribe_part, waveform, preview])
+        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip, add_video, remove_part, swap_audio, transcribe_part, waveform, preview])
         .run(tauri::generate_context!())
         .expect("error while running Magic Cut");
 }
