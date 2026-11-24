@@ -50,7 +50,7 @@ One window, three zones. Nothing else.
   The **status line** sits left of the actions: a label ("Transcribing… 42 % · about 3 min") and its own 96 pt bar on a track. It's gone when there's nothing to say.
   (It used to be a bare 2 pt bar on the transport row; the user read it as the video's own progress.)
 - **Player:** fills the space, video letterboxed on pure black. No controls on the video itself — the transport row is the only one.
-- **Transcript panel** (Phase 3 on): 320 pt by default, right of the player; drag its left edge to resize (remembered; `design/transcript-panel.md`). Before Phase 3, or before a video loads, **it does not exist** — the player takes the full width. No empty panels, ever.
+- **Transcript panel** (Phase 3 on): 320 pt by default, right of the player; drag its left edge to resize (remembered; `design/transcript-panel.md`). Before a video loads it does not exist. **Since 2026-11-24 it is always there once a video is loaded**: transcription starts only when asked, so the panel holds "Generate transcript" until there are words (`design/transcript-panel.md` §6). Still no *empty* panels: it always holds the next thing to do.
 - **Transport row:** play/pause, time (current / edited length), zoom slider (far right). Nothing here that isn't about the video's own time.
 - **Timeline:** one video track (thumbnails + waveform in the same clip, like CapCut). Clips sit in order with an 8 pt gap. The add-slot sits after the last clip while there are fewer than two.
 
@@ -125,6 +125,9 @@ back; drag a cut's edges either way to change how much it removes; playback skip
 edited length. Your cuts are grey, Magic's coral, in both views.
 
 ### 7. Transcribing (Phase 3)
+**Changed 2026-11-24** (`design/transcript-panel.md` §6, `design/audio-swap.md`): transcription starts only from
+"Generate transcript" in the panel, or by pressing ✦ Magic Cut (which queues itself). Its progress shows in the
+panel, where the words will appear, not in the status line. The text below is the original behaviour.
 - Progress lives **only in the status line** (toolbar): "Transcribing… 12 % · about 3 min" with its own small bar. The transcript panel never shows progress. You can play and cut meanwhile.
 - First run: "Downloading speech model · 465 MB · about 2 min" first, same place.
 - The transcript panel slides in (200 ms) when the first words arrive and fills as they come.
@@ -143,7 +146,7 @@ A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, o
 |---|---|---|
 | Unsupported file | ".mkv files don't open yet. Try MP4 or MOV." | — |
 | Broken file | "This video can't be read. It may be damaged." | Show in Finder |
-| Audio-only file | "That's an audio file. Better audio comes in a later version." (Phase 8 replaces this) | — |
+| Audio-only file | Replaced: an audio file dropped = Replace audio; with no video open the drop zone says "Add the video first" (`design/audio-swap.md`) | — |
 | Third file | "Two parts at most. Remove one to add another." | — |
 | Source moved | "Can't find my-video.mov." | Locate… |
 | Claude missing or not signed in (checked when a video loads; shown during transcription, shown again if Magic is pressed while still signed out) | "Sign in to Claude to use Magic: open Terminal and run `claude`." | Copy command |

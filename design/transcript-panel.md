@@ -73,10 +73,59 @@ that they lose track of *where in the video* they are while scrolling.
 - Seek into a pause: nothing lit, the next word is brought into view.
 - Playback following is unchanged: it pauses for 4 s after you scroll, select or search in the panel.
 
+### 6. Generate and Regenerate (2026-11-24, update BETTER AUDIO SWAP)
+Transcription no longer starts by itself: it starts when you ask. The reason is the mic users: a transcript of the
+camera audio is wasted work once the better recording is in, and it's less accurate. So the panel is **always there
+once a video is loaded** (it replaces "no empty panels": the panel is now where the transcript begins), and it never
+looks empty: it holds the one thing to do.
+
+**No transcript yet.** The words area shows, centred horizontally, 40 % down:
+```
+│ Transcript                          │
+│                                     │
+│       [  Generate transcript  ]     │ ← 32 tall, radius 10, `raised` fill, `text`, bodyStrong, 16 side padding
+│   From the camera audio · on this Mac│ ← caption, `textSecondary`
+```
+- The line under it names the audio it will use: "From the camera audio" or "From shure-take.wav". It answers
+  "which sound?" at the moment it matters, without instructions. "· on this Mac": nothing leaves the Mac.
+- Not accent: ✦ Magic Cut stays the one filled primary. Alone in an empty panel, a raised button is unmissable.
+- No search field, no rail, no divider handle change (the divider still works).
+- **✦ Magic Cut without a transcript** still works in one press: it starts the transcript and queues itself
+  ("Magic queued ✕", as in `design/main-screen.md` state 8). The straight line stays drop → Magic.
+
+**Generating.** The button's place shows the progress (it's where you asked, and where the words will appear):
+"Transcribing… 42 %" (`body`, `textSecondary`, tabular), a 96 pt bar under it, "about 3 min" (caption). First run:
+"Downloading speech model · 465 MB · about 2 min" first, same place. The toolbar status line no longer shows
+transcription (it still shows Magic's queue). Words appear when the part is done.
+
+**Failed.** "Couldn't transcribe this part." and the same raised button, **Try again**. No banner: it's said in place.
+
+**Two parts.** Generate makes every missing transcript, in order. A part added later shows its own heading ("Part 2")
+with the same block under it, left aligned, after part 1's words. One part transcribing shows its progress there.
+
+**New audio after a transcript** (a part's transcript was made from other audio than it uses now, `design/audio-swap.md`):
+- **Hint**, once, right after the swap: a row under the header, 12 side margin, radius 10, `raised`, 36 tall:
+  `New audio. A fresh transcript may be more accurate.   Regenerate   ✕`
+  (text `body`; **Regenerate** a plain `bodyStrong` text button in `text`, not accent: accent means cut; ✕ dismisses). It goes away when you regenerate, dismiss
+  it, or the audio goes back to what the transcript was made from (⌘Z, Use camera audio).
+- **Icon**, for as long as the transcript is from other audio: a 28 × 28 ↻ (`arrow.clockwise`, 13 pt,
+  `textSecondary`, `text` on hover) right of the search field. Tooltip "Regenerate transcript from the new audio".
+  Gone when the transcript matches the audio again. Two parts: it regenerates every part that needs it.
+- **While regenerating** the old words stay readable and editable; the hint row (shown again if dismissed) reads
+  "Regenerating… 42 %" with its bar, no buttons. The ↻ is disabled.
+- **Done:** the new words replace the old in one step ("Regenerated transcript", ⌘Z brings the old words back);
+  status line "Transcript regenerated · ⌘Z to undo" for 3 s.
+- **What stays:** cuts and notes (they're time, not words). **Words you fixed or wrote** (`fixed`) stay too: new words
+  that overlap them are dropped. Everything else is the new transcript. Search re-runs on the new words.
+
 ## States
 | State | Panel |
 |---|---|
-| No transcript | No panel, no divider (as today) |
+| Video loaded, no transcript | Generate transcript + which audio (§6) |
+| Transcribing | Progress in place of the button (§6) |
+| Transcription failed | "Couldn't transcribe this part." + Try again |
+| Transcript from older audio | ↻ by search; hint row once after the swap (§6) |
+| Regenerating | Old words stay; hint row shows progress |
 | Words arriving | Blocks fill in; the rail grows with the parts' lengths |
 | Search, no match | "0/0", arrows disabled, nothing lit |
 | Search while words change (a fix, a new part) | Matches recomputed; the current index kept when it still exists |
@@ -87,6 +136,10 @@ that they lose track of *where in the video* they are while scrolling.
 - Rail: `role=slider`, label "Position in video", `aria-valuetext` the playhead time.
 - Search: `role=searchbox` label "Search transcript"; the count is a polite live region ("2 of 5").
 - Block times are `aria-hidden` (each word already has its time as title); blocks are `role=group`.
+- Generate: a real button, label "Generate transcript", described by its "From …" line. Progress: `role=progressbar`
+  "Transcription progress" (moved here from the toolbar). Focus after Generate stays on the progress block's region,
+  then moves to the words when they arrive only if focus was still there.
+- Hint row: `role=status` (polite), so the swap's offer is heard once. ↻: `aria-label` "Regenerate transcript".
 
 ## Assumptions
 - **A11** 1.5 s pauses and 30-word sentence groups make readable blocks for talking-head recordings. Check: open a

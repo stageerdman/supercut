@@ -1,62 +1,88 @@
-# Better audio swap: update v1
+# Better audio swap — update v1
+
+Feature: f-better-audio-swap. Replaces INIT Phase 8 ("Better audio").
 
 ## Goal
-Drop in a recording from a better microphone (same voice, same take): Magic Cut finds where it lines up with the
-video by itself (the clap at the start, or the matching sound), mutes the video's own sound and uses the new one
-everywhere the part is heard (playback, the preview, Magic Trace clips, and the export once it exists). Longer than
-the video: trimmed to it. Shorter: padded with silence. The same path later takes a voice-over on a video with no
-voice, or music. Transcription no longer starts on its own when a video loads: it starts when the user asks for it
-(or for something that needs it), and it can be run again from the swapped sound.
+Drop in a better-mic recording: it lines up with the video by sound and replaces the camera audio (playback, the
+preview, Magic Trace clips, and the export once it exists). Longer than the video: trimmed to it. Shorter: padded
+with silence. The same path later takes a voice-over on a video with no voice, or music. Transcription starts only
+when the user asks (Generate), and after a swap the app offers Regenerate.
 
-## Design (engine)
+## Design (Jony, 2026-11-24) — done
+- `design/audio-swap.md` — Replace audio button + drop anywhere, lining up, the four results (lined up / mic shorter /
+  not sure / doesn't fit), the Audio panel (per part, one-frame nudge, Replace…, Use camera audio), undo, a11y, and
+  the hook for voice-over and music later.
+- `design/transcript-panel.md` §6 — the panel is always there once a video is loaded: Generate transcript (names the
+  audio it will use), progress in place, Try again; after new audio: a one-time hint row and a ↻ icon by search;
+  Regenerate keeps cuts, notes and fixed words, one undo step.
+- `design/main-screen.md` — panel rule, state 7, the audio-only banner, updated. `design/user-model.md` — "Better
+  audio" section, A29–A33.
+
+### Decisions
+- **The drop is the command.** Any audio file = Replace audio. No sync dialog, no clap step, no part picker: each part
+  is matched on its own; a part the file doesn't fit keeps what it had.
+- **Trust = hearing it, plus honest words.** The waveform redraws from the new audio; the status line says what fit;
+  a "not sure" match is applied but says so in a banner with **Adjust**; a file that fits nowhere changes nothing.
+- **No A/B toggle** (was in the INIT plan): lips are the check; the way back is Use camera audio or ⌘Z.
+- **Generate is raised, not accent**: ✦ Magic Cut stays the one primary, and pressing it without a transcript still
+  transcribes first (queued), so the straight line stays drop → Magic.
+- **Transcription progress moves into the panel** (where you asked, where the words come); the toolbar status line
+  keeps lining up, Magic and other work.
+- **"Replace" means the part's own voice.** Voice-over / music later = audio that *doesn't fit*; it gets its own lane.
+
+## Design (engine) — built
 - **One rule for every consumer:** a part has its `path` (the video the user dropped, kept for undo) and, once
   swapped, a `swap` whose `media` is a remux of that video with the new sound (picture copied, not re-encoded).
-  `Part::media()` is what every command decodes or renders from, and what the player plays. Nothing else needs to
-  know a swap exists.
+  `Part::media()` (Rust) / `mediaOf(part)` (JS) is what every command decodes or renders from, and what the player
+  plays. Nothing else needs to know a swap exists.
 - **Offset sign:** `offset` = the second of the video where the new recording's first sample lands. Positive: the
   recorder started after the camera (the sound is delayed). Negative: it started before (its head is dropped).
 - **Sync:** both sounds are decoded at 8 kHz; each becomes an onset curve (the rise of log loudness every 5 ms), which
   ignores the mics' gain and tone. One FFT cross-correlation over the whole length finds the coarse lag (a clap is a
   very strong onset, so "clap at the start" and "matching sound" are the same search); a sample-level correlation
   of the waveforms around it refines it to 1/8 ms. A weak or ambiguous peak is "no match": the sound starts with the
-  video and `matched: false` says so (the voice-over case, or a recording of a different take).
-- **A given offset skips the search.** `swap_audio(id, audio, offset?)`: put-back after undo, a manual nudge later,
-  and voice-overs all reuse the same call.
+  video and `synced: false` says so (the voice-over case, or a recording of a different take).
+- **A given offset skips the search.** `swap_audio(id, recording, offset?)`: put-back after undo, the nudge, and
+  voice-overs all reuse the same call.
+- Remux rather than a second audio element beside the video: one file means picture and sound can never drift in
+  WebKit, and preview/export/transcription need no special case. The remux keeps the video's container; the new
+  sound is AAC 256k. Swaps live in `~/Library/Caches/xyz.supercut.editor/swap`, cleared at start like previews.
 
-## Phases
-1. **Roadmap.** This file. *(done)*
-2. **Sync (pure, Rust).** `src-tauri/src/swap/sync.rs`: onset curve, FFT cross-correlation, refinement, confidence.
-   Tests: speech-like samples with a known offset both ways through a "different mic" (gain, tone, room noise);
-   a clap at the start; unrelated sound gives no match; and, when `npm run sample-retakes` has made it, the real
-   spoken `models/retakes.wav` through an ffmpeg-made second mic (EQ, echo, noise).
-3. **Replace (Rust).** `swap/plan.rs` (pure): what ffmpeg says about the video (length, has sound) and the mux
-   arguments (shift, pad, trim to the video's length, copy the picture). `swap/mod.rs`: decode, sync, mux into the
-   cache, atomically. `Project` keeps the swap; `media()` feeds playback, preview, waveform, learning clips and
-   transcription. Tests: the plan; a real mux where a longer recording is trimmed and a shorter one padded to the
-   video's length, picture untouched; a video with no sound takes a voice-over at 0 s.
-4. **Transcription on demand.** No transcript starts on load. `transcribe_part` is the command (it reads the part's
-   current media, so running it again after a swap regenerates the words from the new sound). The UI asks for it
-   when Magic is pressed (Magic waits for it as before) and exposes `transcribe(ids?)` for the controls the design
-   adds. Tests: nothing starts on load, a request starts each part once, a swap makes the old transcript stale and a
-   new request replaces it.
-5. **The surface (UX team, next item).** Dropping an audio file on a part, the "synced at +1.24 s" feedback and its
-   nudge, the Transcribe control, voice-over / music. Not in this item; the engine above is shaped for it.
+## Engine phases (item "Roadmap + audio sync & replace engine") — done
+1. **Roadmap.** This file.
+2. **Sync (pure, Rust).** `src-tauri/src/swap/sync.rs`. Tests: speech-like samples with a known offset both ways
+   through a "different mic" (gain, tone, room noise); a clap at the start; unrelated sound gives no match; the real
+   spoken `models/retakes.wav` through an ffmpeg-made second mic when it exists.
+3. **Replace (Rust).** `swap/plan.rs` (pure mux plan), `swap/mod.rs` (decode, sync, mux into the cache). `Project`
+   keeps the swap; `media()` feeds playback, preview, waveform, learning clips and transcription. Tests: the plan; a
+   real mux trims a longer recording and pads a shorter one to the video's length, picture untouched; a video with
+   no sound takes a voice-over at 0 s.
+4. **Transcription on demand.** `src/ui/transcripts.js`: nothing starts on load; Magic asks on press and waits; ⇧⌘T
+   for now. A swap marks the words stale; a new request replaces them. Tests: `test/transcripts.test.mjs`.
+
+Hooks for the UI phases: `window.magicCut.transcribe(ids?)`, `window.magicCut.swapAudio(id, path, offset?)`.
+
+## Feature phases (to build; owners per the orchestrator)
+1. **Spike — lining up by sound:** cross-correlation on real camera + mic pairs, one long file over two parts, mic
+   shorter than video, a confidence score that separates "sure", "not sure", "no fit". Drift over 60 min measured
+   (fix only if it's real). Findings → `wiki.md`. *Engine sync done on synthetic + retakes.wav pairs; still open:
+   real camera/mic pairs, one file over two parts, a "not sure" band, drift.*
+2. **Backend:** `replace_audio(path)` → per part `{ fits, offset, confidence, covers: [s, e] }`; playback and the
+   waveform use the part's active audio; the transcript records which audio it was made from; nudge per part;
+   project saves the swap. **Tests:** offset within one frame on fixtures; no-fit leaves the part untouched.
+   *Per-part `swap_audio` and active audio done; still open: the all-parts `replace_audio` shape, confidence band,
+   `covers`, transcript's audio record, saving.*
+3. **Manual transcription:** no auto-transcribe on add; Generate / Try again / Magic-queues-transcribe; the panel's
+   no-transcript and progress states. **Tests:** adding a part starts nothing; Magic with no transcript queues.
+   *Engine and tests done; the panel states are open.*
+4. **Replace audio UI:** toolbar button and its states, drop anywhere (+ video and audio together, audio with no
+   video), status / banners, Audio panel with nudge and Use camera audio, undo steps. **Tests:** each result's
+   message; undo restores the previous audio; cuts and notes unchanged after a swap.
+5. **Regenerate:** stale detection (transcript audio ≠ active audio), hint row, ↻ icon, regenerate keeping fixed
+   words, one undo step. **Tests:** stale on/off through swap, ⌘Z and Use camera audio; fixed words survive.
+6. **Look and install:** a WebKit look at every state (panel, button, Audio panel, banners), `npm run install-app`.
 
 ## Status
-- Phase 1: done.
-- Phase 2: done. Rust tests in `swap/sync.rs` (both offset signs through a "different mic", clap, unrelated → no
-  match, real speech when `models/retakes.wav` exists).
-- Phase 3: done. Rust tests in `swap/plan.rs` and `swap/mod.rs` (trim, pad, picture untouched, voice-over on a
-  silent video).
-- Phase 4: done. `src/ui/transcripts.js`; Magic asks for words on press; the player and the preview follow
-  `mediaOf(part)`; undo of a removal re-makes the swap at its offset. Tests: `test/transcripts.test.mjs`.
-- Phase 5: next item (UX team). Hooks: `window.magicCut.transcribe(ids?)`, `window.magicCut.swapAudio(id, path,
-  offset?)`. Lessons: `wiki.md`.
-
-## Decisions
-- Remux rather than playing a second audio element beside the video: one file means picture and sound can never
-  drift in WebKit, and preview/export/transcription need no special case.
-- The remux keeps the video's container (mov stays mov, mp4/m4v stay mp4): any codec the source holds, the same
-  container holds. The new sound is AAC 256k (transparent for speech; export can re-read the original file later).
-- Swaps live in the cache folder (`~/Library/Caches/xyz.supercut.editor/swap`), cleared at start like previews:
-  a project lives only as long as the app is open today.
+- [x] Design
+- [x] Engine (sync, replace, on-demand transcription) — see above
+- [ ] Feature phases 1 – 6 (partly covered by the engine, as marked)

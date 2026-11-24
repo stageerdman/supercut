@@ -103,6 +103,23 @@ What they asked for after trying it (the "why" after each is my reading, a guess
 - **They want to see what's approved**, in the bar and on the timeline, and a clear **"all done"** when finished.
   (Guess: without it they couldn't tell whether they had gone through everything.) Spec v4: `design/cut-review.md`.
 
+## Better audio (2026-11-24, reasoned)
+- The job: **"Use my good mic recording instead of the camera's sound, and be sure it lines up."** Mic users do it
+  every time and drop the file anywhere. They check sync by **watching the lips**, not by reading a number.
+- They usually remember the mic file *after* opening the video. So transcription waits until asked (Generate in the
+  panel, or ✦ Magic Cut): a transcript of the camera audio would be redone anyway. After a swap the app offers
+  Regenerate. Specs: `design/audio-swap.md`, `design/transcript-panel.md` §6.
+- Later the same drop may be a voice-over or music: those *don't fit* the video's sound, which is how the app tells
+  them apart.
+
+| # | Assumption | Quick check |
+|---|---|---|
+| A29 | Most mic users drop the file rather than press Replace audio | Log drop vs button |
+| A30 | A one-frame nudge is fine enough, and rarely needed | Count nudges per swap |
+| A31 | Nobody misses an A/B toggle; lips are the check | Ask 3 mic users after a first swap |
+| A32 | Users without a mic don't mind pressing Generate (or just press Magic) | Time from open to first transcript, before vs after |
+| A33 | Keeping fixed words on Regenerate is what people expect | Ask after a regenerate on a fixed transcript |
+
 ## Editing by hand (2026-11-22, reasoned)
 - Two views, one thing: cuts show in the transcript (struck) and on the timeline (hatched) at the same place, grey for
   yours, coral for Magic's. Specs: `design/edit-model.md`, `design/timeline.md`, `design/transcript-editing.md`.
