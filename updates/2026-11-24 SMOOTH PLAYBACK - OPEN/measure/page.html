@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<body style="margin:0;background:#000">
+<div style="position:relative;width:960px;height:540px"><video id="player" style="width:960px;height:540px" playsinline></video></div>
+<script>
+  window.__TAURI__ = { core: { convertFileSrc: (p) => p } };
+</script>
+<script type="module">
+  // Plays the real src/ui/player.js with a real preview render, and records every presented frame of every video
+  // (and which one is seen), and the playhead's edited time every display frame.
+  const q = new URLSearchParams(location.search);
+  const { createPlayer } = await import('/src/ui/player.js');
+  const { editedTime } = await import('/src/ui/playback.js');
+  const cuts = JSON.parse(q.get('cuts'));
+  const parts = [{ id: 1, path: '/source', name: 'a', duration: Number(q.get('duration')) }];
+  const preview = { key: 'k', file: q.get('file'), map: JSON.parse(q.get('map')) };
+  const first = document.getElementById('player');
+  const player = createPlayer(first, {
+    parts: () => parts, cuts: () => cuts, onTime() {}, onPart() {}, onError: (n) => console.log('error', n),
+    preview: () => (q.get('twin') ? null : preview),
+  });
+  const els = [...document.querySelectorAll('video')]; // source, twin, preview
+  const pv = els[2];
+  const onTop = () => !pv.classList.contains('opacity-0');
+  const seen = (el) => (el === pv ? onTop() : !onTop() && el === player.element);
+  const frames = []; // { k, now, media, seen }
+  const samples = []; // { now, edit }
+  els.forEach((el, k) => {
+    const cb = (now, m) => { frames.push({ k, now, media: m.mediaTime, seen: seen(el) }); el.requestVideoFrameCallback(cb); };
+    el.requestVideoFrameCallback(cb);
+  });
+  let sampling = false;
+  const sample = () => {
+    if (!sampling) return;
+    if (player.playing) samples.push({ now: performance.now(), edit: editedTime(parts, cuts, player.current, player.time) });
+    requestAnimationFrame(sample);
+  };
+  window.run = async (from, seconds) => {
+    player.show(0, from);
+    await new Promise((r) => (first.readyState >= 2 ? r() : first.addEventListener('loadeddata', r, { once: true })));
+    await new Promise((r) => setTimeout(r, 500));
+    frames.length = 0;
+    sampling = true;
+    requestAnimationFrame(sample);
+    await player.play();
+    await new Promise((r) => setTimeout(r, seconds * 1000));
+    sampling = false;
+    player.pause();
+    return { frames, samples, pv: 2 };
+  };
+  window.ready = true;
+</script>
+</body>
+</html>

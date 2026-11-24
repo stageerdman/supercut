@@ -1,6 +1,7 @@
 // Preview play: the rendered preview (preview.js: the kept spans back to back in one file) in a <video> laid over
 // the source. Playing it crosses every cut with no seek and no start, the two things that freeze WebKit's picture
-// (~0.3 s). It is seen from its first played frame (until then the source's paused frame stays) and hidden again
+// (~0.3 s). It is seen from its first frame at the spot you play from (until then the source's paused frame stays,
+// the same picture) and hidden again
 // once the source shows where it stopped. Its time is edit time; the edit map turns it into (part, time).
 // The player decides when to use it: player.js. Spec: design/timeline.md § Playback.
 import { toEdit, fromEdit } from './edit-map.js';
@@ -15,7 +16,19 @@ const HIDE_AFTER = 500; // ms: hide it by then even if the source never says it 
 export function createPreviewPlay(pv, on) {
   let shown = null; // the preview being played: { key, file, map }
   if (pv.style) Object.assign(pv.style, { inset: '0', width: '100%', height: '100%' });
-  pv.addEventListener('playing', () => { if (shown) pv.classList.remove('opacity-0'); });
+  const frames = typeof pv.requestVideoFrameCallback === 'function';
+  if (!frames) pv.addEventListener('playing', () => { if (shown) pv.classList.remove('opacity-0'); });
+
+  /** Seen from its first frame at T: an earlier one (the file's first, before the seek lands) would flash. */
+  function revealAt(p, T) {
+    if (!frames) return;
+    const check = (_, m) => {
+      if (shown !== p) return;
+      if (m.mediaTime >= T - SLACK) pv.classList.remove('opacity-0');
+      else pv.requestVideoFrameCallback(check);
+    };
+    pv.requestVideoFrameCallback(check);
+  }
 
   return {
     /** The preview being played, or null. */
@@ -26,6 +39,7 @@ export function createPreviewPlay(pv, on) {
     /** Play preview `p` from edit time `T`, as loud as the source was. */
     start(p, T, { muted, volume }) {
       shown = p;
+      pv.classList.add('opacity-0'); // played again right after a stop: not its old frame
       if (pv.dataset.path !== p.file) {
         pv.src = on.convertFileSrc(p.file);
         pv.dataset.path = p.file;
@@ -34,11 +48,12 @@ export function createPreviewPlay(pv, on) {
       const go = () => {
         if (shown !== p) return;
         pv.currentTime = T;
+        revealAt(p, T);
         pv.play()?.catch?.(() => shown === p && on.onFail());
       };
       pv.readyState >= 1 ? go() : pv.addEventListener('loadedmetadata', go, { once: true });
     },
-    seek(T) { pv.currentTime = Math.max(0, Math.min(T, pv.duration || T)); },
+    seek(T) { pv.currentTime = Math.max(0, Math.min(T, pv.duration || T)); }, // seen already: it plays on from there
     /** Where edit time `T` (the preview's own by default) is: { part, t }. */
     where: (T = pv.currentTime) => fromEdit(shown.map, T),
     /** Stop playing it; `source` is the video that shows the spot now: it is hidden once that one has sought. */

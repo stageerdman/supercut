@@ -374,7 +374,7 @@ function fakeVideo({ twin = false } = {}) {
     play() { this.paused = false; this.emit('play'); },
     pause() { this.paused = true; this.emit('pause'); },
     getAttribute: () => 'x', setAttribute() {}, removeAttribute() {}, load() {}, after(n) { this.twin = n; },
-    requestVideoFrameCallback() {},
+    requestVideoFrameCallback(f) { this.frame = f; }, // the last one asked for: frame(now, { mediaTime }) presents one
     ...(twin ? { cloneNode: () => fakeVideo() } : {}),
   };
 }
@@ -416,8 +416,10 @@ test('player: with a preview ready, playing plays the preview over every cut (no
   assert.equal(pv.src, 'preview.mp4');
   assert.equal(pv.currentTime, 1, 'part 1 at 1 s is the edit at 1 s');
   assert.ok(pv.classList.contains('opacity-0'), 'hidden until its first frame plays');
-  pv.emit('playing');
-  assert.ok(!pv.classList.contains('opacity-0'));
+  pv.frame(0, { mediaTime: 0 });
+  assert.ok(pv.classList.contains('opacity-0'), "the file's first frame, before the seek lands: it would flash");
+  pv.frame(0, { mediaTime: 1 });
+  assert.ok(!pv.classList.contains('opacity-0'), 'seen from its frame at the spot you play from');
   // the preview's clock: steady, a stall, a reading a little behind (as WebKit's does), across both cuts
   for (const T of [1.5, 1.98, 2.02, 2.02, 2.02, 1.99, 2.1, 4, 6.95, 7.01, 7.0, 7.5, 11.9]) {
     pv.currentTime = T;

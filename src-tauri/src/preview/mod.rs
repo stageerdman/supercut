@@ -227,6 +227,20 @@ mod tests {
         assert_eq!(clips, 3, "the clips were reused");
     }
 
+    /// For the WebKit measure (updates/2026-11-24 SMOOTH PLAYBACK - OPEN/measure): renders MEASURE_SRC's spans
+    /// MEASURE_SPANS ("s-e,s-e") at MEASURE_SIZE ("1920x1080") into MEASURE_OUT and writes preview.json there.
+    #[test]
+    #[ignore]
+    fn render_for_measure() {
+        let (ff, env) = (ffmpeg().expect("npm ci puts ffmpeg in node_modules"), |k: &str| std::env::var(k).expect(k));
+        let (src, out) = (PathBuf::from(env("MEASURE_SRC")), PathBuf::from(env("MEASURE_OUT")));
+        let num = |x: &str| x.parse::<f64>().expect("a number");
+        let spans: Vec<Span> = env("MEASURE_SPANS").split(',').map(|x| x.split_once('-').expect("s-e")).map(|(s, e)| Span { part: 1, path: src.clone(), s: num(s), e: num(e) }).collect();
+        let (w, h) = env("MEASURE_SIZE").split_once('x').map(|(w, h)| (w.parse().unwrap(), h.parse().unwrap())).expect("WxH");
+        let p = render(&ff, &out, &spans, (w, h), &|| true, "measure").unwrap();
+        std::fs::write(out.join("preview.json"), serde_json::to_string(&p).unwrap()).unwrap();
+    }
+
     #[test]
     fn an_older_render_stops_once_a_newer_one_begins() {
         let Some(ff) = ffmpeg() else { return };
