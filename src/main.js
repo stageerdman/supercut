@@ -111,6 +111,7 @@ const player = createPlayer($('player'), {
   onError: (name) => showBanner(`${name} can't be played here. Its transcript still works.`),
 });
 
+let approvedCuts = () => []; // the review session's Looks goods (set once it exists, below): a green ✓ on each
 const timeline = createTimeline($('timeline'), {
   parts: () => parts,
   cuts: cutsNow,
@@ -134,6 +135,7 @@ const timeline = createTimeline($('timeline'), {
   showDone: () => notes.showDone,
   onNote: (id, o) => notes.open(id, o),
   onNoteMenu: (id, at) => openNoteMenu(id, at),
+  approved: () => approvedCuts(),
 });
 
 const transcript = createTranscript($('transcript'), $('transcript-panel'), {
@@ -272,11 +274,11 @@ const pressMagic = () => rules.close().then((saved) => saved && magic.press());
 $('magic').onclick = pressMagic;
 
 // Cut review (design/cut-review.md): a mode of this screen. The window plays on the normal player; the bar docks
-// under the player, never over the video; the session decides what Y, N, ⌫, ‹ › (← → ↑ ↓), ⌘Z and ▶ Play do. Only
+// under the player, never over the video; the session decides what Y, ⌫, ‹ › (← → ↑ ↓), ⌘Z and ▶ Play do. Only
 // Stop review leaves.
 const reviewParts = () => parts.map((p) => ({ id: p.id, duration: p.duration || p.transcript?.seconds || 0 }));
 const windowPlay = createWindowPlay(player, { parts: reviewParts, cuts: cutsNow });
-const SHORT = new Set(['Noted, fix later', 'Put back', 'Last cut', 'First cut']); // verdicts and edges: 2 s
+const SHORT = new Set(['Put back', 'First cut']); // verdicts and edges: 2 s
 const session = createReviewSession({
   edit: () => history.edit,
   commit: (edit, label) => { history.push(edit, label); paintEdit(); }, // review's own steps: no review.changed()
@@ -287,11 +289,11 @@ const session = createReviewSession({
   play: windowPlay,
   say: (text) => status.flash(text, SHORT.has(text) ? 2000 : 3000),
 });
+approvedCuts = () => session.approved();
 const review = createReviewControl({
   session,
   bar: createReviewBar($('player-column'), {
     onYes: () => review.yes(),
-    onNo: () => review.no(),
     onPlay: () => review.play(),
     onPrev: () => review.prev(),
     onNext: () => review.next(),

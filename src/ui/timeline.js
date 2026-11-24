@@ -33,10 +33,11 @@ const LABEL_FONT = '11px -apple-system, BlinkMacSystemFont, system-ui, sans-seri
  *   onToggle: () => void, onRemove: (id:number) => void, onDragStart: () => void, onZoom?: (z:number) => void,
  *   onSelect?: (sel:object|null) => void, onMenu?: (at:{x:number,y:number}, where:{part:number,t:number,lane:boolean}) => void,
  *   notes?: () => Array, showDone?: () => boolean, onNote?: (id:string, o:{focus:boolean}) => void,
- *   onNoteMenu?: (id:string, at:{x:number,y:number}) => void}} o
+ *   onNoteMenu?: (id:string, at:{x:number,y:number}) => void, approved?: () => Array<{part,s,e}>}} o
  *   onMenu: right-click off a note; the selection is already what was clicked (context-menu.js). `where`: the time
  *   under the pointer, and whether it was on the notes lane.
  *   notes: all the edit's notes (each part's lane shows its own, design/notes.md); onNote: a note clicked or Return.
+ *   approved: the cuts cut review approved (each gets a green ✓).
  */
 export function createTimeline(root, o) {
   let z = 0; // zoom: 0 = fit … 1 = MAX_PPS, on a log scale (so each step feels the same)
@@ -198,6 +199,8 @@ export function createTimeline(root, o) {
   /** Repaint the cuts (in place: layout and scroll stay). Call after any change to `cuts()`. */
   function paintCuts() {
     const cuts = o.cuts(), parts = o.parts();
+    const ok = o.approved?.() ?? []; // cut review's Looks goods
+    const approved = (c) => ok.some((a) => a.part === c.part && a.s < c.e - EPS && c.s < a.e - EPS);
     const active = globalThis.document?.activeElement;
     const hadFocus = !!active && content.contains(active);
     painting = true;
@@ -205,7 +208,7 @@ export function createTimeline(root, o) {
       const f = frames[i], layer = layers[i];
       const mine = cutsOf(cuts, box.id);
       layer.replaceChildren(...mine.map((c) =>
-        cutView(c, { left: c.s * pps, width: (c.e - c.s) * pps, selected: isSelected(c), index: cuts.indexOf(c), row: STRIP.h })));
+        cutView(c, { left: c.s * pps, width: (c.e - c.s) * pps, selected: isSelected(c), index: cuts.indexOf(c), row: STRIP.h, approved: approved(c) })));
       // A part's outer edge with no cut there: drag it inward to trim.
       if (!mine.some((c) => c.s <= EPS)) layer.append(edgeHandle('s', 0, 'you', true));
       if (parts[i].duration && !mine.some((c) => c.e >= box.len - EPS)) layer.append(edgeHandle('e', box.len, 'you', true));

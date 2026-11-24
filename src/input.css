@@ -12,6 +12,7 @@
   --color-accent: #ff6a3d;
   --color-on-accent: #0e0f11;
   --color-danger: #ff5a5f;
+  --color-ok: #30d158; /* approved: a cut you said Looks good to (design/cut-review.md) */
 }
 
 /* The rail beside the words does the scrollbar's job, in time (design/transcript-panel.md). The wheel still scrolls. */
@@ -22,11 +23,10 @@
   display: none;
 }
 
-/* Increase Contrast: the review bar's hairlines and key caps at full strength (design/cut-review.md, States). */
+/* Increase Contrast: the review bar's hairlines at full strength (design/cut-review.md, States). */
 @media (prefers-contrast: more) {
   #review-bar,
-  #review-bar .border-hairline,
-  #review-bar .keycap {
+  #review-bar .border-hairline {
     border-color: var(--color-text-secondary);
   }
 }

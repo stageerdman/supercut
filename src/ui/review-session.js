@@ -1,13 +1,13 @@
-// Cut review session (design/cut-review.md): where the user is, which cuts are in the set, and what Y, N, ⌫, ↑/↓,
+// Cut review session (design/cut-review.md): where the user is, which cuts are in the set, and what Y, ⌫, ←/→,
 // ⌘Z, ▶ Play and the which-cuts choice do to the edit, the trace and the player. No DOM: the bar and the keys
 // (review-bar.js, review-control.js) call it and paint `view()`. Only `leave()` ends review.
 // Magic's verdicts go into the trace (outside undo); verdicts on your own cuts live only in this session.
 // Tested in test/review-session.test.mjs.
 import { restoreRange } from './cuts.js';
-import { addFixLater, dropFixLater } from './notes.js';
+import { dropFixLater } from './notes.js';
 import { withVerdict, withoutVerdict } from './trace.js';
 import {
-  reviewCuts, inSet, setCounts, stops, reviewWindow, stretchOf, openingStop, nextUnchecked, nearestUnchecked, step,
+  reviewCuts, inSet, setCounts, stops, reviewWindow, stretchOf, openingStop, nextUnchecked, step,
   progress, stopCount, removed,
 } from './review.js';
 
@@ -87,7 +87,6 @@ export function createReviewSession(deps) {
     stale: () => on && runId != null && run()?.id !== runId,
 
     yes() { return this.verdict('yes'); },
-    no() { return this.verdict('no'); },
     putBack() { return this.verdict('restored'); },
 
     /** A verdict on the current stop, then on to the next unchecked one (or the end line). */
@@ -100,7 +99,6 @@ export function createReviewSession(deps) {
       const before = { magic, own, kept };
       const edited = apply(kind, stop);
       last = { key, before, edited, editAfter: deps.edit() };
-      if (kind === 'no') deps.say('Noted, fix later');
       if (kind === 'restored') deps.say('Put back');
       this.next(key);
     },
@@ -110,7 +108,7 @@ export function createReviewSession(deps) {
       go(nextUnchecked(list(), verdicts(), Math.max(indexOf(key), at - 1)));
     },
 
-    /** ↓ (1) / ↑ (-1), no verdict and no wrap. ↑ on the end line: the last stop. */
+    /** → (1) / ← (-1), no verdict and no wrap. → on the last stop opens the end line; ← there: the last stop. */
     move(dir) {
       if (!on) return;
       last = null;
@@ -119,7 +117,8 @@ export function createReviewSession(deps) {
         return;
       }
       const r = step(list(), at, dir);
-      if (r.edge) deps.say(r.edge === 'last' ? 'Last cut' : 'First cut');
+      if (r.edge === 'last') return go(-1); // past the last cut: the end, so going through every cut always ends there
+      if (r.edge) deps.say('First cut');
       go(r.i);
     },
 
@@ -133,19 +132,18 @@ export function createReviewSession(deps) {
     },
 
     /**
-     * The which-cuts menu: narrow the set and go to its first unchecked stop at or after where you are (else from
-     * the start, else its end line). "Not approved yet" is taken now. False for a choice with no cuts (dimmed).
+     * The which-cuts filter: narrow the set and start at its first cut, always. "Unapproved" is taken now (a Y
+     * there doesn't shrink the list under you). The choice already on: nothing. False for a choice with no cuts (dimmed).
      */
     choose(next) {
       if (!on) return false;
-      const all = everyCut(), given = verdicts();
-      const set = inSet(all, next, given);
+      if (next === only) return true;
+      const set = inSet(everyCut(), next, verdicts());
       if (!set.length) return false;
-      const from = stopAt(at)?.joins[0] ?? 0;
       only = next;
       taken = next === 'unapproved' ? new Set(set.map((i) => i.key)) : null;
       last = null;
-      go(nearestUnchecked(list(), given, from));
+      go(0);
       return true;
     },
 
@@ -178,11 +176,14 @@ export function createReviewSession(deps) {
 
     /** Progress over every cut review would open on now (the toolbar's primary state), on or off. */
     progress() {
-      const r = run();
-      const all = everyCut();
-      const id = on ? runId : r && all.some((i) => i.by === 'magic') ? r.id : null;
-      const p = progress(all, { ...(id != null && r?.verdicts), ...own });
-      return { ...p, magic: id != null, stops: stops(all, deps.parts(), deps.edit().cuts).length };
+      const { all, id, given } = givenNow();
+      return { ...progress(all, given), magic: id != null, stops: stops(all, deps.parts(), deps.edit().cuts).length };
+    },
+
+    /** The cuts with a Looks good, on or off (the timeline's green check): [{ part, s, e }]. */
+    approved() {
+      const { all, given } = givenNow();
+      return all.filter((i) => !i.restored && given[i.key]?.says === 'yes').map(({ part, s, e }) => ({ part, s, e }));
     },
 
     /** The stops of the chosen set as they are now (the caller finds a clicked cut's stop, or rings the current one). */
@@ -197,18 +198,21 @@ export function createReviewSession(deps) {
       if (!on) return null;
       const set = items();
       const given = verdicts();
-      const base = { only, counts: setCounts(everyCut(), given), ...progress(set, given) };
+      const approved = set.filter((i) => !i.restored && given[i.key]?.says === 'yes').length;
+      const base = { only, counts: setCounts(everyCut(), given), ...progress(set, given), approved };
       const stop = stopAt(at);
       const n = list().length;
-      // ‹ › : whether there's a stop to go back / on to (the end line's ‹ goes to the last stop).
+      // ‹ › : whether there's somewhere to go back / on to (› on the last stop opens the end; the end's ‹ the last stop).
       if (!stop) return { end: true, empty: !set.length, ...base, hasPrev: n > 0, hasNext: false };
       const w = windowOf(stop);
       return {
         end: false,
         ...base,
         hasPrev: at > 0,
-        hasNext: at < n - 1,
+        hasNext: true,
         count: stopCount(stop, set.length),
+        first: stop.first,
+        last: stop.last,
         removed: `${duration(removed(stop))} cut`,
         edge: w.edge,
         reason: stop.items[0].reason,
@@ -220,28 +224,32 @@ export function createReviewSession(deps) {
     },
   };
 
-  /** Writes a verdict on every cut of the stop. Returns true when it changed the edit (a history step). */
+  /** Every cut review would open on now, and the verdicts on them (on or off). */
+  function givenNow() {
+    const r = run();
+    const all = everyCut();
+    const id = on ? runId : r && all.some((i) => i.by === 'magic') ? r.id : null;
+    return { all, id, given: { ...(id != null && r?.verdicts), ...own } };
+  }
+
+  /** Writes a verdict (yes, or restored: put back) on every cut of the stop. Returns true when it changed the edit (a history step). */
   function apply(kind, stop) {
     const says = kind === 'yes' ? 'yes' : 'no';
     const given = verdicts();
     const oldNotes = stop.items.map((i) => given[i.key]?.note).filter(Boolean);
     let edit = deps.edit(), label = '';
-    let notes = [];
     if (kind === 'yes') ({ edit, label } = dropFixLater(edit, oldNotes));
-    if (kind === 'no' && !oldNotes.length) ({ edit, notes, label } = addFixLater(edit, stop.items, deps.id ? { id: deps.id } : {}));
     if (kind === 'restored') {
       edit = { ...edit, cuts: stop.items.reduce((cuts, i) => restoreRange(cuts, i), edit.cuts) };
       label = 'Review: put back';
       kept = [...kept, ...stop.items.filter((i) => i.by === 'you').map((i) => ({ ...i, restored: true }))];
     }
-    const noteOf = (item) => notes.find((n) => n.part === item.part)?.id ?? given[item.key]?.note;
     const verdictOf = (item) => ({
       says,
       ...(kind === 'restored' && { how: 'restored' }),
       at: now(),
       after: +deps.play.after.toFixed(2),
       heard: deps.play.window?.spans ?? [],
-      ...(says === 'no' && noteOf(item) && { note: noteOf(item) }),
     });
     record(stop, verdictOf);
     if (edit === deps.edit()) return false;

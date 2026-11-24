@@ -23,7 +23,6 @@ export function reviewKey(e) {
   if (k === 'Backspace' || k === 'Delete') return 'putBack';
   switch (k.toLowerCase()) {
     case 'y': return 'yes';
-    case 'n': case 'm': return 'no';
     case 'r': return 'replay';
     default: return null;
   }
@@ -42,13 +41,13 @@ export function reviewButton(p, { on = false, busy = false, end = false } = {}) 
 }
 
 // The actions that bring a new stop: the timeline frames it.
-const NEW_STOP = new Set(['yes', 'no', 'putBack', 'down', 'up']);
+const NEW_STOP = new Set(['yes', 'putBack', 'down', 'up']);
 
 /**
  * @param {{ session: ReturnType<import('./review-session.js').createReviewSession>,
  *   bar: {paint:(v:object|null)=>void},
  *   timeline: {select:(s:object|null)=>void, reveal:(i:number,t:number)=>void, selection:object|null,
- *     frame?:(r:object)=>void, inView?:(r:object)=>boolean},
+ *     frame?:(r:object)=>void, inView?:(r:object)=>boolean, paintCuts?:()=>void},
  *   transcript: {reveal:(part:number,s:number)=>void},
  *   cuts: () => Array, parts: () => Array<{id:number}>,
  *   closeCard: () => void, undo: () => void,
@@ -74,7 +73,7 @@ export function createReviewControl(o) {
   function follow(framing) {
     shownAt = s.at;
     const stop = s.stops()[s.at];
-    if (!stop) return;
+    if (!stop) return o.timeline.paintCuts?.(); // the end: no cut to ring, but the last ✓ still shows
     const order = o.parts().map((p) => p.id);
     const item = stop.items.find((i) => !i.restored) ?? stop.items[0];
     const cut = o.cuts().find((c) => c.part === item.part && Math.abs(c.s - item.s) < EPS && Math.abs(c.e - item.e) < EPS);
@@ -92,7 +91,6 @@ export function createReviewControl(o) {
 
   const actions = {
     yes: () => s.yes(),
-    no: () => s.no(),
     putBack: () => s.putBack(),
     replay: () => { s.replay(); replayed(); },
     toggle: () => { if (s.toggle()) replayed(); },
@@ -133,12 +131,11 @@ export function createReviewControl(o) {
 
     /** The bar's buttons. */
     yes: () => { actions.yes(); paint(true); },
-    no: () => { actions.no(); paint(true); },
     play: () => { actions.replay(); paint(); },
     /** The bar's ‹ ›: the previous / next stop, framed. */
     prev: () => { actions.up(); paint(true); },
     next: () => { actions.down(); paint(true); },
-    /** The which-cuts menu: the set changes, its next unchecked stop frames and plays. */
+    /** The which-cuts filter: the set changes, its first cut frames and plays. */
     choose(only) {
       if (s.choose(only)) paint(true);
     },
