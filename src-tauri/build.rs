@@ -7,6 +7,9 @@ fn main() {
     // frontend (the shared Cargo target is written by every checkout; see CLAUDE.md).
     // Same algorithm as frontendId() in scripts/build-id.js.
     println!("cargo:rustc-env=MAGIC_CUT_FRONTEND_ID={}", frontend_id(Path::new("../src")));
+    // tauri_build prints its own rerun-if-changed lines, which turn off Cargo's default scan, and ../src is outside
+    // the crate anyway: without this a frontend-only change keeps the old stamp (and the old embedded files).
+    println!("cargo:rerun-if-changed=../src");
     tauri_build::build()
 }
 
