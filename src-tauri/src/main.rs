@@ -6,6 +6,7 @@ mod atomic;
 mod audio;
 mod autocut;
 mod claude;
+mod confirm;
 mod error;
 mod ids;
 mod keep_awake;
@@ -274,6 +275,21 @@ fn delete_project(session: State<Shared>, library: State<Library>, id: String) -
     library.delete(&id, s.open_id())
 }
 
+/// Home's "Delete “name”?" alert, Cancel the default (confirm.rs). True only when Delete was pressed.
+/// Async, so the wait runs off the main thread the alert needs.
+#[tauri::command]
+async fn confirm_delete(app: tauri::AppHandle, title: String, message: String) -> bool {
+    use tauri_plugin_dialog::DialogExt;
+    let answer = app
+        .dialog()
+        .message(message)
+        .title(title)
+        .kind(confirm::KIND)
+        .buttons(confirm::buttons())
+        .blocking_show_with_result();
+    confirm::deletes(&answer)
+}
+
 /// Once at start, before the first list: projects unused for 30 days (and not locked) go. How many went.
 #[tauri::command]
 fn sweep_projects(session: State<Shared>, library: State<Library>) -> u32 {
@@ -332,7 +348,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip,
             add_video, remove_part, swap_audio, use_camera_audio, transcribe_part, waveform, preview,
-            list_projects, new_project, open_project, save_project, close_project, set_locked, delete_project, sweep_projects
+            list_projects, new_project, open_project, save_project, close_project, set_locked, delete_project, confirm_delete, sweep_projects
         ])
         .run(tauri::generate_context!())
         .expect("error while running Magic Cut");

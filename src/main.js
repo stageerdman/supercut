@@ -42,7 +42,7 @@ const { invoke, convertFileSrc } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 const { getCurrentWebview } = window.__TAURI__.webview;
 const { getCurrentWindow } = window.__TAURI__.window;
-const { open, ask } = window.__TAURI__.dialog;
+const { open } = window.__TAURI__.dialog;
 
 const MAX_PARTS = 2;
 
@@ -415,7 +415,8 @@ const home = createHomeView({ strip: $('home-strip'), heading: $('home-heading')
   open: (id) => openProject(id),
   setLocked: (id, locked) => invoke('set_locked', { id, locked }),
   remove: (id) => invoke('delete_project', { id }),
-  confirm: ({ title, message }) => ask(message, { title, kind: 'warning', okLabel: 'Delete', cancelLabel: 'Cancel' }),
+  // Cancel is the alert's default, so Return and Esc keep the project (src-tauri/src/confirm.rs).
+  confirm: ({ title, message }) => invoke('confirm_delete', { title, message }).catch(() => false),
   popup,
   failed: showBanner,
   changed: () => render(),

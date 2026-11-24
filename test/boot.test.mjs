@@ -66,6 +66,16 @@ test('launch reaches Home: close, sweep, list, then the cards, with nothing thro
   assert.ok(!calls.includes('save_project'), 'nothing open, nothing saved');
 });
 
+test('⌫ on a card asks Rust’s confirm (Cancel the default); answered with Return or Esc, the project stays', async () => {
+  answers.confirm_delete = false; // what Rust answers for Return, Esc or Cancel (src-tauri/src/confirm.rs)
+  const button = byId['home-grid'].querySelector('button');
+  button.onkeydown({ key: 'Backspace', preventDefault() {}, stopPropagation() {} });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(calls.includes('confirm_delete'), `calls: ${calls.join(', ')}`);
+  assert.ok(!calls.includes('delete_project'));
+  assert.equal(byId['home-grid'].children.length, 1, 'the card stays');
+});
+
 test('a click on the card opens it: the editor and ‹ show, and the new project saves itself a second later', async () => {
   answers.open_project = { summary, parts: [{ id: 'a', path: '/v/take.mov', name: 'take.mov', swap: null }], ui: null, existing: false };
   console.error = (...a) => errors.push(a);

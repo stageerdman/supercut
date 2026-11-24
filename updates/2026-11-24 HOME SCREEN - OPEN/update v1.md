@@ -79,8 +79,10 @@ Owners per the orchestrator. Phases 1–3 are backend (contract: `design/project
   Decisions made while building:
   - **Going Home reloads the page** after saving and closing the project in Rust. Every editor state starts fresh,
     so nothing from one project can leak into the next. It costs a short blink.
-  - **The delete alert's default button is Delete**: the native `ask` can't make Cancel the default. The alert still
-    names the project and says the videos stay.
+  - **The delete alert keeps Cancel the default** (review round 1): the web `ask` can't, so the alert comes from
+    Rust (`confirm_delete`, `src-tauri/src/confirm.rs`): Cancel is the first button, so Return and Esc keep the
+    project, and only the answer "Delete" deletes. Tests: `confirm.rs` (button order, only Delete deletes) and
+    `test/boot.test.mjs` (⌫, answered with Return, keeps the card).
   - **Not built: Locate… for a moved video.** Rust has no relink command yet; a card whose video is gone still opens
     and the editor shows the missing file the usual way. In issues.txt.
 - [ ] Phase 5 Look and install

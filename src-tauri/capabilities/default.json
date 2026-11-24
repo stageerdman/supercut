@@ -1,14 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The main window: core events (drag and drop), the Choose Video… file picker, Home's delete confirm, our own commands, and closing the window after the last learning log is written.",
+  "description": "The main window: core events (drag and drop), the Choose Video… file picker, our own commands (Home's delete confirm is one), and closing the window after the last learning log is written.",
   "windows": [
     "main"
   ],
   "permissions": [
     "core:default",
     "dialog:allow-open",
-    "dialog:allow-ask",
     "core:window:allow-destroy"
   ]
 }
