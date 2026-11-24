@@ -3921,6 +3921,7 @@ name = "supercut"
 version = "0.1.0"
 dependencies = [
  "parakeet-rs",
+ "rustfft",
  "serde",
  "serde_json",
  "tauri",

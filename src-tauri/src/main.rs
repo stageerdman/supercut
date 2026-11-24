@@ -20,6 +20,7 @@ mod pieces;
 mod preview;
 mod rules;
 mod speech;
+mod swap;
 mod transcribe;
 mod vad;
 mod waveform;
