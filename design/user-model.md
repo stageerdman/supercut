@@ -94,6 +94,15 @@ What they asked for after trying it (the "why" after each is my reading, a guess
 - **Arrows to the previous / next cut**, also on ← →. (Guess: they browse cuts back and forth, not only in order.)
   Spec v3: `design/cut-review.md`, "The bar".
 
+### Observed: the third try (2026-11-24)
+- **"Too busy, some buttons confusing."** Words, key caps, the reason line and three verdicts were too much to read
+  mid-rhythm. Lesson: in a fast loop, glyphs the user already knows (‹ ▶ ✓ ›) beat labels; names go in tooltips.
+- **Fix later was confusing.** A cut is approved or skipped; fixing happens now (⌫, a drag), not as a deferred note.
+  (Guess: the user never used the red notes review made.) Check: count red notes with `about` made in review.
+- **Switching the filter should start at the first cut.** "Nearest unchecked at or after now" surprised them.
+- **They want to see what's approved**, in the bar and on the timeline, and a clear **"all done"** when finished.
+  (Guess: without it they couldn't tell whether they had gone through everything.) Spec v4: `design/cut-review.md`.
+
 ## Editing by hand (2026-11-22, reasoned)
 - Two views, one thing: cuts show in the transcript (struck) and on the timeline (hatched) at the same place, grey for
   yours, coral for Magic's. Specs: `design/edit-model.md`, `design/timeline.md`, `design/transcript-editing.md`.

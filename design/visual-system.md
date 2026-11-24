@@ -39,7 +39,10 @@ Transcript text uses `body` at 15 / regular with 1.5 line height (reading, not s
 | `noteTeal` | #3CC8B4 |
 Each is ≥ 3 : 1 on `bg`. Text on them uses `onAccent`.
 
-`doneGreen` #34C759 (≈ 8.6 : 1 on `bg`): only the note card's round Done button, with an `onAccent` check.
+`ok` #34C759 (≈ 8.6 : 1 on `bg`; CSS `--color-ok`, Tailwind `bg-ok`; was `doneGreen`): the app's one green, meaning
+"done / approved", always with a check glyph (never colour alone). Only: the note card's round Done button, and cut
+review's approved mark (the ✓ button once approved, the 14 pt check badge in the bar and on the timeline's cut, its
+1.5 pt outline). Glyph on it: `onAccent`.
 
 Rules: accent appears in at most three places at once. User cuts are neutral (`textSecondary` hatch at 35 %); AI cuts are accent hatch at 45 %. No gradients, no shadows except the system window shadow.
 

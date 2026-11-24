@@ -22,13 +22,14 @@ The user: Cut Review is too busy and some buttons are confusing. They asked for:
   the timeline) and in the screen-reader announcement.
 - **N / M do nothing in review now.** No key for a verdict that no longer exists. Old "No"s in the trace stay
   harmless (that cut just reads as not approved).
-- **Approved = green.** A new token `ok` (#30d158, Apple's dark-mode green). On the timeline an approved cut gets a
-  14 pt green check badge in its top-right corner and a green outline. In the bar the ✓ button turns solid green
-  and the counter gets a small green ✓ before it. Colour is never alone: the check glyph and the name "Approved".
+- **Approved = green.** The token `ok` (#34C759, the note card's Done green: the app keeps one green). On the
+  timeline an approved cut gets a 14 pt green check badge in its top-right corner and a green outline. In the bar the
+  ✓ button turns solid green and the counter gets a small green ✓ before it. Colour is never alone: the check glyph
+  and the word "approved".
 - **Filter switch → first cut** of the new list, every time (not "nearest unchecked"). Picking the segment already
   on does nothing. Unapproved is taken once when picked (approving there doesn't shrink the list under you).
 - **› past the last cut opens the end.** Going through every cut, by ✓ or by ›, always lands on the end state.
-- **The end state:** a green check circle, **All done**, and "Every cut is approved" — or, when some were skipped,
+- **The end state:** a green check circle, **All done**, and "All 10 cuts approved" — or, when some were skipped,
   **End of cuts** and "8 of 10 approved" (the Unapproved segment is right there to go on). Stop review becomes the
   primary, as before.
 
@@ -54,3 +55,7 @@ The user: Cut Review is too busy and some buttons are confusing. They asked for:
 
 ## Status
 - Phase 0 (this plan): done.
+- Phase 1 (session, keys): done. `approved()` (not `approvedRanges()`); `nearestUnchecked` deleted, unused.
+- Phase 2 (the bar): done.
+- Phase 3 (timeline mark): done; tested in `test/cut-blocks.test.mjs`.
+- Phase 4: tests, build, install, push: see below.

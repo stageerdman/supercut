@@ -12,7 +12,7 @@
   --color-accent: #ff6a3d;
   --color-on-accent: #0e0f11;
   --color-danger: #ff5a5f;
-  --color-ok: #30d158; /* approved: a cut you said Looks good to (design/cut-review.md) */
+  --color-ok: #34c759; /* approved / done: the app's one green (cut review's Looks good, the note card's Done) */
 }
 
 /* The rail beside the words does the scrollbar's job, in time (design/transcript-panel.md). The wheel still scrolls. */
