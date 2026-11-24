@@ -58,4 +58,4 @@ The user: Cut Review is too busy and some buttons are confusing. They asked for:
 - Phase 1 (session, keys): done. `approved()` (not `approvedRanges()`); `nearestUnchecked` deleted, unused.
 - Phase 2 (the bar): done.
 - Phase 3 (timeline mark): done; tested in `test/cut-blocks.test.mjs`.
-- Phase 4: tests, build, install, push: see below.
+- Phase 4: done. `npm test` green (360 UI + Rust); built and installed to /Applications/Magic Cut.app; pushed.
