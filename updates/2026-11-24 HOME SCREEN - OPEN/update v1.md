@@ -86,3 +86,9 @@ Owners per the orchestrator. Phases 1–3 are backend (contract: `design/project
   - **Not built: Locate… for a moved video.** Rust has no relink command yet; a card whose video is gone still opens
     and the editor shows the missing file the usual way. In issues.txt.
 - [ ] Phase 5 Look and install
+  - **Start fixed (Uncle Bob, 2026-11-24).** Why the user saw no Home: Start runs `npm run app` in the main checkout,
+    which had no `node_modules`, so it died at `prepare-bins` before building; and `/Applications/Magic Cut.app`
+    (what Spotlight and the Dock open) still embedded an old frontend (`87405b…`). Now `npm run app` runs `npm ci`
+    when deps are missing or older than the lock (`scripts/deps.js`, `test/deps.test.mjs`), then `install-app`
+    (build, build-id check, install, open before the Spotlight wait). Ran it at `9ffaecc`: installed and running
+    app embeds frontend `42f5847abc23c30b`, the same as main's `src/`.

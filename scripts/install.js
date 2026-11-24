@@ -99,11 +99,12 @@ function main() {
   log(`installed ${dest} (commit ${read('git', ['rev-parse', '--short', 'HEAD'])}, frontend ${expected})`);
 
   indexForSpotlight(dest, built);
-  if (!waitForSpotlight(dest)) throw new Error(`Spotlight does not list ${dest} yet`);
-  log(`Spotlight finds ${dest}`);
-
+  // Open first: a slow Spotlight must not keep Start from launching the new app.
   run('open', [dest]);
   log(`opened ${dest}`);
+
+  if (!waitForSpotlight(dest)) throw new Error(`Spotlight does not list ${dest} yet`);
+  log(`Spotlight finds ${dest}`);
 }
 
 try {
