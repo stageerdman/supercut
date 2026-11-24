@@ -1,7 +1,8 @@
 //! Better audio: a part's sound replaced by another recording of the same take (a better mic), lined up by
 //! itself, or placed where the caller says (a voice-over, a manual nudge, an undo putting a swap back).
 //! The result is one remux of the video with the new sound under its untouched picture, so playback, the preview,
-//! Magic Trace clips and transcription all just read `Part::media()`. Remuxes live in the cache, cleared at start.
+//! Magic Trace clips and transcription all just read `Part::media()`. Remuxes live in the open project's `audio/`
+//! folder (store/), so a swap survives a restart; with no project saved, in the cache, cleared at start.
 
 pub mod plan;
 pub mod sync;
@@ -10,12 +11,12 @@ use crate::audio;
 use crate::error::AppError;
 use crate::log;
 use plan::Probe;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 /// A part's new sound.
-#[derive(Serialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Swap {
     /// The file the sound came from.
     pub recording: PathBuf,

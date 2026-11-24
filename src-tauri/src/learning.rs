@@ -10,10 +10,9 @@ pub fn dir() -> PathBuf {
     Path::new(&home).join("Library/Application Support/xyz.supercut.editor/learning")
 }
 
-/// A file name stem that can't leave the folder: letters, digits, `-` and `_`, at most 64 of them.
+/// A file name stem that can't leave the folder (ids.rs).
 pub fn plain_id(id: &str) -> Result<&str, AppError> {
-    let plain = !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
-    if plain { Ok(id) } else { Err(AppError::Learning(format!("not a run id: {id:?}"))) }
+    if crate::ids::is_plain(id) { Ok(id) } else { Err(AppError::Learning(format!("not a run id: {id:?}"))) }
 }
 
 /// Writes `<dir>/<id>.json`, replacing a log of the same run.

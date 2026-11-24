@@ -4,12 +4,12 @@
 use crate::error::AppError;
 use crate::media;
 use crate::swap::Swap;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 pub const MAX_PARTS: usize = 2;
 
-#[derive(Serialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Part {
     /// Stable for the life of the project, never reused: a late transcript can't land on the wrong part.
     pub id: u32,
@@ -34,9 +34,19 @@ pub struct Project {
 }
 
 impl Project {
-    #[cfg(test)]
+    /// A saved project back as it was. Ids keep counting past every saved part even if `next_id` was lost.
+    pub fn restore(parts: Vec<Part>, next_id: u32) -> Self {
+        let next_id = parts.iter().map(|p| p.id).fold(next_id, u32::max);
+        Self { parts, next_id }
+    }
+
     pub fn parts(&self) -> &[Part] {
         &self.parts
+    }
+
+    /// The last id given out (saved as `nextPartId`).
+    pub fn next_id(&self) -> u32 {
+        self.next_id
     }
 
     pub fn add(&mut self, path: &Path) -> Result<Part, AppError> {
@@ -93,6 +103,15 @@ mod tests {
         let c = p.add(Path::new("c.mp4")).unwrap();
         assert_eq!(c.id, 3, "ids are never reused");
         assert_eq!(p.parts().iter().map(|x| x.name.as_str()).collect::<Vec<_>>(), ["b.mp4", "c.mp4"]);
+    }
+
+    #[test]
+    fn a_restored_project_never_reuses_an_id() {
+        let part = |id| Part { id, path: "/v/a.mov".into(), name: "a.mov".into(), swap: None };
+        let mut p = Project::restore(vec![part(2)], 5);
+        assert_eq!(p.add(Path::new("b.mov")).unwrap().id, 6, "counts on from the saved next id");
+        let mut lost = Project::restore(vec![part(4)], 0);
+        assert_eq!(lost.add(Path::new("b.mov")).unwrap().id, 5, "an old file without nextPartId counts past its parts");
     }
 
     #[test]

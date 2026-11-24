@@ -35,6 +35,16 @@ pub enum AppError {
     /// The recording's sound matches no stretch of the video's: it's not a recording of this take.
     NoMatch { name: String },
     Swap(String),
+    /// The project's folder is gone (deleted, swept) or the id names none.
+    NoSuchProject,
+    /// Deleting the project that is open.
+    ProjectOpen,
+    /// A project command for a project that isn't the open one.
+    NotOpen,
+    /// Reading or writing the project library.
+    Store(String),
+    /// Making a project's card picture (logged, never shown).
+    Thumb(String),
 }
 
 impl fmt::Display for AppError {
@@ -68,6 +78,11 @@ impl fmt::Display for AppError {
             Self::SoundUnreadable { file, why } => write!(f, "This audio file can't be read. ({file}: {why})"),
             Self::NoMatch { name } => write!(f, "{name} doesn't match this video's sound. Nothing changed."),
             Self::Swap(why) => write!(f, "Couldn't use the new sound. ({why})"),
+            Self::NoSuchProject => write!(f, "This project isn't here any more."),
+            Self::ProjectOpen => write!(f, "This project is open. Close it first."),
+            Self::NotOpen => write!(f, "This project isn't open any more. Open it again from Home."),
+            Self::Store(why) => write!(f, "Couldn't save or read your projects. ({why})"),
+            Self::Thumb(why) => write!(f, "Couldn't make the project's picture. ({why})"),
         }
     }
 }

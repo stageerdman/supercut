@@ -74,6 +74,12 @@ type Opened = {
 }
 ```
 
+**As built** (Uncle Bob): `src-tauri/src/store/`. Names as above. Errors: `NoSuchProject` ("This project isn't here
+any more."), `ProjectOpen` ("This project is open. Close it first."), `NotOpen` (a save, or a swap that lands, for a
+project that isn't the open one). `save_project` takes `cover: { part, t } | null` and `ui` (any JSON). With no
+project open, the part commands work on an unsaved scratch project as before. `close_project` stops previews; a
+transcription still running finishes and its result is ignored by the UI.
+
 ## Notes for the build
 - **The open project** replaces today's single in-memory `Project` in `Shared`: `add_video`, `remove_part`,
   `swap_audio`, `use_camera_audio` keep working on it unchanged. There is never more than one open.

@@ -7,6 +7,7 @@ mod audio;
 mod autocut;
 mod claude;
 mod error;
+mod ids;
 mod keep_awake;
 mod learning;
 mod learning_clip;
@@ -20,6 +21,7 @@ mod pieces;
 mod preview;
 mod rules;
 mod speech;
+mod store;
 mod swap;
 #[cfg(test)]
 mod testkit;
@@ -29,13 +31,18 @@ mod waveform;
 mod words;
 
 use error::AppError;
-use project::{Part, Project};
+use project::Part;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use store::doc::{Cover, Opened, Summary};
+use store::rules::now_ms;
+use store::session::{Edit, Session};
+use store::{thumb, Library};
 use tauri::{Emitter, State};
 
-type Shared = Mutex<Project>;
+/// The open project (store/session.rs): what every part command works on.
+type Shared = Mutex<Session>;
 
 /// What the status line shows while a part is being worked on.
 #[derive(Serialize, Clone)]
@@ -104,9 +111,9 @@ struct PartSpan {
 /// Magic Trace: the window heard before a review "No", saved beside the learning log. Paths come from the
 /// open project, never from the web side, so a clip can only be cut from the user's own parts.
 #[tauri::command]
-async fn save_learning_clip(project: State<'_, Shared>, id: String, spans: Vec<PartSpan>) -> Result<(), AppError> {
+async fn save_learning_clip(session: State<'_, Shared>, id: String, spans: Vec<PartSpan>) -> Result<(), AppError> {
     let spans = {
-        let p = project.lock().unwrap();
+        let p = &session.lock().unwrap().project;
         spans.iter().map(|x| Ok(learning_clip::Span { path: p.get(x.part)?.media().to_path_buf(), s: x.s, e: x.e })).collect::<Result<Vec<_>, AppError>>()?
     };
     let file = tauri::async_runtime::spawn_blocking(move || learning_clip::save(&audio::bundled_ffmpeg(), &learning::dir(), &id, &spans))
@@ -119,9 +126,9 @@ async fn save_learning_clip(project: State<'_, Shared>, id: String, spans: Vec<P
 /// The edit's preview (preview/mod.rs): the kept spans, in play order, rendered into one file that plays over every
 /// cut without a seek. A newer call makes an older one stop early (`PreviewStale`: expected, so not logged).
 #[tauri::command]
-async fn preview(project: State<'_, Shared>, spans: Vec<PartSpan>, width: u32, height: u32) -> Result<preview::Preview, AppError> {
+async fn preview(session: State<'_, Shared>, spans: Vec<PartSpan>, width: u32, height: u32) -> Result<preview::Preview, AppError> {
     let spans = {
-        let p = project.lock().unwrap();
+        let p = &session.lock().unwrap().project;
         spans.iter().map(|x| Ok(preview::Span { part: x.part, path: p.get(x.part)?.media().to_path_buf(), s: x.s, e: x.e })).collect::<Result<Vec<_>, AppError>>()?
     };
     let t = preview::ticket();
@@ -138,48 +145,56 @@ async fn preview(project: State<'_, Shared>, spans: Vec<PartSpan>, width: u32, h
 }
 
 #[tauri::command]
-fn add_video(project: State<Shared>, path: PathBuf) -> Result<Part, AppError> {
+fn add_video(session: State<Shared>, path: PathBuf) -> Result<Part, AppError> {
     media::require_file(&path)?;
-    let part = project.lock().unwrap().add(&path)?;
+    let part = session.lock().unwrap().project.add(&path)?;
     log::info("project", &format!("part-{}", part.id), format!("added {}", part.path.display()));
     Ok(part)
 }
 
 #[tauri::command]
-fn remove_part(project: State<Shared>, id: u32) -> Result<(), AppError> {
-    project.lock().unwrap().remove(id)
+fn remove_part(session: State<Shared>, id: u32) -> Result<(), AppError> {
+    session.lock().unwrap().project.remove(id)
 }
 
 /// Better audio: `recording` becomes part `id`'s sound, lined up with the video's own sound, or at `offset` s when
 /// given (a voice-over, a nudge, an undo putting a swap back). Returns the part, now playing `swap.media`. Its
 /// waveform and transcript are then stale: ask for them again.
 #[tauri::command]
-async fn swap_audio(project: State<'_, Shared>, id: u32, recording: PathBuf, offset: Option<f64>) -> Result<Part, AppError> {
+async fn swap_audio(session: State<'_, Shared>, library: State<'_, Library>, id: u32, recording: PathBuf, offset: Option<f64>) -> Result<Part, AppError> {
     media::require_sound(&recording)?;
     media::require_file(&recording)?;
-    let video = project.lock().unwrap().get(id)?.path.clone();
+    let (video, dir, open) = {
+        let s = session.lock().unwrap();
+        (s.project.get(id)?.path.clone(), s.audio_dir(&library, swap::dir())?, s.open_id().map(String::from))
+    };
     let trace = format!("part-{id}");
     let made = tauri::async_runtime::spawn_blocking(move || {
-        let made = swap::make(&audio::bundled_ffmpeg(), &swap::dir(), &video, &recording, offset, &trace);
+        let made = swap::make(&audio::bundled_ffmpeg(), &dir, &video, &recording, offset, &trace);
         if let Err(e) = &made {
             log::error("swap", &trace, e.to_string());
         }
         made
     });
     let swap = made.await.map_err(|e| AppError::Swap(e.to_string()))??;
-    project.lock().unwrap().set_swap(id, Some(swap))
+    let mut s = session.lock().unwrap();
+    // Lining up takes seconds: the user may have gone Home meanwhile, and part ids repeat across projects.
+    if s.open_id() != open.as_deref() {
+        return Err(AppError::NotOpen);
+    }
+    s.project.set_swap(id, Some(swap))
 }
 
 /// "Use camera audio": part `id` plays its video's own sound again (the remux stays cached for ⌘Z).
 #[tauri::command]
-fn use_camera_audio(project: State<Shared>, id: u32) -> Result<Part, AppError> {
-    project.lock().unwrap().set_swap(id, None)
+fn use_camera_audio(session: State<Shared>, id: u32) -> Result<Part, AppError> {
+    session.lock().unwrap().project.set_swap(id, None)
 }
 
 /// The timeline's waveform for one part, from what it plays (its new sound once swapped).
 #[tauri::command]
-async fn waveform(project: State<'_, Shared>, id: u32) -> Result<waveform::Waveform, AppError> {
-    let path = project.lock().unwrap().get(id)?.media().to_path_buf();
+async fn waveform(session: State<'_, Shared>, id: u32) -> Result<waveform::Waveform, AppError> {
+    let path = session.lock().unwrap().project.get(id)?.media().to_path_buf();
     tauri::async_runtime::spawn_blocking(move || waveform::of_file(&audio::bundled_ffmpeg(), &path))
         .await
         .map_err(|e| AppError::Unreadable { file: String::new(), why: e.to_string() })?
@@ -188,8 +203,8 @@ async fn waveform(project: State<'_, Shared>, id: u32) -> Result<waveform::Wavef
 /// Only when asked (nothing transcribes on load). Reads what the part plays now, so asking again after a swap
 /// regenerates the words from the new sound. Downloads the model first if needed. Emits `progress` (see `Progress`).
 #[tauri::command]
-async fn transcribe_part(app: tauri::AppHandle, project: State<'_, Shared>, id: u32) -> Result<transcribe::Transcript, AppError> {
-    let path = project.lock().unwrap().get(id)?.media().to_path_buf();
+async fn transcribe_part(app: tauri::AppHandle, session: State<'_, Shared>, id: u32) -> Result<transcribe::Transcript, AppError> {
+    let path = session.lock().unwrap().project.get(id)?.media().to_path_buf();
     tauri::async_runtime::spawn_blocking(move || {
         let emit = |stage, done, total| {
             let _ = app.emit("progress", Progress { part: id, stage, done, total });
@@ -205,6 +220,65 @@ async fn transcribe_part(app: tauri::AppHandle, project: State<'_, Shared>, id: 
     })
     .await
     .map_err(|e| AppError::Recognize(e.to_string()))?
+}
+
+/// Home's cards: every saved project, newest use first.
+#[tauri::command]
+fn list_projects(library: State<Library>) -> Vec<Summary> {
+    library.list()
+}
+
+/// A project for these videos (or the one already made from the first), now the open one.
+#[tauri::command]
+fn new_project(session: State<Shared>, library: State<Library>, paths: Vec<PathBuf>) -> Result<Opened, AppError> {
+    session.lock().unwrap().new_project(&library, &paths, now_ms())
+}
+
+#[tauri::command]
+fn open_project(session: State<Shared>, library: State<Library>, id: String) -> Result<Opened, AppError> {
+    session.lock().unwrap().open(&library, &id, now_ms())
+}
+
+/// The open project, written whole. A thumbnail that needs remaking is made in the background; a failure there is
+/// only logged (the card shows its plain tile).
+#[tauri::command]
+fn save_project(session: State<Shared>, library: State<Library>, id: String, name: String, length: f64, cover: Option<Cover>, ui: serde_json::Value) -> Result<(), AppError> {
+    let job = session.lock().unwrap().save(&library, &id, Edit { name, length, cover, ui }, now_ms())?;
+    if let Some(job) = job {
+        tauri::async_runtime::spawn_blocking(move || {
+            if let Err(e) = thumb::make(&audio::bundled_ffmpeg(), &job) {
+                log::error("thumb", &id, e.to_string());
+            }
+        });
+    }
+    Ok(())
+}
+
+/// Going Home: the UI has saved. Previews still rendering stop; a transcription still running finishes unheard.
+#[tauri::command]
+fn close_project(session: State<Shared>) {
+    preview::ticket();
+    session.lock().unwrap().close();
+}
+
+// Library changes take the session lock too, so two writes of one project.json never interleave.
+#[tauri::command]
+fn set_locked(session: State<Shared>, library: State<Library>, id: String, locked: bool) -> Result<Summary, AppError> {
+    let _one_at_a_time = session.lock().unwrap();
+    library.set_locked(&id, locked)
+}
+
+#[tauri::command]
+fn delete_project(session: State<Shared>, library: State<Library>, id: String) -> Result<(), AppError> {
+    let s = session.lock().unwrap();
+    library.delete(&id, s.open_id())
+}
+
+/// Once at start, before the first list: projects unused for 30 days (and not locked) go. How many went.
+#[tauri::command]
+fn sweep_projects(session: State<Shared>, library: State<Library>) -> u32 {
+    let s = session.lock().unwrap();
+    library.sweep(now_ms(), s.open_id())
 }
 
 /// Prints the result as JSON, or the plain error and exit code 1.
@@ -254,7 +328,12 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Shared::default())
-        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip, add_video, remove_part, swap_audio, use_camera_audio, transcribe_part, waveform, preview])
+        .manage(Library::at_home())
+        .invoke_handler(tauri::generate_handler![
+            claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip,
+            add_video, remove_part, swap_audio, use_camera_audio, transcribe_part, waveform, preview,
+            list_projects, new_project, open_project, save_project, close_project, set_locked, delete_project, sweep_projects
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Magic Cut");
 }

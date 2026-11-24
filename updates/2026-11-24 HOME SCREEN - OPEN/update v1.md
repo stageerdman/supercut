@@ -60,8 +60,13 @@ Owners per the orchestrator. Phases 1–3 are backend (contract: `design/project
 
 ## Status
 - [x] Design and roadmap (this file; specs above)
-- [ ] Phase 1 Store
+- [x] Phase 1 Store (Uncle Bob, 2026-11-24): `src-tauri/src/store/` — `rules.rs` (pure: `deletes_at`, `expired`,
+  `same_video`, `new_id`), `doc.rs` (project.json v1, `Summary`, `Opened`), `mod.rs` (`Library`: read/write, list,
+  lock, delete, sweep), `session.rs` (the one open project: new/open/save/close), `thumb.rs`. Commands in `main.rs`:
+  `list_projects`, `new_project`, `open_project`, `save_project`, `close_project`, `set_locked`, `delete_project`,
+  `sweep_projects`. Swaps of an open project write into its `audio/`. 26 tests, all listed in the phase above.
 - [ ] Phase 2 Autosave and reopen
-- [ ] Phase 3 Thumbnails
+- [x] Phase 3 Thumbnails (backend, with phase 1): `save_project` makes `thumb.jpg` in the background when the cover
+  moved or there is none; failures are logged only. Tested on a real fixture (480×270 JPEG; past the end → no file).
 - [ ] Phase 4 Home screen
 - [ ] Phase 5 Look and install
