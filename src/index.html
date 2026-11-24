@@ -9,6 +9,11 @@
     <div class="relative flex h-full flex-col">
       <!-- Toolbar -->
       <header class="flex h-[52px] shrink-0 items-center border-b border-hairline px-4">
+        <!-- Back to Home: saves first (design/home-screen.md, "The way back"). Hidden on Home -->
+        <button id="home-button" aria-label="All projects" title="All projects"
+                class="-ml-1.5 mr-1 hidden size-7 shrink-0 items-center justify-center rounded-md text-text-secondary hover:text-text focus-visible:outline-2 focus-visible:outline-accent">
+          <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+        </button>
         <h1 id="title" class="min-w-0 flex-1 truncate font-semibold"></h1>
         <!-- Status: what the app is doing, labeled, with its own bar. Gone when there's nothing to say (src/ui/status.js) -->
         <div id="work" class="mr-4 hidden min-w-0 shrink items-center gap-3">
@@ -65,8 +70,24 @@
         <button id="banner-close" aria-label="Dismiss" class="rounded-md px-2 py-1 text-text-secondary hover:bg-surface">✕</button>
       </div>
 
+      <!-- Home: past projects, newest first (src/ui/home-view.js, design/home-screen.md). With none, #empty shows instead -->
+      <main id="home" class="hidden min-h-0 flex-1 overflow-y-auto">
+        <div class="mx-auto max-w-[1200px] px-8 pt-6 pb-8">
+          <section id="home-strip" data-choose aria-label="Drop a video, or choose one, to start a new project"
+                   class="flex h-[88px] cursor-pointer items-center justify-between gap-4 rounded-2xl border-[1.5px] border-dashed border-hairline px-6 transition-colors duration-[120ms]">
+            <p data-strip-text class="truncate">Drop a video to start a new project</p>
+            <button data-choose class="shrink-0 rounded-lg bg-accent px-4 py-2 font-semibold text-on-accent hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+              Choose Video…
+            </button>
+          </section>
+          <h2 id="home-heading" class="mt-8 mb-3 font-semibold text-text-secondary">Projects</h2>
+          <ul id="home-grid" class="home-grid"></ul>
+          <p class="mt-8 text-[11px] leading-relaxed text-text-secondary">Unlocked projects are deleted 30 days after you last open them.<br />Your video files are never touched.</p>
+        </div>
+      </main>
+
       <!-- Empty state: the whole window is the drop target -->
-      <main id="empty" class="flex flex-1 items-center justify-center p-8">
+      <main id="empty" class="flex hidden flex-1 items-center justify-center p-8">
         <section
           id="dropzone"
           aria-label="Drop a video, or choose one"

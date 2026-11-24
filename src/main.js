@@ -33,13 +33,16 @@ import { createRulesStore, mountRules } from './ui/rules.js';
 import { emptyTrace, newRun, withRun, renameTracePart } from './ui/trace.js';
 import { learningLog, learningClips } from './ui/learning.js';
 import { createTranscripts, transcribing as owesWords, stale, regenerated } from './ui/transcripts.js';
+import { createHomeView } from './ui/home-view.js';
+import { reopenedText } from './ui/home.js';
+import { toDoc, fromDoc, lengthOfEdit, coverOf } from './ui/project-doc.js';
 import { runner } from './ai.js';
 
-const { invoke } = window.__TAURI__.core;
+const { invoke, convertFileSrc } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 const { getCurrentWebview } = window.__TAURI__.webview;
 const { getCurrentWindow } = window.__TAURI__.window;
-const { open } = window.__TAURI__.dialog;
+const { open, ask } = window.__TAURI__.dialog;
 
 const MAX_PARTS = 2;
 
@@ -50,6 +53,14 @@ let progress = null; // { part, stage, done, total } while transcribing
 let lining = null; // the audio file's name while it is being lined up
 let hintOn = false; // the transcript panel's one-time "New audio" offer is up
 const history = createHistory(); // history.edit: { cuts, words } (design/edit-model.md); ⌘Z / ⇧⌘Z walk it
+// The open project in the library (design/project-store.md): null on Home. One page life opens at most one: going
+// Home saves, closes it in Rust and reloads, so every editor state starts fresh.
+let project = null; // { id, name }
+// Every change to the edit saves itself, 1 s after the last one (Autosave, below).
+for (const k of ['push', 'undo', 'redo', 'everywhere', 'rename']) {
+  const step = history[k];
+  history[k] = (...a) => { const r = step(...a); scheduleSave(); return r; };
+}
 // Magic Trace (design/magic-trace.md): every Magic run's record. Beside the history, outside undo, so an undone
 // Magic step still has its trace and reads as "restored".
 let trace = emptyTrace();
@@ -238,6 +249,7 @@ function loadWaveform(id) {
     rail.paintTrack();
     rail.paintHead();
     renderTime();
+    scheduleSave(); // the card's length and picture can be known now
   }, () => {});
 }
 
@@ -291,11 +303,14 @@ function saveLearningClip({ id, heard }) {
   });
 }
 
-// Closing the window is the user's final answer on the newest run (older ones were written when replaced).
-getCurrentWindow().onCloseRequested(async () => {
+// Closing the window (or going Home) is the user's final answer on the newest run (older ones were written when
+// replaced); the project is saved first.
+async function leaveProject() {
+  await flushSave();
   const last = trace.runs.at(-1);
   if (last) await saveLearningLog(last);
-});
+}
+getCurrentWindow().onCloseRequested(leaveProject);
 
 // Your rules (gear, ⌘,). Pressing Magic Cut closes the panel and saves first, so a rule typed a second ago is used.
 const rules = mountRules({ gear: $('rules-gear'), panel: $('rules-panel'), box: $('rules-box') }, createRulesStore(invoke), { onError: showBanner });
@@ -313,7 +328,7 @@ const session = createReviewSession({
   commit: (edit, label) => { history.push(edit, label); paintEdit(); }, // review's own steps: no review.changed()
   undo: () => { history.undo(); paintEdit(); notes.afterUndo(); },
   trace: () => trace,
-  setTrace: (t) => { trace = t; },
+  setTrace: (t) => { trace = t; scheduleSave(); }, // Magic's verdicts are kept with the project
   parts: reviewParts,
   play: windowPlay,
   say: (text) => status.flash(text, SHORT.has(text) ? 2000 : 3000),
@@ -358,7 +373,11 @@ function paintToolbar() {
 
 // ---------- Drop + choose ----------
 
-const dragFeedback = (paths) => paintDrag(dragKind(paths, parts.length > 0), parts.length + 1);
+function dragFeedback(paths) {
+  const kind = dragKind(paths, parts.length > 0);
+  paintDrag(kind, parts.length + 1);
+  if (!project) home.drag(kind);
+}
 
 getCurrentWebview().onDragDropEvent(({ payload }) => {
   if (payload.type === 'enter') dragFeedback(payload.paths);
@@ -373,6 +392,10 @@ getCurrentWebview().onDragDropEvent(({ payload }) => {
  *  with no video open does nothing (the drop zone said "Add the video first"). */
 async function dropped(paths) {
   const { videos, audio: sounds, other } = sortDrop(paths);
+  if (!project) { // Home: videos start a project (or open the one made from the same video)
+    if (videos.length || other.length) await newProject([...videos, ...other]);
+    return;
+  }
   if (videos.length || other.length) await addVideos([...videos, ...other]);
   if (sounds.length && parts.length && !review.on) replaceAudio(sounds);
 }
@@ -380,9 +403,111 @@ async function dropped(paths) {
 async function choose() {
   if (parts.length >= MAX_PARTS) return showBanner('Two parts at most. Remove one to add another.');
   const picked = await open({ multiple: parts.length === 0, filters: [{ name: 'Video', extensions: VIDEO }] });
-  if (picked) addVideos([].concat(picked));
+  if (!picked) return;
+  if (project) addVideos([].concat(picked));
+  else newProject([].concat(picked));
 }
 document.addEventListener('click', (e) => e.target.closest('[data-choose]') && choose());
+
+// ---------- Home and the library (design/home-screen.md, design/project-store.md) ----------
+
+const home = createHomeView({ strip: $('home-strip'), heading: $('home-heading'), grid: $('home-grid') }, {
+  open: (id) => openProject(id),
+  setLocked: (id, locked) => invoke('set_locked', { id, locked }),
+  remove: (id) => invoke('delete_project', { id }),
+  confirm: ({ title, message }) => ask(message, { title, kind: 'warning', okLabel: 'Delete', cancelLabel: 'Cancel' }),
+  popup,
+  failed: showBanner,
+  changed: () => render(),
+  src: (path) => convertFileSrc(path),
+});
+
+/** Launch (and every return Home): nothing open, the 30-day sweep, then the list, the newest card focused. */
+async function showHome() {
+  await invoke('close_project').catch(() => {}); // a reload mid-project leaves Rust holding it
+  const swept = await invoke('sweep_projects').catch((e) => { console.error('sweep', e); return 0; });
+  const list = await invoke('list_projects').catch((e) => { console.error('list', e); return []; });
+  home.show(list, swept);
+  render();
+  home.focusFirst();
+}
+
+/** Drop / Choose Video… on Home: a new project, or the one already made from this video. */
+async function newProject(paths) {
+  try {
+    const o = await invoke('new_project', { paths });
+    const before = home.summary(o.summary.id)?.usedAt ?? null; // the list still has it as it was
+    load(o);
+    if (o.existing) status.flash(reopenedText(before, Date.now()), 4000);
+  } catch (e) {
+    showBanner(String(e));
+  }
+}
+
+async function openProject(id) {
+  try {
+    load(await invoke('open_project', { id }));
+  } catch (e) {
+    showBanner(String(e));
+  }
+}
+
+/** A project from the library becomes the editor's state: parts (and their swaps), words, cuts, notes, Magic's
+ *  record. Runs once per page life, on fresh state; the undo history starts empty. */
+function load(o) {
+  hideBanner();
+  project = { id: o.summary.id, name: o.summary.name };
+  const s = fromDoc(o.ui, o.parts);
+  parts = s.parts;
+  trace = s.trace;
+  history.everywhere(() => s.edit);
+  if (parts.length) {
+    player.show(0);
+    $('player').focus(); // Space plays at once
+    if (runner) claude().then((c) => c.state !== 'ready' && showBanner(...claudeBanner(c)));
+  }
+  render();
+  parts.forEach((p) => loadWaveform(p.id));
+  if (!o.ui) scheduleSave(); // a new project's first save makes its card's picture
+}
+
+/** ‹ All projects: save, stop this project's work, back to Home on a fresh page. */
+async function goHome() {
+  if (!project) return;
+  await leaveProject();
+  await invoke('close_project').catch((e) => console.error('close', e));
+  location.reload();
+}
+$('home-button').onclick = goHome;
+
+// ---------- Autosave: 1 s after the last change; flushed before Home and on quit ----------
+
+let saveTimer = null;
+let saving = Promise.resolve();
+let lastSaved = '';
+
+function scheduleSave() {
+  if (!project) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSave, 1000);
+}
+
+/** Writes the project now if anything changed since the last write. Resolves when it is on disk (or failed). */
+function flushSave() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  if (!project) return saving;
+  const { cuts } = history.edit;
+  const args = { id: project.id, name: project.name, length: lengthOfEdit(parts, cuts), cover: coverOf(parts, cuts), ui: toDoc({ parts, edit: history.edit, trace }) };
+  const key = JSON.stringify(args);
+  if (key === lastSaved) return saving;
+  lastSaved = key;
+  saving = saving.then(() => invoke('save_project', args)).catch((e) => {
+    lastSaved = ''; // try again with the next change
+    console.error('save', e);
+  });
+  return saving;
+}
 
 // ---------- Project: add, remove, swap the sound, transcribe on demand ----------
 
@@ -666,6 +791,7 @@ listen('progress', ({ payload }) => {
 document.addEventListener('keydown', (e) => {
   const typing = e.target.closest('input, textarea, [contenteditable]');
   if (e.metaKey && e.key === 'o') { e.preventDefault(); choose(); return; }
+  if (!project) return; // Home: its cards take their own keys (home-view.js)
   if (e.metaKey && e.key === 'Enter') { // a note's card is open (even unfocused): ⌘Return finishes it, not Magic
     e.preventDefault();
     if (card.isOpen) notes.done(card.id);
@@ -790,10 +916,15 @@ function selectionAfterUndo() {
 
 function render() {
   const has = parts.length > 0;
-  $('empty').classList.toggle('hidden', has);
+  const cards = !project && home.count > 0; // Home with projects; else the big drop zone when there's no video
+  $('home').classList.toggle('hidden', !cards);
+  $('empty').classList.toggle('hidden', has || cards);
   $('editor').classList.toggle('hidden', !has);
   $('editor').classList.toggle('flex', has);
-  $('title').textContent = has ? parts[0].name.replace(/\.[^.]+$/, '') : '';
+  $('home-button').classList.toggle('hidden', !project);
+  $('home-button').classList.toggle('flex', !!project);
+  $('title').textContent = project?.name ?? '';
+  scheduleSave();
   timeline.render();
   transcript.render();
   paintWords();
@@ -813,4 +944,4 @@ function renderTime() {
   $('time').title = `Original ${original}`;
 }
 
-render();
+showHome();

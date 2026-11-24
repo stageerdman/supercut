@@ -31,6 +31,18 @@
   }
 }
 
+/* Home's grid (design/home-screen.md): cards never narrower than 208, 24 across, 32 down. */
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(208px, 1fr));
+  gap: 32px 24px;
+}
+/* The card's focus ring sits around its picture. */
+.card-open:focus-visible .card-thumb {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 /* The fix field is the one place in the transcript where text can be selected. */
 #transcript [contenteditable] {
   user-select: text;
