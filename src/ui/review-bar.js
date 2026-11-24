@@ -47,8 +47,8 @@ export const ICON = {
 };
 
 const RING = 'outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-surface';
-const ICON_BTN = `flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${RING}`;
-const QUIET = `${ICON_BTN} text-text-secondary hover:bg-raised hover:text-text aria-disabled:opacity-40 aria-disabled:hover:bg-transparent aria-disabled:hover:text-text-secondary`;
+const ICON_BTN = `flex h-7 w-7 shrink-0 items-center justify-center ${RING}`;
+const QUIET = `${ICON_BTN} rounded-md text-text-secondary hover:bg-raised hover:text-text aria-disabled:opacity-40 aria-disabled:hover:bg-transparent aria-disabled:hover:text-text-secondary`;
 const YES = `${ICON_BTN} w-9 rounded-full bg-accent text-on-accent hover:brightness-110`; // the one primary; green once approved
 /** A small green check in a circle: "approved", in the bar and on the timeline's cuts. */
 export const BADGE = 'flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-ok text-on-accent';
@@ -151,8 +151,9 @@ export function createReviewBar(host, o) {
     dim(next, !v.hasNext);
     for (const b of [play, yes, next]) show(b, !v.end);
     show(done, v.end);
-    show(right, !v.end);
+    show(count, !v.end, 'inline'); // the right zone stays (empty at the end), so the centre stays centred
     if (v.end) {
+      show(mark, false);
       const e = barEnd(v);
       doneTitle.textContent = e.title;
       doneLine.textContent = e.line;

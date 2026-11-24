@@ -1,0 +1,59 @@
+<!doctype html>
+<!-- Cut review v4, looked at: the real review-bar.js and cut-view.js with the app's CSS, in each state. shot.mjs. -->
+<html class="dark">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/src/app.css">
+<style>
+  body { margin: 0; padding: 24px; background: var(--color-bg); color: var(--color-text); font: 13px -apple-system, system-ui; }
+  .case { width: 760px; margin-bottom: 18px; }
+  .case p { margin: 0 0 4px; font-size: 11px; color: var(--color-text-secondary); }
+  .player { height: 40px; background: #000; display: flex; align-items: center; justify-content: center; color: #555; font-size: 11px; }
+  .strip { position: relative; height: 52px; margin-top: 14px; background: var(--color-surface); }
+</style>
+</head>
+<body>
+<script type="module">
+  import { createReviewBar } from '/src/ui/review-bar.js';
+  import { cutView } from '/src/ui/cut-view.js';
+
+  const stop = (more = {}) => ({ end: false, checked: 6, total: 38, approved: 6, toFix: 0, first: 7, last: 7, reason: 'Earlier take', by: 'magic', more: 0, chosen: null, only: 'all', counts: { all: 38, magic: 30, unapproved: 32 }, hasPrev: true, hasNext: true, ...more });
+  const end = (more = {}) => ({ end: true, checked: 38, total: 38, approved: 38, toFix: 0, only: 'all', counts: { all: 38, magic: 30, unapproved: 0 }, hasPrev: true, hasNext: false, ...more });
+  const cases = [
+    ['A cut, not approved yet', stop()],
+    ['An approved cut (back with ‹)', stop({ chosen: 'yes' })],
+    ['First cut, Magic filter, Unapproved empty', stop({ first: 1, last: 1, total: 30, hasPrev: false, only: 'magic', counts: { all: 38, magic: 30, unapproved: 0 } })],
+    ['End: every cut gone through', end()],
+    ['End: some skipped with ›', end({ checked: 30, approved: 30, counts: { all: 38, magic: 30, unapproved: 8 } })],
+  ];
+  const noop = () => {};
+  for (const [name, v] of cases) {
+    const c = document.createElement('div');
+    c.className = 'case';
+    c.innerHTML = `<p>${name}</p><div class="player">video</div>`;
+    document.body.append(c);
+    const host = document.createElement('div');
+    c.append(host);
+    createReviewBar(host, { onYes: noop, onPlay: noop, onPrev: noop, onNext: noop, onChoose: noop }).paint(v);
+  }
+  document.activeElement?.blur();
+  // The timeline mark: plain and approved cuts, wide and thin.
+  const c = document.createElement('div');
+  c.className = 'case';
+  c.innerHTML = '<p>Timeline: Magic cut, approved Magic cut, your cut approved, thin approved, 40 pt approved</p>';
+  const strip = document.createElement('div');
+  strip.className = 'strip';
+  const cut = (by, s, e) => ({ part: 1, s, e, by, reason: 'Earlier take' });
+  strip.append(
+    cutView(cut('magic', 2, 4), { left: 20, width: 110, selected: false, index: 0, row: 20 }),
+    cutView(cut('magic', 5, 7), { left: 170, width: 110, selected: false, index: 1, row: 20, approved: true }),
+    cutView(cut('you', 8, 9), { left: 320, width: 80, selected: false, index: 2, row: 20, approved: true }),
+    cutView(cut('you', 10, 10.1), { left: 450, width: 6, selected: false, index: 3, row: 20, approved: true }),
+    cutView(cut('magic', 11, 12), { left: 520, width: 40, selected: false, index: 4, row: 20, approved: true }),
+  );
+  c.append(strip);
+  document.body.append(c);
+  window.ready = true;
+</script>
+</body>
+</html>
