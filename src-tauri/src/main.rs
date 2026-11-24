@@ -17,6 +17,7 @@ mod parakeet;
 mod project;
 mod recognizer;
 mod pieces;
+mod preview;
 mod rules;
 mod speech;
 mod transcribe;
@@ -88,9 +89,10 @@ fn save_learning_log(id: String, log: serde_json::Value) -> Result<(), AppError>
     Ok(())
 }
 
-/// One stretch the user heard, in a part's own seconds (src/ui/trace.js verdict `heard`).
+/// One stretch of a part, in its own seconds: one the user heard (src/ui/trace.js verdict `heard`) or one kept
+/// (the preview).
 #[derive(serde::Deserialize)]
-struct HeardSpan {
+struct PartSpan {
     part: u32,
     s: f64,
     e: f64,
@@ -99,7 +101,7 @@ struct HeardSpan {
 /// Magic Trace: the window heard before a review "No", saved beside the learning log. Paths come from the
 /// open project, never from the web side, so a clip can only be cut from the user's own parts.
 #[tauri::command]
-async fn save_learning_clip(project: State<'_, Shared>, id: String, spans: Vec<HeardSpan>) -> Result<(), AppError> {
+async fn save_learning_clip(project: State<'_, Shared>, id: String, spans: Vec<PartSpan>) -> Result<(), AppError> {
     let spans = {
         let p = project.lock().unwrap();
         spans.iter().map(|x| Ok(learning_clip::Span { path: p.get(x.part)?.path.clone(), s: x.s, e: x.e })).collect::<Result<Vec<_>, AppError>>()?
@@ -109,6 +111,27 @@ async fn save_learning_clip(project: State<'_, Shared>, id: String, spans: Vec<H
         .map_err(|e| AppError::Learning(e.to_string()))??;
     log::info("learning", "clip", format!("saved {}", file.display()));
     Ok(())
+}
+
+/// The edit's preview (preview/mod.rs): the kept spans, in play order, rendered into one file that plays over every
+/// cut without a seek. A newer call makes an older one stop early (`PreviewStale`: expected, so not logged).
+#[tauri::command]
+async fn preview(project: State<'_, Shared>, spans: Vec<PartSpan>, width: u32, height: u32) -> Result<preview::Preview, AppError> {
+    let spans = {
+        let p = project.lock().unwrap();
+        spans.iter().map(|x| Ok(preview::Span { part: x.part, path: p.get(x.part)?.path.clone(), s: x.s, e: x.e })).collect::<Result<Vec<_>, AppError>>()?
+    };
+    let t = preview::ticket();
+    let trace = format!("preview-{t}");
+    let made = tauri::async_runtime::spawn_blocking(move || {
+        let made = preview::render(&audio::bundled_ffmpeg(), &preview::dir(), &spans, (width, height), &|| preview::latest(t), &trace);
+        match &made {
+            Err(e) if *e != AppError::PreviewStale => log::error("preview", &trace, e.to_string()),
+            _ => {}
+        }
+        made
+    });
+    made.await.map_err(|e| AppError::Preview(e.to_string()))?
 }
 
 #[tauri::command]
@@ -196,10 +219,11 @@ fn main() {
         _ => {}
     }
 
+    preview::clear(&preview::dir());
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Shared::default())
-        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip, add_video, remove_part, transcribe_part, waveform])
+        .invoke_handler(tauri::generate_handler![claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip, add_video, remove_part, transcribe_part, waveform, preview])
         .run(tauri::generate_context!())
         .expect("error while running Magic Cut");
 }

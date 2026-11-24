@@ -24,6 +24,9 @@ pub enum AppError {
     ClaudeFailed(String),
     Rules(String),
     Learning(String),
+    Preview(String),
+    /// A newer edit's preview began: this one is no longer wanted.
+    PreviewStale,
 }
 
 impl fmt::Display for AppError {
@@ -50,6 +53,8 @@ impl fmt::Display for AppError {
             Self::ClaudeFailed(why) => write!(f, "Claude couldn't answer: {why}"),
             Self::Rules(why) => write!(f, "Couldn't read or save your editing rules. ({why})"),
             Self::Learning(why) => write!(f, "Couldn't save Magic's learning log. ({why})"),
+            Self::Preview(why) => write!(f, "Couldn't make the smooth preview; playing the original instead. ({why})"),
+            Self::PreviewStale => write!(f, "The edit changed before its preview was ready."),
         }
     }
 }
