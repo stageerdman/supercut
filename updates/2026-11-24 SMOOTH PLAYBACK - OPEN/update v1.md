@@ -27,4 +27,9 @@ fails on kept parts under ~0.85 s).
    in sync. Rebuild, install in Applications, push.
 
 ## Status
-- Phase 1: started.
+- Phase 1: done. Root cause confirmed (see `wiki.md`).
+- Phase 2: done. `src-tauri/src/preview`, command `preview`.
+- Phase 3: done. `src/ui/edit-map.js`, `preview.js`, `preview-play.js`, forward-only `play-clock.js`; tests assert
+  the playhead never steps back.
+- Phase 4: 24/24 clean runs in WebKit on the 1080p test clip (old twin: 16/20). `npm test` green (361 UI, 122 Rust).
+  Not run on the user's own video (not reachable; the user chose the test clip). App rebuilt and installed.
