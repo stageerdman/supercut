@@ -1,54 +1,77 @@
-// The user's Cloudflare R2, through wrangler (fetched by npx when used, so npm ci stays small).
-// Credentials come from .env: CLOUDFLARE_API_TOKEN (R2 edit rights) and CLOUDFLARE_ACCOUNT_ID.
+// The user's Cloudflare: one Worker with static assets (worker/worker.js) on its own hostname serves every release.
+// Not R2: R2 is not enabled on the account. Deploys go through wrangler (fetched by npx when used, so npm ci stays
+// small). Credentials come from the environment or .env: CLOUDFLARE_API_TOKEN (Workers edit, and DNS on the zone for
+// the custom domain) and CLOUDFLARE_ACCOUNT_ID.
 const { execFileSync } = require('node:child_process');
-const { existsSync } = require('node:fs');
+const fs = require('node:fs');
 const path = require('node:path');
+const site = require('./site');
 
 const root = path.join(__dirname, '..', '..');
-const BUCKET = 'magic-cut-updates';
+const WORKER = 'magic-cut-updates';
+const HOST = 'magiccut.erdman.xyz';
+const SITE_URL = `https://${HOST}`;
 const NEEDED = ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID'];
 
 function loadEnv() {
   const file = path.join(root, '.env');
-  if (existsSync(file)) process.loadEnvFile(file);
+  if (fs.existsSync(file)) process.loadEnvFile(file);
 }
 
 function assertCredentials() {
   const missing = NEEDED.filter((k) => !process.env[k]);
-  if (missing.length) throw new Error(`missing in .env: ${missing.join(', ')} (a Cloudflare API token with R2 edit rights, and the account id)`);
+  if (missing.length) throw new Error(`missing: ${missing.join(', ')} (a Cloudflare API token with Workers edit rights, and the account id)`);
 }
 
-function wrangler(args, { quiet = false } = {}) {
+function wrangler(args) {
   try {
-    return execFileSync('npx', ['--yes', 'wrangler@4', ...args], {
-      cwd: root,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', quiet ? 'pipe' : 'inherit'],
-    });
+    return execFileSync('npx', ['--yes', 'wrangler@4', ...args], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (err) {
-    throw new Error(`wrangler ${args.slice(0, 3).join(' ')} failed: ${(err.stderr || err.stdout || err.message).trim()}`);
+    throw new Error(`wrangler ${args[0]} failed: ${(err.stderr || err.stdout || err.message).trim()}`);
   }
 }
 
-function put({ key, file, type, cache }) {
-  wrangler(['r2', 'object', 'put', `${BUCKET}/${key}`, '--file', file, '--content-type', type, '--cache-control', cache, '--remote']);
-}
-
-function createBucket() {
-  try {
-    wrangler(['r2', 'bucket', 'create', BUCKET], { quiet: true });
-  } catch (err) {
-    if (!/already exists/i.test(err.message)) throw err;
+/** Writes `uploads` into `dir` as the Worker's parts + index + config; returns the config path. */
+function stageSite(uploads, siteDir) {
+  const dir = path.resolve(siteDir);
+  const { parts, index } = site.layout(uploads, (file) => fs.statSync(file).size);
+  const assets = path.join(dir, 'public');
+  fs.rmSync(dir, { recursive: true, force: true });
+  for (const p of parts) {
+    const out = path.join(assets, p.asset);
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, readRange(p.file, p.start, p.end));
   }
+  fs.writeFileSync(path.join(assets, site.INDEX), JSON.stringify(index));
+  const config = {
+    name: WORKER,
+    main: path.join(__dirname, 'worker', 'worker.js'),
+    compatibility_date: '2025-11-01',
+    account_id: process.env.CLOUDFLARE_ACCOUNT_ID,
+    workers_dev: false,
+    routes: [{ pattern: HOST, custom_domain: true }],
+    assets: { directory: assets, binding: 'ASSETS', run_worker_first: true },
+  };
+  const file = path.join(dir, 'wrangler.json');
+  fs.writeFileSync(file, JSON.stringify(config, null, 2));
+  return file;
 }
 
-/** Turns on the bucket's public r2.dev URL and returns it. */
-function publicUrl() {
-  wrangler(['r2', 'bucket', 'dev-url', 'enable', BUCKET, '--force']);
-  const said = wrangler(['r2', 'bucket', 'dev-url', 'get', BUCKET]);
-  const url = said.match(/https:\/\/[\w.-]+\.r2\.dev/);
-  if (!url) throw new Error(`no r2.dev URL in wrangler's answer: ${said.trim()}`);
-  return url[0];
+function readRange(file, start, end) {
+  const buf = Buffer.alloc(end - start);
+  const fd = fs.openSync(file, 'r');
+  try {
+    fs.readSync(fd, buf, 0, buf.length, start);
+  } finally {
+    fs.closeSync(fd);
+  }
+  return buf;
 }
 
-module.exports = { BUCKET, loadEnv, assertCredentials, put, createBucket, publicUrl };
+/** Publishes the whole site in one deploy: every file switches to the new release together. */
+function deploy(uploads, dir) {
+  const said = wrangler(['deploy', '--config', stageSite(uploads, dir)]);
+  return said.trim().split('\n').at(-1);
+}
+
+module.exports = { SITE_URL, loadEnv, assertCredentials, deploy };

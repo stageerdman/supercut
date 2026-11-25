@@ -1,6 +1,6 @@
 // npm run release -- [1.2.3] [--notes "what's new"] [--local http://localhost:3277]
-//   Sets the version (when given), builds the app, its DMG and its signed update, stages them in dist/bucket/ laid
-//   out like the R2 bucket (plan.js), and uploads them, latest.json last. Every installed app then finds it.
+//   Sets the version (when given), builds the app, its DMG and its signed update, stages them in dist/bucket/
+//   (plan.js) and deploys them as the update site (cloudflare.js) in one go. Every installed app then finds it.
 //   --local: stage only, for a manifest served from that URL instead (the build accepts plain http: testing only).
 // npm run dmg
 //   Only the DMG and its first-open note, in dist/: no updater key, no Cloudflare needed.
@@ -13,6 +13,7 @@ const conf = require('./conf');
 const plan = require('./plan');
 const cloudflare = require('./cloudflare');
 const { verifyDmg } = require('./verify');
+const { useSigningKey } = require('./signing-key');
 
 const DIST = path.join(root, 'dist');
 const FIRST_OPEN = path.join(__dirname, 'FIRST-OPEN.txt');
@@ -84,7 +85,7 @@ function dmgOnly() {
 
 function release(opts) {
   cloudflare.loadEnv();
-  if (!process.env.TAURI_SIGNING_PRIVATE_KEY) throw new Error('missing TAURI_SIGNING_PRIVATE_KEY in .env (the updater signing key)');
+  log(`signing key: ${useSigningKey(root)}`);
   const endpoint = endpointFor(opts);
   const baseUrl = plan.baseUrlOf(endpoint);
   if (!opts.local) cloudflare.assertCredentials();
@@ -95,10 +96,8 @@ function release(opts) {
 
   const uploads = stage(version, opts.notes, baseUrl);
   if (opts.local) return log(`staged ${version} in dist/bucket; serve it at ${opts.local}`);
-  for (const u of uploads) {
-    log(`upload ${u.key}`);
-    cloudflare.put(u);
-  }
+  log(`deploy ${uploads.map((u) => u.key).join(', ')}`);
+  log(cloudflare.deploy(uploads, path.join(DIST, 'site')));
   log(`released ${version}: ${baseUrl}/MagicCut.dmg`);
 }
 
