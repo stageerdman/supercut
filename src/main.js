@@ -37,6 +37,7 @@ import { createTranscripts, transcribing as owesWords, stale, regenerated } from
 import { createHomeView } from './ui/home-view.js';
 import { reopenedText } from './ui/home.js';
 import { toDoc, fromDoc, lengthOfEdit, coverOf } from './ui/project-doc.js';
+import { createUpdatePill } from './ui/update.js';
 import { runner } from './ai.js';
 
 const { invoke, convertFileSrc } = window.__TAURI__.core;
@@ -965,4 +966,15 @@ function renderTime() {
   $('time').title = `Original ${original}`;
 }
 
-showHome();
+// Update available (design/update-prompt.md): one quiet check per launch, 3 s after Home, so it never competes with it.
+const updatePill = createUpdatePill(
+  { button: $('update'), glyph: $('update-glyph'), label: $('update-label'), notes: $('update-notes'), track: $('update-track'), bar: $('update-bar') },
+  {
+    invoke, listen,
+    storage: window.sessionStorage,
+    beforeRestart: async () => { if (project) { await leaveProject(); await invoke('close_project').catch(() => {}); } },
+    onError: (message, retry) => showBanner(message, { label: 'Try again', run: () => { hideBanner(); retry(); } }),
+  },
+);
+
+showHome().then(() => setTimeout(() => updatePill.check(), 3000));

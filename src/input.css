@@ -43,6 +43,16 @@
   outline-offset: 2px;
 }
 
+/* The update pill fades in when a new version shows up; it never slides (design/update-prompt.md). */
+.update-pill.flex {
+  animation: update-in 180ms ease-in-out;
+}
+@keyframes update-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* The fix field is the one place in the transcript where text can be selected. */
 #transcript [contenteditable] {
   user-select: text;
