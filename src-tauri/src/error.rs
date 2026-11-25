@@ -45,6 +45,10 @@ pub enum AppError {
     Store(String),
     /// Making a project's card picture (logged, never shown).
     Thumb(String),
+    /// Downloading or installing an update (updates/).
+    Update(String),
+    /// Install asked for with no newer version known.
+    NoUpdate,
 }
 
 impl fmt::Display for AppError {
@@ -83,6 +87,8 @@ impl fmt::Display for AppError {
             Self::NotOpen => write!(f, "This project isn't open any more. Open it again from Home."),
             Self::Store(why) => write!(f, "Couldn't save or read your projects. ({why})"),
             Self::Thumb(why) => write!(f, "Couldn't make the project's picture. ({why})"),
+            Self::Update(why) => write!(f, "Couldn't update Magic Cut. Check your internet connection and try again. ({why})"),
+            Self::NoUpdate => write!(f, "There's no update to install."),
         }
     }
 }

@@ -309,15 +309,23 @@ fn ui_log(error: bool, msg: String) {
     }
 }
 
-/// Where auto-update stands (updates/): the same value the `update-status` event carries.
+/// The update pill's one question per page (updates/): a newer version, or null. Never rejects.
 #[tauri::command]
-fn update_status(updates: State<updates::Updates>) -> updates::Status {
-    updates.status()
+async fn update_check(app: tauri::AppHandle) -> Option<updates::Found> {
+    tauri::async_runtime::spawn_blocking(move || updates::check(&app)).await.ok().flatten()
 }
 
-/// Relaunch into the update installed in the background. The UI saves the project first.
+/// The pill's click: resolves once the update is installed (joins the background download, retries a failed one).
 #[tauri::command]
-fn restart_to_update(app: tauri::AppHandle) {
+async fn update_install(app: tauri::AppHandle) -> Result<(), AppError> {
+    tauri::async_runtime::spawn_blocking(move || updates::install(&app))
+        .await
+        .map_err(|e| AppError::Update(e.to_string()))?
+}
+
+/// Relaunch into the installed update. The UI saves the project first.
+#[tauri::command]
+fn update_restart(app: tauri::AppHandle) {
     app.restart()
 }
 
@@ -379,7 +387,7 @@ fn main() {
             claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip,
             add_video, remove_part, swap_audio, use_camera_audio, transcribe_part, waveform, preview,
             list_projects, new_project, open_project, save_project, close_project, set_locked, delete_project, confirm_delete, sweep_projects,
-            ui_log, update_status, restart_to_update
+            ui_log, update_check, update_install, update_restart
         ])
         .run(tauri::generate_context!())
         .expect("error while running Magic Cut");
