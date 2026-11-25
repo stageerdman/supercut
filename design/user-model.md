@@ -133,6 +133,15 @@ What they asked for after trying it (the "why" after each is my reading, a guess
 | A37 | Few projects are locked; the list stays short enough to need no search | Log list length and locked count |
 | A38 | People open the last project far more than any other (so it goes first, focused) | Log the index of the opened card |
 
+## Updating (2026-11-25, reasoned)
+- The job: **"Get the newest version without losing my place."** Rare, never why they opened the app. A quiet toolbar
+  pill, one click to download in the background, one to save and restart. Spec: `design/update-prompt.md`.
+
+| # | Assumption | Quick check |
+|---|---|---|
+| A39 | A toolbar pill is noticed within a session or two, without a dialog | Log time from "available" to the first click |
+| A40 | Most people restart soon after the download rather than waiting for the next launch | Log the gap between ready and restart |
+
 ## Editing by hand (2026-11-22, reasoned)
 - Two views, one thing: cuts show in the transcript (struck) and on the timeline (hatched) at the same place, grey for
   yours, coral for Magic's. Specs: `design/edit-model.md`, `design/timeline.md`, `design/transcript-editing.md`.
