@@ -23,7 +23,8 @@ CRF 14 is visually lossless for camera footage; ProRes is the "hand it to an edi
 ## Frames
 - The export runs at the **first part's frame rate and size**; another part of a different size is fitted in
   (scaled, padded), the same rule the preview uses.
-- A span's edges snap to that frame grid: first frame `k = round(s·fps)`, length `n = max(1, round((e−s)·fps))`.
+- A span's edges snap to that frame grid: first frame `k = round(s·fps)`, length `n = max(1, round(e·fps) − k)` (so an edge at time t lands on the same frame whichever span
+  it belongs to: no frame lost or doubled between two spans).
 - Each segment seeks to a quarter frame before frame `k` (accurate seek keeps frames from there on, so frame `k` is
   the first and `k−1` is not, whatever the float rounding) and stops after `n` frames.
 - The sound of each span is cut to exactly `n/fps` s from the same start, so picture and sound never drift.
@@ -55,3 +56,5 @@ CRF 14 is visually lossless for camera footage; ProRes is the "hand it to an edi
 
 ## Status
 - Phase 1 done 2026-11-25.
+- Phase 2 done 2026-11-25: `export/plan.rs`; the preview's sound graph became `preview::plan::cut_sound(cuts, fade)`,
+  shared by both (the preview passes no fade).

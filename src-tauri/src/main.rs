@@ -8,6 +8,7 @@ mod autocut;
 mod claude;
 mod confirm;
 mod error;
+mod export;
 mod ids;
 mod keep_awake;
 mod learning;

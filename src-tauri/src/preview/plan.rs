@@ -78,7 +78,7 @@ pub fn preview_name(spans: &[Span], size: (u32, u32)) -> String {
     format!("preview-{}.mp4", hex(clips))
 }
 
-const QUIET: [&str; 5] = ["-hide_banner", "-loglevel", "error", "-nostdin", "-y"];
+pub const QUIET: [&str; 5] = ["-hide_banner", "-loglevel", "error", "-nostdin", "-y"];
 
 /// One kept span, picture only, exactly `frames` frames, boxed into the preview's frame.
 pub fn clip_args(span: &Span, size: (u32, u32), out: &Path) -> Vec<String> {
@@ -104,31 +104,50 @@ pub fn concat_list(clips: &[PathBuf]) -> String {
 
 /// The sources the sound is cut from, each once, in first-use order.
 pub fn sources(spans: &[Span]) -> Vec<PathBuf> {
+    first_uses(spans.iter().map(|x| x.path.as_path()))
+}
+
+fn first_uses<'a>(paths: impl Iterator<Item = &'a Path>) -> Vec<PathBuf> {
     let mut out: Vec<PathBuf> = Vec::new();
-    for x in spans {
-        if !out.contains(&x.path) {
-            out.push(x.path.clone());
+    for p in paths {
+        if !out.iter().any(|x| x.as_path() == p) {
+            out.push(p.to_path_buf());
         }
     }
     out
 }
 
-/// The sound: every kept span cut from its source (input 1 + its index in `sources`) to its clip's exact length,
-/// padded with silence if the source ends early, then joined in order.
+/// One piece of the joined sound: `seconds` long from `start` of `path`.
+pub struct Cut<'a> {
+    pub path: &'a Path,
+    pub start: f64,
+    pub seconds: f64,
+}
+
+/// The sound of the preview: every kept span to its clip's exact length (see `cut_sound`).
 pub fn sound_graph(spans: &[Span]) -> String {
-    let srcs = sources(spans);
+    let cuts: Vec<Cut> = spans.iter().map(|x| Cut { path: &x.path, start: x.s, seconds: seconds(x) }).collect();
+    cut_sound(&cuts, 0.0)
+}
+
+/// The joined sound: every cut taken from its source (input 1 + its index among the cuts' sources, first use
+/// first), padded with silence if the source ends early, faded in and out over `fade` s (0: not faded), then
+/// joined in order.
+pub fn cut_sound(cuts: &[Cut], fade: f64) -> String {
+    let srcs = first_uses(cuts.iter().map(|c| c.path));
     let mut g = String::new();
     for (k, src) in srcs.iter().enumerate() {
-        let uses: Vec<usize> = (0..spans.len()).filter(|&j| &spans[j].path == src).collect();
+        let uses: Vec<usize> = (0..cuts.len()).filter(|&j| cuts[j].path == src.as_path()).collect();
         let outs: String = uses.iter().map(|j| format!("[u{j}]")).collect();
         g += &format!("[{}:a]aresample=48000,aformat=channel_layouts=stereo,asplit={}{outs};", k + 1, uses.len());
     }
-    for (j, x) in spans.iter().enumerate() {
-        let d = seconds(x);
-        g += &format!("[u{j}]atrim=start={:.6}:duration={d:.6},asetpts=PTS-STARTPTS,apad=whole_dur={d:.6}[a{j}];", x.s);
+    for (j, c) in cuts.iter().enumerate() {
+        let d = c.seconds;
+        let fades = if fade > 0.0 { format!(",afade=t=in:d={fade:.6},afade=t=out:st={:.6}:d={fade:.6}", (d - fade).max(0.0)) } else { String::new() };
+        g += &format!("[u{j}]atrim=start={:.6}:duration={d:.6},asetpts=PTS-STARTPTS,apad=whole_dur={d:.6}{fades}[a{j}];", c.start);
     }
-    let all: String = (0..spans.len()).map(|j| format!("[a{j}]")).collect();
-    g + &format!("{all}concat=n={}:v=0:a=1[a]", spans.len())
+    let all: String = (0..cuts.len()).map(|j| format!("[a{j}]")).collect();
+    g + &format!("{all}concat=n={}:v=0:a=1[a]", cuts.len())
 }
 
 /// The join: the clips' picture copied as is (no re-encode), the sound from `graph_file`, into `out`.
