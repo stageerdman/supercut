@@ -58,3 +58,13 @@ CRF 14 is visually lossless for camera footage; ProRes is the "hand it to an edi
 - Phase 1 done 2026-11-25.
 - Phase 2 done 2026-11-25: `export/plan.rs`; the preview's sound graph became `preview::plan::cut_sound(cuts, fade)`,
   shared by both (the preview passes no fade).
+- Phase 3 done 2026-11-25: `export/mod.rs` + `export/run.rs`; four real-ffmpeg tests pass (kept length, every frame
+  the right source frame, no click at a join, cancel leaves nothing / second export refused, ProRes .mov).
+- Phase 4 done 2026-11-25: `export_video`, `export_cancel` and `export://progress` in `main.rs`, exactly as the
+  contract above; errors `Export`, `ExportCancelled`, `ExportBusy` in `error.rs`. Phase 5 (UI) is next, on this contract.
+
+## Known limits
+- A part whose media has no sound fails the join (as the preview does).
+- HDR sources come out 8-bit SDR in `mp4` (use `prores` to keep 10-bit).
+- A source with an odd width or height fails the `mp4` encode (yuv420p needs even sizes).
+- Cancel is noticed on ffmpeg's next progress line (about every half second).

@@ -126,14 +126,17 @@ async fn save_learning_clip(session: State<'_, Shared>, id: String, spans: Vec<P
     Ok(())
 }
 
+/// The kept spans with each part's media (its swapped sound included), from the open project.
+fn kept_spans(session: &Shared, spans: &[PartSpan]) -> Result<Vec<preview::Span>, AppError> {
+    let p = &session.lock().unwrap().project;
+    spans.iter().map(|x| Ok(preview::Span { part: x.part, path: p.get(x.part)?.media().to_path_buf(), s: x.s, e: x.e })).collect()
+}
+
 /// The edit's preview (preview/mod.rs): the kept spans, in play order, rendered into one file that plays over every
 /// cut without a seek. A newer call makes an older one stop early (`PreviewStale`: expected, so not logged).
 #[tauri::command]
 async fn preview(session: State<'_, Shared>, spans: Vec<PartSpan>, width: u32, height: u32) -> Result<preview::Preview, AppError> {
-    let spans = {
-        let p = &session.lock().unwrap().project;
-        spans.iter().map(|x| Ok(preview::Span { part: x.part, path: p.get(x.part)?.media().to_path_buf(), s: x.s, e: x.e })).collect::<Result<Vec<_>, AppError>>()?
-    };
+    let spans = kept_spans(&session, &spans)?;
     let t = preview::ticket();
     let trace = format!("preview-{t}");
     let made = tauri::async_runtime::spawn_blocking(move || {
@@ -145,6 +148,37 @@ async fn preview(session: State<'_, Shared>, spans: Vec<PartSpan>, width: u32, h
         made
     });
     made.await.map_err(|e| AppError::Preview(e.to_string()))?
+}
+
+/// What `export://progress` carries: frames done and in all (`done == total` while the join runs).
+#[derive(Serialize, Clone)]
+struct ExportProgress {
+    done: u64,
+    total: u64,
+}
+
+/// The Export button (export/mod.rs): the kept spans, in play order, rendered at source quality into `out`, which
+/// appears only when complete. Contract: updates/2026-11-25 EXPORT - OPEN/update v1.md.
+#[tauri::command]
+async fn export_video(app: tauri::AppHandle, session: State<'_, Shared>, spans: Vec<PartSpan>, out: PathBuf, format: export::plan::Format) -> Result<export::Exported, AppError> {
+    use tauri::Manager;
+    let spans = kept_spans(&session, &spans)?;
+    let trace = format!("export-{}", now_ms());
+    tauri::async_runtime::spawn_blocking(move || {
+        let job = export::Job { ffmpeg: &audio::bundled_ffmpeg(), spans: &spans, out: &out, format };
+        let progress = |done, total| {
+            let _ = app.emit("export://progress", ExportProgress { done, total });
+        };
+        app.state::<export::Exports>().run(&job, &export::dir(), &progress, &trace)
+    })
+    .await
+    .map_err(|e| AppError::Export(e.to_string()))?
+}
+
+/// Stops the running export: `export_video` then rejects with `ExportCancelled` and leaves nothing at `out`.
+#[tauri::command]
+fn export_cancel(exports: State<export::Exports>) {
+    exports.cancel()
 }
 
 #[tauri::command]
@@ -380,13 +414,14 @@ fn main() {
         .manage(Shared::default())
         .manage(Library::at_home())
         .manage(updates::Updates::default())
+        .manage(export::Exports::default())
         .setup(|app| {
             updates::start(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip,
-            add_video, remove_part, swap_audio, use_camera_audio, transcribe_part, waveform, preview,
+            add_video, remove_part, swap_audio, use_camera_audio, transcribe_part, waveform, preview, export_video, export_cancel,
             list_projects, new_project, open_project, save_project, close_project, set_locked, delete_project, confirm_delete, sweep_projects,
             ui_log, update_check, update_install, update_restart
         ])
