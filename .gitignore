@@ -8,5 +8,7 @@ node_modules/
 # The downloaded speech model and sample recordings; src-tauri/models/ (Silero, 2 MB) is committed.
 /models/
 src/app.css
+# npm run dmg / npm run release output.
+/dist/
 src-tauri/binaries/
 src-tauri/gen/

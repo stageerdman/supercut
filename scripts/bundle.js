@@ -17,6 +17,7 @@ function targetDir() {
 }
 
 const productName = conf.productName;
-const appPath = () => path.join(targetDir(), 'release', 'bundle', 'macos', `${productName}.app`);
+const bundleDir = () => path.join(targetDir(), 'release', 'bundle');
+const appPath = () => path.join(bundleDir(), 'macos', `${productName}.app`);
 
-module.exports = { root, productName, appPath };
+module.exports = { root, productName, bundleDir, appPath };

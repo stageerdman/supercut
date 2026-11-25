@@ -1,0 +1,12 @@
+Opening Magic Cut for the first time
+
+1. Open MagicCut.dmg and drag Magic Cut onto the Applications folder.
+2. Open Applications, right-click (or Control-click) Magic Cut and choose Open, then Open again.
+
+macOS asks once because Magic Cut is not from the App Store and carries no Apple developer certificate.
+
+If there is no Open button:
+  open System Settings → Privacy & Security, scroll down to "Magic Cut was blocked",
+  click Open Anyway, and confirm.
+
+After that it opens like any app, and it updates itself when a new version is out.
