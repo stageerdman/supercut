@@ -57,7 +57,17 @@ pub fn start(app: AppHandle) {
 
 /// A newer version, if one is known; waits for a look under way. Blocking.
 pub fn check(app: &AppHandle) -> Option<Found> {
-    app.state::<Updates>().wait(CHECK_WAIT, |s| s.check_answer().is_some()).check_answer().flatten()
+    let found = app.state::<Updates>().wait(CHECK_WAIT, |s| s.check_answer().is_some()).check_answer().flatten();
+    if let Some(f) = &found {
+        log::info("updates", TRACE, format!("pill shows update {}", f.version));
+    }
+    found
+}
+
+/// Relaunches the app, which then runs the installed update.
+pub fn restart(app: &AppHandle) -> ! {
+    log::info("updates", TRACE, "restarting into the update");
+    app.restart()
 }
 
 /// Resolves once the update is installed. Joins the running download; retries a failed one. Blocking.

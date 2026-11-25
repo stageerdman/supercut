@@ -326,7 +326,7 @@ async fn update_install(app: tauri::AppHandle) -> Result<(), AppError> {
 /// Relaunch into the installed update. The UI saves the project first.
 #[tauri::command]
 fn update_restart(app: tauri::AppHandle) {
-    app.restart()
+    updates::restart(&app)
 }
 
 /// Prints the result as JSON, or the plain error and exit code 1.
