@@ -10,6 +10,8 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
+# Auto-updates from the release manifest on the user's Cloudflare R2 (updates/).
+tauri-plugin-updater = "2"
 # First-run model download (blocking; runs on a worker thread).
 ureq = "2"
 serde = { version = "1", features = ["derive"] }

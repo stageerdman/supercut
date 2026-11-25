@@ -1,6 +1,6 @@
 //! Magic Cut: the Tauri shell. The web UI in ../src calls the commands below.
 //! Video and audio never leave the Mac. Network use: the one-time speech model download,
-//! and transcript text sent to Claude through the user's own Claude Code CLI.
+//! transcript text sent to Claude through the user's own Claude Code CLI, and update checks (updates/).
 
 mod atomic;
 mod audio;
@@ -27,6 +27,7 @@ mod swap;
 #[cfg(test)]
 mod testkit;
 mod transcribe;
+mod updates;
 mod vad;
 mod waveform;
 mod words;
@@ -308,6 +309,18 @@ fn ui_log(error: bool, msg: String) {
     }
 }
 
+/// Where auto-update stands (updates/): the same value the `update-status` event carries.
+#[tauri::command]
+fn update_status(updates: State<updates::Updates>) -> updates::Status {
+    updates.status()
+}
+
+/// Relaunch into the update installed in the background. The UI saves the project first.
+#[tauri::command]
+fn restart_to_update(app: tauri::AppHandle) {
+    app.restart()
+}
+
 /// Prints the result as JSON, or the plain error and exit code 1.
 fn print_and_exit<T: Serialize>(result: Result<T, AppError>) -> ! {
     match result {
@@ -354,13 +367,19 @@ fn main() {
     swap::clear(&swap::dir());
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Shared::default())
         .manage(Library::at_home())
+        .manage(updates::Updates::default())
+        .setup(|app| {
+            updates::start(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip,
             add_video, remove_part, swap_audio, use_camera_audio, transcribe_part, waveform, preview,
             list_projects, new_project, open_project, save_project, close_project, set_locked, delete_project, confirm_delete, sweep_projects,
-            ui_log
+            ui_log, update_status, restart_to_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running Magic Cut");

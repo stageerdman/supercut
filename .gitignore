@@ -1,6 +1,8 @@
 .DS_Store
 .env
 .env.*
+# The updater signing key (scripts/release reads it); never in git.
+.secrets/
 !.env.example
 node_modules/
 # The downloaded speech model and sample recordings; src-tauri/models/ (Silero, 2 MB) is committed.
