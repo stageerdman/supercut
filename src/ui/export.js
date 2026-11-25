@@ -267,7 +267,7 @@ export function createExport({ button, popup }, o) {
 
   function doneView() {
     const head = el('p', 'flex items-center gap-1.5 font-semibold');
-    head.append(el('span', 'text-ok', '✓'), document.createTextNode('Exported'));
+    head.append(el('span', 'text-ok', '✓'), el('span', '', 'Exported'));
     const line = caption(`${baseName(state.file)}${state.seconds ? ` · ${clock(state.seconds)}` : ''}`);
     line.classList.add('mt-1', 'truncate');
     line.title = String(state.file);

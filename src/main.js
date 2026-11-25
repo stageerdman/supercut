@@ -38,6 +38,7 @@ import { createHomeView } from './ui/home-view.js';
 import { reopenedText } from './ui/home.js';
 import { toDoc, fromDoc, lengthOfEdit, coverOf } from './ui/project-doc.js';
 import { createUpdatePill } from './ui/update.js';
+import { createExport, exportSpans } from './ui/export.js';
 import { runner } from './ai.js';
 
 const { invoke, convertFileSrc } = window.__TAURI__.core;
@@ -78,6 +79,7 @@ const waveforms = new Map();
 /** The cuts while an edge is being dragged or nudged (not an undo step yet); null otherwise. */
 let live = null;
 const cutsNow = () => live ?? history.edit.cuts;
+let exp = null; // the Export button and popover (below, with the toolbar)
 
 /** Repaint everything that shows the cuts: transcript strikes, timeline, readout. */
 function paintEdit() {
@@ -86,6 +88,7 @@ function paintEdit() {
   notes.paint(); // the open-notes chip
   renderTime();
   preview.changed();
+  paintExport(); // all cut → Export can't run
 }
 
 /** Record one user gesture as one undo step and repaint the cuts. */
@@ -370,11 +373,34 @@ const audio = createAudioControl(
   { parts: () => parts, onPick: () => !lining && audioPopup.toggle(), onCamera: useCameraAudio, onNudge: nudge, onClose: endNudge },
 );
 
-/** The toolbar's two actions. Reviewing: ✦ Magic is gone and the button reads Stop review. */
+// Export (design/export.md): one file of the edit as it plays. Filled, and the only filled button, once every cut is reviewed.
+exp = createExport(
+  { button: $('export'), popup: $('export-popup') },
+  {
+    invoke,
+    listen,
+    chooseFolder: (from) => open({ directory: true, defaultPath: from }),
+    spans: () => exportSpans(parts, cutsNow()),
+    showBanner,
+  },
+);
+/** Every cut has a verdict, outside review: the edit is ready to leave. */
+function allReviewed() {
+  const p = session.progress();
+  return !!p.magic && p.stops > 0 && p.checked >= p.total && !review.on;
+}
+function paintExport() {
+  if (!exp) return; // a paint before the toolbar exists
+  exp.paint({ hidden: !parts.length, nothing: !exportSpans(parts, cutsNow()).length, primary: allReviewed() });
+}
+
+/** The toolbar's actions. Reviewing: ✦ Magic is gone and the button reads Stop review. All reviewed: Export leads. */
 function paintToolbar() {
   const v = reviewButton(session.progress(), { on: review.on, busy: magicBusy(), end: !!session.view()?.end });
   paintReview(v);
-  paintMagic(magic.state, { plain: v.primary, hidden: review.on, gap: v.visible });
+  const ready = allReviewed();
+  paintMagic(magic.state, { plain: v.primary || ready, hidden: review.on, gap: v.visible });
+  paintExport();
   audio.paint({ hidden: review.on, busy: !!lining }); // not a review action
   if (review.on || lining || !parts.length) audioPopup.close();
 }
@@ -813,6 +839,7 @@ document.addEventListener('keydown', (e) => {
   const typing = e.target.closest('input, textarea, [contenteditable]');
   if (e.metaKey && e.key === 'o') { e.preventDefault(); choose(); return; }
   if (!project) return; // Home: its cards take their own keys (home-view.js)
+  if (e.metaKey && e.key.toLowerCase() === 'e' && parts.length) { e.preventDefault(); exp.open(); return; }
   if (e.metaKey && e.key === 'Enter') { // a note's card is open (even unfocused): ⌘Return finishes it, not Magic
     e.preventDefault();
     if (card.isOpen) notes.done(card.id);
