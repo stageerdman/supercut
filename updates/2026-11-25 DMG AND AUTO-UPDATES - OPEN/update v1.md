@@ -19,7 +19,9 @@ installed by the older build.
   `npm run updates:setup` creates the bucket once and writes its URL into `plugins.updater.endpoints`.
 - **App side** (`src-tauri/src/updates/`): checks `latest.json` at launch, then every 6 hours; a failed check
   (offline) tries again in 15 minutes. A newer version downloads and installs in the background; the next launch runs
-  it. The UI hears `update-status` events and can read `update_status` / call `restart_to_update`.
+  it. The pill (`src/ui/update.js`, `design/update-prompt.md`) speaks to it through `update_check` (waits for the
+  launch look, names any newer version), `update_install` (joins the background download or retries a failed one),
+  `update://progress` events (running totals) and `update_restart`.
 
 ## Phases
 1. **Research spike**: updater plugin API, artifacts, DMG without Finder (CI=true skips the AppleScript layout),
@@ -37,7 +39,7 @@ installed by the older build.
 ## Status
 - [x] Phase 1 — spike findings in `wiki.md`.
 - [x] Phase 2 — release scripts and tests.
-- [x] Phase 3 — app updater and tests.
+- [x] Phase 3 — app updater and tests; commands reshaped to the pill's contract after main brought the pill in.
 - [x] Phase 4 — first-open note.
 - [ ] Phase 5 — waiting on Cloudflare credentials (wrangler is not logged in on this Mac).
 

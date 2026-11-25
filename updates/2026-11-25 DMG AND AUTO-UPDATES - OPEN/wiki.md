@@ -27,6 +27,9 @@
   DMG from a browser does (hence `FIRST-OPEN.txt`).
 - The updater refuses plain http in release builds; `dangerousInsecureTransportProtocol` is set only for `--local`.
 - `EmptyEndpoints` (no `updates:setup` yet) stops the checker quietly: one log line, no retries.
+- App ↔ pill contract: `update_check` → `{version}` or null, `update_install` (joins the background download, or
+  retries a failed one), `update://progress` `{downloaded, total}` running totals, `update_restart`. The background
+  download stays (Pixel's call): the pill usually opens straight to "ready".
 - The checker does not run in debug builds: `tauri dev` has no .app bundle to replace.
 
 ## Verified (2026-11-25)
