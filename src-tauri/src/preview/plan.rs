@@ -22,6 +22,15 @@ pub struct Span {
     pub e: f64,
 }
 
+/// What is wrong with an edit's span list, if anything: nothing kept, or a span that keeps no time.
+pub fn fault(spans: &[Span]) -> Option<String> {
+    if spans.is_empty() {
+        return Some("nothing is kept".into());
+    }
+    let bad = spans.iter().find(|x| !(x.s >= 0.0 && x.e > x.s))?;
+    Some(format!("empty span {:.3}‥{:.3}", bad.s, bad.e))
+}
+
 /// Where a kept span plays in the preview: from `at`, for `e - s` seconds (whole frames).
 #[derive(serde::Serialize, Debug, Clone, PartialEq)]
 pub struct Placed {

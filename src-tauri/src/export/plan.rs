@@ -179,9 +179,10 @@ pub fn sound_graph(spans: &[Span], rate: Rate) -> String {
 }
 
 /// The join: the segments' picture copied as is (no second encode), the sound from `graph_file`, into `out`.
+/// It writes progress lines too, so a cancel can stop it between two of them.
 pub fn join_args(list: &Path, spans: &[Span], graph_file: &Path, format: Format, out: &Path) -> Vec<String> {
     let mut a: Vec<String> = QUIET.map(String::from).to_vec();
-    a.extend(["-f", "concat", "-safe", "0", "-i"].map(String::from));
+    a.extend(["-nostats", "-progress", "pipe:1", "-f", "concat", "-safe", "0", "-i"].map(String::from));
     a.push(list.display().to_string());
     for src in sources(spans) {
         a.extend(["-i".into(), src.display().to_string()]);
@@ -268,7 +269,7 @@ mod tests {
     fn the_join_copies_the_picture_and_cuts_the_sound_from_each_source_once() {
         let spans = [span("/a.mov", 0.0, 1.0), span("/b.mov", 0.5, 1.0), span("/a.mov", 2.0, 3.0)];
         let j = join_args(Path::new("/t/l.txt"), &spans, Path::new("/t/g.txt"), Format::Mp4, Path::new("/o.mp4")).join(" ");
-        assert!(j.contains("-f concat -safe 0 -i /t/l.txt -i /a.mov -i /b.mov -filter_complex_script /t/g.txt"), "{j}");
+        assert!(j.contains("-progress pipe:1 -f concat -safe 0 -i /t/l.txt -i /a.mov -i /b.mov -filter_complex_script /t/g.txt"), "{j}");
         assert!(j.ends_with("-map 0:v -map [a] -c:v copy -c:a aac -b:a 320k -movflags +faststart -f mp4 /o.mp4"), "{j}");
     }
 

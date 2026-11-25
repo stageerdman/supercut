@@ -45,6 +45,12 @@ pub enum AppError {
     Store(String),
     /// Making a project's card picture (logged, never shown).
     Thumb(String),
+    /// Rendering the export (bad spans, ffmpeg failing, the file not writable).
+    Export(String),
+    /// The user stopped the export (the UI shows nothing for it).
+    ExportCancelled,
+    /// An export is already running.
+    ExportBusy,
     /// Downloading or installing an update (updates/).
     Update(String),
     /// Install asked for with no newer version known.
@@ -87,6 +93,9 @@ impl fmt::Display for AppError {
             Self::NotOpen => write!(f, "This project isn't open any more. Open it again from Home."),
             Self::Store(why) => write!(f, "Couldn't save or read your projects. ({why})"),
             Self::Thumb(why) => write!(f, "Couldn't make the project's picture. ({why})"),
+            Self::Export(why) => write!(f, "Couldn't export the video. ({why})"),
+            Self::ExportCancelled => write!(f, "Export cancelled."),
+            Self::ExportBusy => write!(f, "An export is already running. Wait for it or cancel it."),
             Self::Update(why) => write!(f, "Couldn't update Magic Cut. Check your internet connection and try again. ({why})"),
             Self::NoUpdate => write!(f, "There's no update to install."),
         }

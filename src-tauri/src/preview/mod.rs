@@ -54,13 +54,7 @@ pub fn clear(dir: &Path) {
 }
 
 fn check(spans: &[Span]) -> Result<(), AppError> {
-    if spans.is_empty() {
-        return Err(AppError::Preview("nothing is kept".into()));
-    }
-    match spans.iter().find(|x| !(x.s >= 0.0 && x.e > x.s)) {
-        Some(bad) => Err(AppError::Preview(format!("empty span {:.3}‥{:.3}", bad.s, bad.e))),
-        None => Ok(()),
-    }
+    plan::fault(spans).map_or(Ok(()), |why| Err(AppError::Preview(why)))
 }
 
 fn run(ffmpeg: &Path, args: Vec<String>, what: &str) -> Result<(), AppError> {
