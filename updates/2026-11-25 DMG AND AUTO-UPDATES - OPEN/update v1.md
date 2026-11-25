@@ -47,6 +47,8 @@ installed by the older build.
   app found the newer one on magiccut.erdman.xyz, downloaded and installed it, and reopened as the new version
   (`e2e-cloudflare-update.js`). 0.1.1 → 0.1.2: found at 1.4 s, pill told at 3.4 s, ready at 16.6 s; Info.plist
   0.1.2, codesign valid, running. The DMG builds with `FIRST-OPEN.txt` (`npm run dmg`).
+  0.1.3 (the Export button), released the same way: installed 0.1.2 found it at 1.1 s, pill told at 3.5 s, ready at
+  7.7 s, reopened as 0.1.3 (17.6 s in all); the live DMG is 0.1.3's.
   Still open: a clean Mac account opening the DMG.
 
 ## Decisions

@@ -41,8 +41,9 @@
   the Applications link (`scripts/release/verify.js` checks this on every build).
 - Local end to end: 0.1.0 read `latest.json`, downloaded the 0.1.1 bundle, verified the signature and replaced
   itself on disk (Info.plist 0.1.1, codesign valid, binary runs).
-- Live end to end on Cloudflare, twice: installed 0.1.0 → 0.1.1, and installed 0.1.1 → 0.1.2 (found 1.4 s, pill
-  told 3.4 s, `update ready` 16.6 s, reopened as 0.1.2, codesign valid).
+- Live end to end on Cloudflare, three times: installed 0.1.0 → 0.1.1, 0.1.1 → 0.1.2 (found 1.4 s, pill
+  told 3.4 s, `update ready` 16.6 s, reopened as 0.1.2, codesign valid), and 0.1.2 → 0.1.3 (found 1.1 s, pill
+  3.5 s, ready 7.7 s, reopened as 0.1.3, codesign valid).
 
 ## Not verified yet
 - A clean macOS user account opening the DMG (needs a second login on this Mac): first-open note written from
