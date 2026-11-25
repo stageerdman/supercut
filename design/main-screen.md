@@ -19,7 +19,7 @@ Checked against: `design/user-model.md`. Visual tokens: `design/visual-system.md
 | Separate "add second video" screen | A slot at the end of the timeline, and drop-anywhere. |
 | Settings window | Every choice has a default (export, model). The only setting, your rules, is one text box under a gear in the toolbar: `design/rules.md`. |
 | Save button | Autosave. |
-| Export options dialog | One default (same size, HEVC MP4, next to the original). |
+| Export options dialog | A small popover instead: Best (default) or Smaller, saved next to the recording; ⌘E, Return exports (`design/export.md`). |
 | Magic options before running | Magic works with no setup; rules come later, after the first result. |
 
 ## Layout
@@ -172,7 +172,7 @@ A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, o
 | ⌘F | Search the transcript (↩ / ⇧↩ step, Esc clears) |
 | ⌘ + / ⌘ − / ⌘0 | Zoom timeline / fit |
 | ⌘↩ | Magic (⌘M is taken by macOS Minimize) |
-| ⌘E | Export |
+| ⌘E | Export: opens the popover, Return exports (`design/export.md`) |
 | ⌘, | Your rules (open / close the panel) |
 | ⌘T | Toggle transcript (narrow windows) |
 
