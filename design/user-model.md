@@ -142,6 +142,18 @@ What they asked for after trying it (the "why" after each is my reading, a guess
 | A39 | A toolbar pill is noticed within a session or two, without a dialog | Log time from "available" to the first click |
 | A40 | Most people restart soon after the download rather than waiting for the next launch | Log the gap between ready and restart |
 
+## Exporting (2026-11-25, reasoned)
+- The job: **"Get the finished video into a file I can post, at full quality, and find it."** Once or twice per video,
+  at the end of the evening. ⌘E, Return: Best quality, MP4, next to the recording; progress on the button; Show in
+  Finder when done. Spec: `design/export.md`.
+
+| # | Assumption | Quick check |
+|---|---|---|
+| A41 | Nobody misses a format choice: MP4 is enough | Count requests for another format after 20 exports |
+| A42 | Most exports are ⌘E + Return with Best and the default folder | Log quality and folder changes per export |
+| A43 | The recording's folder is where they look for the result | Count Change… on first export, and Show in Finder use |
+| A44 | People keep editing (or walk away) while it exports | Log popover closes and edits during export |
+
 ## Editing by hand (2026-11-22, reasoned)
 - Two views, one thing: cuts show in the transcript (struck) and on the timeline (hatched) at the same place, grey for
   yours, coral for Magic's. Specs: `design/edit-model.md`, `design/timeline.md`, `design/transcript-editing.md`.
