@@ -115,6 +115,7 @@ export function createExport({ button, popup }, o) {
   const now = o.now ?? (() => Date.now());
   let state = { kind: 'idle' };
   let target = null; // export_target's answer for the format and folder now
+  let starting = false; // Export pressed, waiting for the target: a second press does nothing
   let asking = 0; // the newest export_target call: older answers are dropped
   let look = { primary: false, nothing: false, hidden: true };
   let doneTimer = 0;
@@ -237,7 +238,8 @@ export function createExport({ button, popup }, o) {
 
     const go = action('Export', true);
     go.dataset.primary = '';
-    go.disabled = !target || space.short || !spans.length;
+    // Live while the target is still coming: Return right after ⌘E exports (start() waits for the target).
+    go.disabled = space.short || !spans.length;
     go.classList.add('disabled:opacity-40');
     go.onclick = () => start();
     box.append(fRow, sRow);
@@ -293,7 +295,12 @@ export function createExport({ button, popup }, o) {
     const key = had?.dataset?.key;
     const same = key && !fresh ? popup.querySelector(`[data-key="${key}"]`) : null;
     if (same && !same.disabled) same.focus();
-    else if (focus || fresh || had) (popup.querySelector('[data-primary]') ?? popup).focus?.();
+    else if (focus || fresh || had || !popup.contains(document.activeElement)) {
+      // Nothing in the popover has focus (a fresh view, or the old focus was repainted away): its primary takes it.
+      const primary = popup.querySelector('[data-primary]');
+      if (primary && !primary.disabled) primary.focus?.();
+      else popup.focus?.();
+    }
   }
 
   function place() {
@@ -357,12 +364,15 @@ export function createExport({ button, popup }, o) {
   // ---------- Exporting ----------
 
   async function start() {
-    if (state.kind === 'exporting') return;
+    if (state.kind === 'exporting' || starting) return;
     const spans = o.spans();
     if (!spans.length) return;
     const f = format();
-    const t = target ?? (await refresh());
-    if (!t) return;
+    starting = true;
+    let t;
+    try { t = target ?? (await refresh()); } finally { starting = false; }
+    if (!t || state.kind === 'exporting') return;
+    if (spaceView(f, t, lengthOf(spans)).short) return; // the repaint already says why and turns Export off
     target = null; // the next export gets the next free name
     const out = joinPath(t.folder, t.name);
     state = { kind: 'exporting', name: t.name, out, done: 0, total: 0, first: 0, mine: true };

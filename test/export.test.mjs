@@ -114,6 +114,7 @@ test('open: Ready asks Rust for the target, focuses Export; Esc closes back to t
   r.button.click();
   assert.equal(r.x.isOpen(), true);
   assert.deepEqual(r.calls[0], ['export_target', { folder: null, format: 'mp4' }]);
+  assert.equal(r.doc.activeElement, r.find('Export'), 'Export has focus before Rust answers');
   await tick();
   assert.match(r.popup.textContent, /H\.264 · 3840 × 2160 · 29\.97 fps · 01:00/);
   assert.match(r.popup.textContent, /Movies/);
@@ -123,6 +124,18 @@ test('open: Ready asks Rust for the target, focuses Export; Esc closes back to t
   assert.equal(ev.defaultPrevented, true);
   assert.equal(r.x.isOpen(), false);
   assert.equal(r.doc.activeElement, r.button);
+});
+
+test('⌘E then Return at once exports: Export waits for the target, a second press does nothing', async () => {
+  const r = rig();
+  r.x.open();
+  r.doc.activeElement.click(); // Return on the focused Export, before export_target has answered
+  r.doc.activeElement?.click?.();
+  await tick();
+  await tick();
+  const videos = r.calls.filter(([c]) => c === 'export_video');
+  assert.equal(videos.length, 1);
+  assert.equal(videos[0][1].out, '/Users/me/Movies/talk – cut.mp4');
 });
 
 test('the format is remembered and switches the file’s name', async () => {

@@ -119,6 +119,35 @@ fn prores_renders_a_mov_of_the_kept_length() {
     assert!(report.contains("Video: prores (HQ)") && report.contains("pcm_s24le"), "{report}");
 }
 
+/// Sign changes per second of `sound` (48 kHz mono): twice the tone's frequency.
+fn crossings_per_second(sound: &[i16]) -> f64 {
+    let n = sound.windows(2).filter(|w| (w[0] < 0) != (w[1] < 0)).count();
+    n as f64 * 48000.0 / sound.len() as f64
+}
+
+#[test]
+fn a_part_with_swapped_mic_audio_exports_the_mic_not_the_camera() {
+    let Some(ff) = ffmpeg() else { return };
+    let d = temp_dir("export-swap");
+    let cam = source(&ff, &d.join("src")); // the camera hears 440 Hz
+    let mic = d.join("mic.wav");
+    ffmpeg_ok(&ff, &["-f", "lavfi", "-i", "sine=frequency=1000:duration=2:sample_rate=48000", mic.to_str().unwrap()]);
+    let swap = crate::swap::make(&ff, &d.join("audio"), &cam, &mic, Some(0.0), "test").unwrap();
+    // The spans as export_video builds them: each part's media from the open project.
+    let mut project = crate::project::Project::default();
+    let part = project.add(&cam).unwrap();
+    project.set_swap(part.id, Some(swap)).unwrap();
+    let media = project.get(part.id).unwrap().media().to_path_buf();
+    assert_ne!(media, cam, "a swapped part plays its remux");
+
+    let out = d.join("Talk.mp4");
+    let x = run(&ff, &edit(&media), &out, Format::Mp4, &d.join("work")).unwrap();
+    assert_eq!(x.frames, 29, "the cuts are gone");
+    let sound: Vec<i16> = decode(&ff, &out, &d, &["-f", "s16le", "-ac", "1", "-ar", "48000"]).chunks(2).map(|b| i16::from_le_bytes([b[0], b[1]])).collect();
+    let hz = crossings_per_second(&sound[PER_FRAME..14 * PER_FRAME]) / 2.0;
+    assert!((hz - 1000.0).abs() < 30.0, "the file plays the mic's 1000 Hz, not the camera's 440 Hz: {hz:.0} Hz");
+}
+
 #[test]
 fn a_cancel_stops_the_export_and_leaves_nothing_and_a_second_export_waits_its_turn() {
     let Some(ff) = ffmpeg() else { return };

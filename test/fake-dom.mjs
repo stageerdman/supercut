@@ -63,7 +63,7 @@ export function makeDocument() {
         return ev;
       },
       click() { this.fire('click'); },
-      focus() { doc.activeElement = this; this.fire('focusin'); },
+      focus() { if (this.disabled) return; doc.activeElement = this; this.fire('focusin'); }, // a disabled control never takes focus, as in WebKit
       blur() { if (doc.activeElement === this) doc.activeElement = null; },
       select() {},
       getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 400 }),
