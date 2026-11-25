@@ -180,6 +180,23 @@ if it was replaced.
   - `export_reveal(path)` → Finder with the file selected.
   - Choose folder: the dialog plugin's folder picker; the choice is stored app-wide.
 
+## As built (2026-11-25)
+Built in `src/ui/export.js`, wired in `src/main.js` and `src/index.html`; tests in `test/export.test.mjs`. Where it
+differs from the spec above, and why:
+- **Format, not quality**: the segment control is **MP4 | ProRes** (the engine's two formats: H.264 CRF 14 + AAC 320
+  kb/s, or ProRes 422 HQ in a .mov). There is no "Smaller": MP4 already is the small, everywhere-playable file, and
+  ProRes covers "hand it to an editor". MP4 is the default; the last choice is remembered. (A41 now reads: nobody
+  misses a third format.)
+- **Rust contract** is Uncle Bob's: `export_target({ folder, format })` → folder, folder name, unique name, free space,
+  picture size/fps; `export_video({ spans, out, format })`; `export_cancel`; `export_reveal(path)`; events
+  `export://progress` `{ done, total }` (frames) and `export://done` (rejoin after leaving the editor). The Mac is kept
+  awake while `export_video` runs.
+- **Done line** is `name · length` (no file size: the engine doesn't report it, and Finder is one click away).
+- **Not built yet**: the Mac notification when the app is in the background, and the Quit alert while exporting.
+  Leaving to ‹ All projects is fine (the export runs on and the button rejoins it).
+- **Magic goes plain** once every cut is reviewed and Export becomes the filled button, so the toolbar keeps one
+  primary action.
+
 ## Assumptions
 | # | Assumption | Quick check |
 |---|---|---|

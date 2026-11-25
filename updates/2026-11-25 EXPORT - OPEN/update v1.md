@@ -62,6 +62,10 @@ CRF 14 is visually lossless for camera footage; ProRes is the "hand it to an edi
   the right source frame, no click at a join, cancel leaves nothing / second export refused, ProRes .mov).
 - Phase 4 done 2026-11-25: `export_video`, `export_cancel` and `export://progress` in `main.rs`, exactly as the
   contract above; errors `Export`, `ExportCancelled`, `ExportBusy` in `error.rs`. Phase 5 (UI) is next, on this contract.
+- Phase 5 done 2026-11-25 (Jony): Export button + popover (`src/ui/export.js`, wired in `src/main.js`): MP4 | ProRes,
+  save folder (recording's folder by default, Change… remembered), unique file name, free-space check, progress with
+  time left, Cancel, Show in Finder, ⌘E; extra commands `export_target`, `export_reveal`, event `export://done`.
+  17 UI tests in `test/export.test.mjs`. What differs from `design/export.md` is in its "As built" section.
 
 ## Known limits
 - A part whose media has no sound fails the join (as the preview does).
