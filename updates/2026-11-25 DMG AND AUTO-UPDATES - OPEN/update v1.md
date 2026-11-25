@@ -13,10 +13,12 @@ installed by the older build.
 - **Build**: `tauri build --bundles app,dmg` with `createUpdaterArtifacts`, ad-hoc signed (`signingIdentity: "-"`,
   already set). Out come `Magic Cut_<v>_aarch64.dmg`, `Magic Cut.app.tar.gz` and its `.sig`.
 - **Updater key**: a minisign key pair from `tauri signer generate`. The public key sits in `tauri.conf.json`
-  (`plugins.updater.pubkey`). The private key sits in `.env` (`TAURI_SIGNING_PRIVATE_KEY`, gitignored), never in git.
-- **Hosting**: one R2 bucket `magic-cut-updates`, public through its r2.dev URL:
-  `latest.json` plus `<version>/Magic Cut.app.tar.gz` and `<version>/Magic Cut_<v>_aarch64.dmg`.
-  `npm run updates:setup` creates the bucket once and writes its URL into `plugins.updater.endpoints`.
+  (`plugins.updater.pubkey`). The private key sits in the main checkout's `.secrets/updater.key` (gitignored), or
+  `TAURI_SIGNING_PRIVATE_KEY`; never in git.
+- **Hosting**: a Cloudflare Worker `magic-cut-updates` with static assets on https://magiccut.erdman.xyz:
+  `latest.json`, `MagicCut.dmg`, `FIRST-OPEN.txt` and `<version>/MagicCut.app.tar.gz`, each cut into 20 MiB parts
+  (`scripts/release/site.js`) that `scripts/release/worker/worker.js` streams back whole.
+  `npm run updates:setup` writes `https://magiccut.erdman.xyz/latest.json` into `plugins.updater.endpoints`.
 - **App side** (`src-tauri/src/updates/`): checks `latest.json` at launch, then every 6 hours; a failed check
   (offline) tries again in 15 minutes. A newer version downloads and installs in the background; the next launch runs
   it. The pill (`src/ui/update.js`, `design/update-prompt.md`) speaks to it through `update_check` (waits for the
@@ -41,11 +43,18 @@ installed by the older build.
 - [x] Phase 2 — release scripts and tests.
 - [x] Phase 3 — app updater and tests; commands reshaped to the pill's contract after main brought the pill in.
 - [x] Phase 4 — first-open note.
-- [ ] Phase 5 — waiting on Cloudflare credentials (wrangler is not logged in on this Mac).
+- [x] Phase 5 — live on Cloudflare. Released 0.1.1 and 0.1.2 with `npm run release`. Twice, the installed older
+  app found the newer one on magiccut.erdman.xyz, downloaded and installed it, and reopened as the new version
+  (`e2e-cloudflare-update.js`). 0.1.1 → 0.1.2: found at 1.4 s, pill told at 3.4 s, ready at 16.6 s; Info.plist
+  0.1.2, codesign valid, running. The DMG builds with `FIRST-OPEN.txt` (`npm run dmg`).
+  Still open: a clean Mac account opening the DMG.
 
 ## Decisions
-- R2, not Pages: the app bundle is ~85 MB, over Pages' 25 MB file limit.
+- A Worker, not R2: R2 is not enabled on the account (API code 10042) and the user can't turn it on. Not Pages:
+  its 25 MiB file limit also holds for Worker assets, so the Worker serves files cut into 20 MiB parts.
+- A new updater key on 2026-11-25: the old private key was lost. Only builds with the new public key (0.1.1 and up)
+  can update; 0.1.0 copies need one reinstall from the DMG.
 - Install in the background, apply on next launch: the found-and-installed path needs no UI, so it works before the
   update prompt exists; the prompt only adds "Restart now".
-- The private key lives in `.env`, the project's one secret file, not a loose file in a checkout that gets deleted.
+- The private key lives in the main checkout's `.secrets/`, which outlives the worktrees releases run from.
 - Apple Silicon only (`aarch64`), the Macs this is built on; the manifest key is `darwin-aarch64`.

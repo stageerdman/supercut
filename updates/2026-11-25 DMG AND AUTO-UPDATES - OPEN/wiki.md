@@ -2,16 +2,20 @@
 
 ## Commands
 - `npm run dmg` — `dist/MagicCut_<v>.dmg` + `dist/FIRST-OPEN.txt`. Needs nothing but this Mac.
-- `npm run updates:setup` — once: R2 bucket `magic-cut-updates`, its public r2.dev URL, written into
+- `npm run updates:setup` — once: writes `https://magiccut.erdman.xyz/latest.json` into
   `plugins.updater.endpoints` in `tauri.conf.json` (commit it).
 - `npm run release -- 0.1.1 --notes "…"` — bumps the version in `tauri.conf.json`, `Cargo.toml`, `package.json`,
-  builds, signs, stages `dist/bucket/`, uploads (manifest last). Commit the version files (and `Cargo.lock`) after.
+  builds, signs, and deploys the Worker `magic-cut-updates` with every file in one `wrangler deploy`. Commit the
+  version files (and `Cargo.lock`) after.
 - `--local http://localhost:3277` stages instead of uploading, for a manifest served locally; `e2e-local-update.js`
-  in this folder runs an old build against it.
+  in this folder runs an old build against it. `e2e-cloudflare-update.js <newer>` runs the installed app against the
+  live site.
 
 ## Secrets
-- `.env`: `TAURI_SIGNING_PRIVATE_KEY` (+ empty `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`), `CLOUDFLARE_API_TOKEN`
-  (R2 edit), `CLOUDFLARE_ACCOUNT_ID`. The public key is in `tauri.conf.json`.
+- Updater private key: `.secrets/updater.key` in the main checkout (`/Users/stage/dev/supercut`), found by
+  `scripts/release/signing-key.js` (env `TAURI_SIGNING_PRIVATE_KEY` > this checkout's `.secrets/` > the main
+  checkout's). The public key is in `tauri.conf.json`.
+- `CLOUDFLARE_API_TOKEN` (Workers edit + DNS on the zone) and `CLOUDFLARE_ACCOUNT_ID`, from the environment or `.env`.
 - **Lose the private key and no installed app can ever update again**: every update must carry its signature. A new
   key means everyone reinstalls from the DMG once.
 
@@ -37,15 +41,23 @@
   the Applications link (`scripts/release/verify.js` checks this on every build).
 - Local end to end: 0.1.0 read `latest.json`, downloaded the 0.1.1 bundle, verified the signature and replaced
   itself on disk (Info.plist 0.1.1, codesign valid, binary runs).
+- Live end to end on Cloudflare, twice: installed 0.1.0 → 0.1.1, and installed 0.1.1 → 0.1.2 (found 1.4 s, pill
+  told 3.4 s, `update ready` 16.6 s, reopened as 0.1.2, codesign valid).
 
 ## Not verified yet
 - A clean macOS user account opening the DMG (needs a second login on this Mac): first-open note written from
   macOS 15+ behaviour, where right-click → Open may be replaced by System Settings → Open Anyway.
-- The R2 path, until Cloudflare credentials are in `.env`.
+- The pill seen on screen: screenshots fail here (`screencapture` can't read the display), so "the pill is told" is
+  proven by the log line `pill shows update X` (written when `update_check` returns a version), and Restart by a
+  relaunch.
 
 ## Gotchas
-- r2.dev URLs are rate-limited and meant for light use; a custom domain on the bucket is the upgrade path (re-run the
-  endpoint edit with that URL; old builds keep checking the r2.dev one, so keep it on).
+- R2 is not enabled on the account (API code 10042): hence the Worker. Worker static assets have the same 25 MiB
+  per-file cap as Pages, so `site.js` cuts files into 20 MiB parts plus `_index.json`, and the Worker streams them
+  back with a `FixedLengthStream` so Content-Length is right.
+- Once, right after the first deploy, a download stalled for 10 min after `found 0.1.1, downloading`. The next two
+  runs took 5 s and 17 s. Not reproduced; likely the new custom domain's certificate or a cold Worker. If it comes
+  back, run `npx --yes wrangler@4 tail magic-cut-updates --format json` during the e2e.
 - Apple Silicon only (`darwin-aarch64`).
 - An installed dev build (`npm run install-app`) also updates itself once the endpoint is set and a higher version is
   released.
