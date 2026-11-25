@@ -165,14 +165,48 @@ async fn export_video(app: tauri::AppHandle, session: State<'_, Shared>, spans: 
     let spans = kept_spans(&session, &spans)?;
     let trace = format!("export-{}", now_ms());
     tauri::async_runtime::spawn_blocking(move || {
+        let _awake = keep_awake::KeepAwake::start(); // a sleeping Mac would stop it
         let job = export::Job { ffmpeg: &audio::bundled_ffmpeg(), spans: &spans, out: &out, format };
         let progress = |done, total| {
             let _ = app.emit("export://progress", ExportProgress { done, total });
         };
-        app.state::<export::Exports>().run(&job, &export::dir(), &progress, &trace)
+        let made = app.state::<export::Exports>().run(&job, &export::dir(), &progress, &trace);
+        // A page that went Home meanwhile lost this promise: the event tells the new page how it ended.
+        let _ = app.emit("export://done", made.as_ref().map(|x| x.file.display().to_string()).ok());
+        made
     })
     .await
     .map_err(|e| AppError::Export(e.to_string()))?
+}
+
+/// What the Export popover shows (export/target.rs): where the file goes, its name (never one that exists), the
+/// folder's free space, and the first part's picture. `folder` is the user's remembered choice, if any.
+#[tauri::command]
+async fn export_target(session: State<'_, Shared>, folder: Option<PathBuf>, format: export::plan::Format) -> Result<export::target::Target, AppError> {
+    let first = session.lock().unwrap().project.parts().first().map(|p| p.path.clone()).ok_or(AppError::Export("there's no video to export".into()))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        use export::target;
+        let shape = export::probe(&audio::bundled_ffmpeg(), &first)?;
+        let movies = Path::new(&std::env::var_os("HOME").unwrap_or_default()).join("Movies");
+        let dir = target::folder(folder.as_deref(), &first, &movies);
+        Ok(target::Target {
+            name: target::name(&dir, &first, format),
+            free: target::free(&dir),
+            folder_name: target::folder_name(&dir),
+            folder: dir,
+            width: shape.width,
+            height: shape.height,
+            fps: shape.rate.fps(),
+        })
+    })
+    .await
+    .map_err(|e| AppError::Export(e.to_string()))?
+}
+
+/// Show in Finder: a Finder window with the file selected.
+#[tauri::command]
+fn export_reveal(path: PathBuf) -> Result<(), AppError> {
+    std::process::Command::new("/usr/bin/open").arg("-R").arg(&path).spawn().map(|_| ()).map_err(|e| AppError::Export(format!("{}: {e}", path.display())))
 }
 
 /// Stops the running export: `export_video` then rejects with `ExportCancelled` and leaves nothing at `out`.
@@ -421,7 +455,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip,
-            add_video, remove_part, swap_audio, use_camera_audio, transcribe_part, waveform, preview, export_video, export_cancel,
+            add_video, remove_part, swap_audio, use_camera_audio, transcribe_part, waveform, preview, export_video, export_cancel, export_target, export_reveal,
             list_projects, new_project, open_project, save_project, close_project, set_locked, delete_project, confirm_delete, sweep_projects,
             ui_log, update_check, update_install, update_restart
         ])

@@ -5,6 +5,7 @@
 
 pub mod plan;
 mod run;
+pub mod target;
 
 use crate::error::AppError;
 use crate::log;
@@ -102,7 +103,7 @@ fn render(job: &Job, work: &Path, stopped: &(dyn Fn() -> bool + Sync), progress:
 }
 
 /// The first part's frame and rate, from `ffmpeg -i` (which exits 1 when given no output: expected).
-fn probe(ffmpeg: &Path, file: &Path) -> Result<Shape, AppError> {
+pub fn probe(ffmpeg: &Path, file: &Path) -> Result<Shape, AppError> {
     let out = Command::new(ffmpeg)
         .args(["-hide_banner", "-nostdin", "-i"])
         .arg(file)
