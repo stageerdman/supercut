@@ -27,6 +27,7 @@ impl Children {
         self.with(|s| s.remove(&pid));
     }
 
+    #[cfg(test)]
     pub fn count(&self) -> usize {
         self.with(|s| s.len())
     }
