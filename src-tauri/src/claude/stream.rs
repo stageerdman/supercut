@@ -11,6 +11,37 @@ use serde_json::Value;
 pub struct Reply {
     pub answer: Value,
     pub model: Option<String>,
+    pub usage: Usage,
+}
+
+/// What one call cost, as the CLI's result line reports it. Missing figures read as zero:
+/// a CLI that stops reporting usage must never break Magic.
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Usage {
+    pub input: u64,
+    pub output: u64,
+    pub cache_read: u64,
+    pub cache_write: u64,
+    pub cost_usd: f64,
+}
+
+impl Usage {
+    fn from_result(r: &Value) -> Self {
+        let n = |k: &str| r["usage"][k].as_u64().unwrap_or(0);
+        Usage {
+            input: n("input_tokens"),
+            output: n("output_tokens"),
+            cache_read: n("cache_read_input_tokens"),
+            cache_write: n("cache_creation_input_tokens"),
+            cost_usd: r["total_cost_usd"].as_f64().unwrap_or(0.0),
+        }
+    }
+
+    /// All four token counts together.
+    pub fn tokens(&self) -> u64 {
+        self.input + self.output + self.cache_read + self.cache_write
+    }
 }
 
 #[derive(Default)]
@@ -59,7 +90,9 @@ impl Stream {
             return Err(classify(text, self.retry.as_deref()));
         }
         match r.get("structured_output") {
-            Some(answer) if !answer.is_null() => Ok(Reply { answer: answer.clone(), model: self.model }),
+            Some(answer) if !answer.is_null() => {
+                Ok(Reply { answer: answer.clone(), model: self.model, usage: Usage::from_result(&r) })
+            }
             _ => Err(AppError::ClaudeFailed("the answer didn't have the expected shape".into())),
         }
     }
@@ -108,6 +141,21 @@ mod tests {
         let result = r#"{"type":"result","is_error":false,"structured_output":{}}"#;
         assert_eq!(reply(&[init, result], "").unwrap().model.as_deref(), Some("claude-sonnet-5-5"));
         assert_eq!(reply(&[INIT, result], "").unwrap().model, None, "no model in the init line: unknown, never guessed");
+    }
+
+    #[test]
+    fn usage_comes_from_the_result_line() {
+        let result = r#"{"type":"result","is_error":false,"structured_output":{},"total_cost_usd":0.021,
+            "usage":{"input_tokens":1200,"output_tokens":340,"cache_read_input_tokens":7,"cache_creation_input_tokens":5000}}"#;
+        let usage = reply(&[INIT, &result.replace('\n', "")], "").unwrap().usage;
+        assert_eq!(usage, Usage { input: 1200, output: 340, cache_read: 7, cache_write: 5000, cost_usd: 0.021 });
+        assert_eq!(usage.tokens(), 6547);
+    }
+
+    #[test]
+    fn missing_usage_reads_as_zeros() {
+        let result = r#"{"type":"result","is_error":false,"structured_output":{},"usage":{"input_tokens":"x"}}"#;
+        assert_eq!(reply(&[result], "").unwrap().usage, Usage::default());
     }
 
     #[test]

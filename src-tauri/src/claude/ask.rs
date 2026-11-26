@@ -4,7 +4,7 @@
 //! CLAUDE.md, hooks or MCP config get picked up. The prompt goes in on stdin.
 
 use super::setup::command;
-pub use super::stream::Reply;
+pub use super::stream::{Reply, Usage};
 use super::stream::Stream;
 use crate::error::AppError;
 use crate::log;

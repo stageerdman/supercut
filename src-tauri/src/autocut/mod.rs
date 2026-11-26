@@ -12,7 +12,7 @@ mod prompt;
 pub mod record;
 mod similar;
 
-use crate::claude::ask::{self, Ask, Reply};
+use crate::claude::ask::{self, Ask, Reply, Usage};
 use crate::claude::picks;
 use crate::error::AppError;
 use crate::log;
@@ -36,6 +36,9 @@ pub struct Proposal {
     pub cuts: Vec<Cut>,
     pub notes: Vec<Note>,
     pub run: Option<Run>,
+    /// What asking Claude cost: the caller records it in the usage ledger.
+    #[serde(skip)]
+    pub usage: Usage,
 }
 
 /// The engine without I/O. `custom_rules` are the user's own editing rules (they win over the built-in ones);
@@ -51,11 +54,11 @@ pub fn propose(
     }
     let groups = similar::groups(&lines);
     let (schema, system, transcript) = (picks::schema(), prompt::system(custom_rules), prompt::transcript(&lines, &groups));
-    let Reply { answer, model } = ask_claude(&Ask { prompt: &transcript, system: &system, schema: &schema })?;
+    let Reply { answer, model, usage } = ask_claude(&Ask { prompt: &transcript, system: &system, schema: &schema })?;
     let decided = decide::keep_last_takes(picks::parse(answer.clone(), lines.len() as u32)?, &groups);
     let (cuts, notes) = (decide::cuts(&lines, &decided, &groups), notes::notes(&lines, &decided.picks.check));
     let run = Run { app: record::app_build(), model, rules: record::rules_version(), custom: custom_rules.to_vec(), lines, groups, answer };
-    Ok(Proposal { cuts, notes, run: Some(run) })
+    Ok(Proposal { cuts, notes, run: Some(run), usage })
 }
 
 /// The real thing: this Mac's `claude` at `bin`, with the user's `custom_rules`. `trace` tags the log lines.
@@ -77,7 +80,7 @@ mod tests {
     const RETAKES: &str = "Hello there. This is my new video. This is my brand new video. Bye.";
 
     fn reply(answer: Value) -> Result<Reply, AppError> {
-        Ok(Reply { answer, model: Some("claude-test-1".into()) })
+        Ok(Reply { answer, model: Some("claude-test-1".into()), usage: Default::default() })
     }
 
     #[test]
