@@ -7,11 +7,13 @@
 pub mod plan;
 
 use crate::error::AppError;
-use crate::log;
+use crate::{jobs, log};
 pub use plan::{Placed, Span};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::Mutex;
 
 /// A ready preview: the file and where each kept span plays in it.
 #[derive(serde::Serialize, Debug)]
@@ -57,12 +59,11 @@ fn check(spans: &[Span]) -> Result<(), AppError> {
     plan::fault(spans).map_or(Ok(()), |why| Err(AppError::Preview(why)))
 }
 
-fn run(ffmpeg: &Path, args: Vec<String>, what: &str) -> Result<(), AppError> {
-    let out = Command::new(ffmpeg)
-        .args(args)
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|e| AppError::FfmpegStart { ffmpeg: ffmpeg.display().to_string(), why: e.to_string() })?;
+/// One ffmpeg, killed the moment `live` says a newer render began (a 4K clip takes minutes: never let it run on).
+fn run(ffmpeg: &Path, args: Vec<String>, what: &str, live: &(dyn Fn() -> bool + Sync)) -> Result<(), AppError> {
+    let out = jobs::run(Command::new(ffmpeg).args(args), live)
+        .map_err(|e| AppError::FfmpegStart { ffmpeg: ffmpeg.display().to_string(), why: e.to_string() })?
+        .ok_or(AppError::PreviewStale)?;
     if out.status.success() {
         return Ok(());
     }
@@ -92,7 +93,7 @@ fn render_clips(ffmpeg: &Path, dir: &Path, todo: &[&Span], size: (u32, u32), liv
                     let Some(span) = todo.get(k) else { return Ok(()) };
                     still(live)?;
                     let file = dir.join(plan::clip_name(span, size));
-                    render_to(&file, |tmp| run(ffmpeg, plan::clip_args(span, size, tmp), &format!("clip at {:.2} s", span.s)))?;
+                    render_to(&file, |tmp| run(ffmpeg, plan::clip_args(span, size, tmp), &format!("clip at {:.2} s", span.s), live))?;
                 })
             })
             .collect();
@@ -100,14 +101,14 @@ fn render_clips(ffmpeg: &Path, dir: &Path, todo: &[&Span], size: (u32, u32), liv
     })
 }
 
-fn join(ffmpeg: &Path, dir: &Path, spans: &[Span], size: (u32, u32), file: &Path) -> Result<(), AppError> {
+fn join(ffmpeg: &Path, dir: &Path, spans: &[Span], size: (u32, u32), file: &Path, live: &(dyn Fn() -> bool + Sync)) -> Result<(), AppError> {
     let stem = file.file_stem().unwrap_or_default().to_string_lossy().into_owned();
     let (list, graph) = (dir.join(format!("{stem}.list.txt")), dir.join(format!("{stem}.sound.txt")));
     let clips: Vec<PathBuf> = spans.iter().map(|x| dir.join(plan::clip_name(x, size))).collect();
     let io = |e: std::io::Error| AppError::Preview(format!("{}: {e}", dir.display()));
     std::fs::write(&list, plan::concat_list(&clips)).map_err(io)?;
     std::fs::write(&graph, plan::sound_graph(spans)).map_err(io)?;
-    let made = render_to(file, |tmp| run(ffmpeg, plan::join_args(&list, spans, &graph, tmp), "join"));
+    let made = render_to(file, |tmp| run(ffmpeg, plan::join_args(&list, spans, &graph, tmp), "join", live));
     let _ = (std::fs::remove_file(&list), std::fs::remove_file(&graph));
     made
 }
@@ -127,6 +128,14 @@ fn prune(dir: &Path) {
     }
 }
 
+static RENDERING: Mutex<()> = Mutex::new(());
+
+/// The spans whose clip isn't on disk yet, each clip once (a span kept twice is still one clip).
+fn clips_to_make<'a>(dir: &Path, spans: &'a [Span], size: (u32, u32)) -> Vec<&'a Span> {
+    let mut seen = HashSet::new();
+    spans.iter().filter(|x| seen.insert(plan::clip_name(x, size)) && !dir.join(plan::clip_name(x, size)).exists()).collect()
+}
+
 /// The preview of `spans` (play order) for video of `width`×`height`. `live`: is this edit still wanted
 /// (false once a newer render began: see `ticket`, `latest`); `trace` tags the log line.
 pub fn render(ffmpeg: &Path, dir: &Path, spans: &[Span], (width, height): (u32, u32), live: &(dyn Fn() -> bool + Sync), trace: &str) -> Result<Preview, AppError> {
@@ -137,13 +146,19 @@ pub fn render(ffmpeg: &Path, dir: &Path, spans: &[Span], (width, height): (u32, 
     if file.exists() {
         return Ok(Preview { file, map });
     }
+    // One render at a time: an older one sees `live` turn false and kills its ffmpegs within POLL, so two never
+    // write the same clip's temp file or fight for the CPU.
+    let _one_at_a_time = RENDERING.lock().unwrap_or_else(|e| e.into_inner());
+    still(live)?;
+    if file.exists() {
+        return Ok(Preview { file, map });
+    }
     std::fs::create_dir_all(dir).map_err(|e| AppError::Preview(format!("{}: {e}", dir.display())))?;
-    let mut todo: Vec<&Span> = spans.iter().filter(|x| !dir.join(plan::clip_name(x, size)).exists()).collect();
-    todo.dedup_by(|a, b| plan::clip_name(a, size) == plan::clip_name(b, size));
+    let todo = clips_to_make(dir, spans, size);
     let started = std::time::Instant::now();
     render_clips(ffmpeg, dir, &todo, size, live)?;
     still(live)?;
-    join(ffmpeg, dir, spans, size, &file)?;
+    join(ffmpeg, dir, spans, size, &file, live)?;
     prune(dir);
     let took = started.elapsed().as_secs_f64();
     log::info("preview", trace, format!("{} spans ({} new clips) in {took:.1} s", spans.len(), todo.len()));
@@ -214,6 +229,62 @@ mod tests {
         let (w, h) = env("MEASURE_SIZE").split_once('x').map(|(w, h)| (w.parse().unwrap(), h.parse().unwrap())).expect("WxH");
         let p = render(&ff, &out, &spans, (w, h), &|| true, "measure").unwrap();
         std::fs::write(out.join("preview.json"), serde_json::to_string(&p).unwrap()).unwrap();
+    }
+
+    /// A stand-in ffmpeg: `body` runs, then the output (its last argument) is written. Marks overlap in `dir`.
+    fn fake_ffmpeg(dir: &Path, body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::create_dir_all(dir).unwrap();
+        let file = dir.join("ffmpeg");
+        let d = dir.display();
+        let script = format!(
+            "#!/bin/sh\nmkdir '{d}/busy' 2>/dev/null || echo x >> '{d}/overlaps'\n{body}\nrmdir '{d}/busy'\nfor a; do last=$a; done\n: > \"$last\"\n"
+        );
+        std::fs::write(&file, script).unwrap();
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o755)).unwrap();
+        file
+    }
+
+    fn one_span() -> [Span; 1] {
+        [Span { part: 1, path: "/a.mov".into(), s: 0.0, e: 1.0 }]
+    }
+
+    #[test]
+    fn a_stale_render_kills_its_running_ffmpeg_at_once() {
+        let d = temp_dir("kill");
+        let ff = fake_ffmpeg(&d, "sleep 30");
+        let wanted = std::sync::atomic::AtomicBool::new(true);
+        let started = std::time::Instant::now();
+        let made = std::thread::scope(|s| {
+            s.spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                wanted.store(false, Ordering::SeqCst);
+            });
+            render(&ff, &d.join("cache"), &one_span(), (640, 360), &|| wanted.load(Ordering::SeqCst), "test")
+        });
+        assert_eq!(made.unwrap_err(), AppError::PreviewStale);
+        assert!(started.elapsed() < std::time::Duration::from_secs(3), "killed, not waited out: {:?}", started.elapsed());
+    }
+
+    #[test]
+    fn two_renders_of_one_edit_never_run_two_ffmpegs_at_once() {
+        let d = temp_dir("overlap");
+        let ff = fake_ffmpeg(&d, "sleep 0.3");
+        let spans = one_span();
+        std::thread::scope(|s| {
+            let a = s.spawn(|| render(&ff, &d.join("cache"), &spans, (640, 360), &|| true, "test"));
+            let b = s.spawn(|| render(&ff, &d.join("cache"), &spans, (640, 360), &|| true, "test"));
+            assert_eq!(a.join().unwrap().unwrap().file, b.join().unwrap().unwrap().file);
+        });
+        assert!(!d.join("overlaps").exists(), "two ffmpegs ran at once");
+    }
+
+    #[test]
+    fn a_span_kept_twice_is_one_clip_to_make() {
+        let d = temp_dir("dedup");
+        let a = |s| Span { part: 1, path: "/a.mov".into(), s, e: s + 1.0 };
+        let spans = [a(0.0), a(5.0), a(0.0)];
+        assert_eq!(clips_to_make(&d, &spans, (640, 360)).len(), 2);
     }
 
     #[test]

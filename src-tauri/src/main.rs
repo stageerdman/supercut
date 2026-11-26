@@ -10,6 +10,7 @@ mod confirm;
 mod error;
 mod export;
 mod ids;
+mod jobs;
 mod keep_awake;
 mod learning;
 mod learning_clip;
@@ -510,6 +511,10 @@ fn main() {
         _ => {}
     }
 
+    let reaped = jobs::reap::reap(&audio::bundled_ffmpeg());
+    if !reaped.is_empty() {
+        log::info("jobs", "start", format!("killed {} ffmpeg left running by a crashed run: {reaped:?}", reaped.len()));
+    }
     preview::clear(&preview::dir());
     swap::clear(&swap::dir());
     tauri::Builder::default()
@@ -530,6 +535,11 @@ fn main() {
             list_projects, new_project, open_project, save_project, close_project, set_locked, delete_project, confirm_delete, sweep_projects,
             ui_log, update_check, update_install, update_restart, token_usage, token_usage_notes
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Magic Cut");
+        .build(tauri::generate_context!())
+        .expect("error while building Magic Cut")
+        .run(|_, event| {
+            if let tauri::RunEvent::Exit = event {
+                jobs::kill_all(); // no ffmpeg outlives the app
+            }
+        });
 }

@@ -3,7 +3,7 @@
 
 use crate::error::AppError;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 pub const WIDTH: u32 = 480;
 
@@ -29,10 +29,7 @@ fn args(job: &Job, out: &Path) -> Vec<String> {
 /// Writes `job.file` through a temp beside it, so a card never shows half a picture.
 pub fn make(ffmpeg: &Path, job: &Job) -> Result<(), AppError> {
     let tmp = job.file.with_extension("tmp.jpg");
-    let out = Command::new(ffmpeg)
-        .args(args(job, &tmp))
-        .stdin(Stdio::null())
-        .output()
+    let out = crate::jobs::output(Command::new(ffmpeg).args(args(job, &tmp)))
         .map_err(|e| AppError::FfmpegStart { ffmpeg: ffmpeg.display().to_string(), why: e.to_string() })?;
     // ffmpeg succeeds with no frame when `t` is past the end: no file is a failure too.
     let made = if !out.status.success() {

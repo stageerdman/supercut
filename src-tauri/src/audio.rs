@@ -4,7 +4,7 @@
 
 use crate::error::AppError;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 pub const RATE: usize = 16_000;
 
@@ -21,13 +21,8 @@ pub fn decode(ffmpeg: &Path, input: &Path) -> Result<Vec<f32>, AppError> {
 
 /// Mono f32 samples at `rate` Hz (the waveform uses a lower rate than speech).
 pub fn decode_at(ffmpeg: &Path, input: &Path, rate: usize) -> Result<Vec<f32>, AppError> {
-    let out = Command::new(ffmpeg)
-        .args(["-hide_banner", "-loglevel", "error", "-nostdin", "-i"])
-        .arg(input)
-        .args(["-vn", "-ac", "1", "-ar", &rate.to_string(), "-f", "f32le", "-"])
-        .stdin(Stdio::null())
-        // .output() drains stdout and stderr together, so a chatty stderr can't block the pipe.
-        .output()
+    // A job: drains stdout and stderr together (a chatty stderr can't block the pipe), killed if the app quits.
+    let out = crate::jobs::output(Command::new(ffmpeg).args(["-hide_banner", "-loglevel", "error", "-nostdin", "-i"]).arg(input).args(["-vn", "-ac", "1", "-ar", &rate.to_string(), "-f", "f32le", "-"]))
         .map_err(|e| AppError::FfmpegStart { ffmpeg: ffmpeg.display().to_string(), why: e.to_string() })?;
     if !out.status.success() {
         // Bytes, not str: a non-UTF-8 or split multi-byte message must not crash us.

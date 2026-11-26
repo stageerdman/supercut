@@ -5,7 +5,7 @@
 use crate::error::AppError;
 use crate::learning;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 /// One stretch of a source file, in that file's own seconds.
 #[derive(Debug, Clone, PartialEq)]
@@ -59,10 +59,7 @@ pub fn save(ffmpeg: &Path, dir: &Path, id: &str, spans: &[Span]) -> Result<PathB
     let fail = |why: String| AppError::Learning(format!("clip {id}: {why}"));
     std::fs::create_dir_all(dir).map_err(|e| fail(format!("{}: {e}", dir.display())))?;
     let (tmp, file) = (dir.join(format!("{id}.tmp.mp4")), dir.join(format!("{id}.mp4")));
-    let out = Command::new(ffmpeg)
-        .args(args(spans, &tmp))
-        .stdin(Stdio::null())
-        .output()
+    let out = crate::jobs::output(Command::new(ffmpeg).args(args(spans, &tmp)))
         .map_err(|e| AppError::FfmpegStart { ffmpeg: ffmpeg.display().to_string(), why: e.to_string() })?;
     if !out.status.success() {
         let _ = std::fs::remove_file(&tmp);

@@ -7,13 +7,12 @@
 pub mod plan;
 pub mod sync;
 
-use crate::audio;
 use crate::error::AppError;
-use crate::log;
+use crate::{audio, jobs, log};
 use plan::Probe;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 /// A part's new sound.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -45,7 +44,7 @@ fn ffmpeg_failed(ffmpeg: &Path) -> impl Fn(std::io::Error) -> AppError + '_ {
 
 /// The file's length and whether it has sound, from `ffmpeg -i` (which exits 1 when given no output: expected).
 pub fn probe(ffmpeg: &Path, file: &Path) -> Result<Probe, AppError> {
-    let out = Command::new(ffmpeg).args(["-hide_banner", "-nostdin", "-i"]).arg(file).stdin(Stdio::null()).output().map_err(ffmpeg_failed(ffmpeg))?;
+    let out = jobs::output(Command::new(ffmpeg).args(["-hide_banner", "-nostdin", "-i"]).arg(file)).map_err(ffmpeg_failed(ffmpeg))?;
     let report = String::from_utf8_lossy(&out.stderr);
     plan::probe(&report).ok_or_else(|| AppError::Unreadable { file: file.display().to_string(), why: report.trim().lines().last().unwrap_or_default().into() })
 }
@@ -63,7 +62,7 @@ fn find_offset(ffmpeg: &Path, video: &Path, video_has_sound: bool, recording: &P
 fn mux(ffmpeg: &Path, video: &Path, recording: &Path, offset: f64, seconds: f64, file: &Path) -> Result<(), AppError> {
     let ext = file.extension().unwrap_or_default().to_string_lossy().into_owned();
     let tmp = file.with_extension(format!("tmp.{ext}"));
-    let out = Command::new(ffmpeg).args(plan::mux_args(video, recording, offset, seconds, &tmp)).stdin(Stdio::null()).output().map_err(ffmpeg_failed(ffmpeg))?;
+    let out = jobs::output(Command::new(ffmpeg).args(plan::mux_args(video, recording, offset, seconds, &tmp))).map_err(ffmpeg_failed(ffmpeg))?;
     let made = if out.status.success() {
         std::fs::rename(&tmp, file).map_err(|e| AppError::Swap(format!("{}: {e}", file.display())))
     } else {

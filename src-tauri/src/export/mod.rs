@@ -11,7 +11,7 @@ use crate::error::AppError;
 use crate::log;
 use plan::{Format, Shape, Span};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 /// A finished export.
@@ -104,11 +104,7 @@ fn render(job: &Job, work: &Path, stopped: &(dyn Fn() -> bool + Sync), progress:
 
 /// The first part's frame and rate, from `ffmpeg -i` (which exits 1 when given no output: expected).
 pub fn probe(ffmpeg: &Path, file: &Path) -> Result<Shape, AppError> {
-    let out = Command::new(ffmpeg)
-        .args(["-hide_banner", "-nostdin", "-i"])
-        .arg(file)
-        .stdin(Stdio::null())
-        .output()
+    let out = crate::jobs::output(Command::new(ffmpeg).args(["-hide_banner", "-nostdin", "-i"]).arg(file))
         .map_err(|e| AppError::FfmpegStart { ffmpeg: ffmpeg.display().to_string(), why: e.to_string() })?;
     let report = String::from_utf8_lossy(&out.stderr);
     plan::shape(&report).ok_or_else(|| AppError::Unreadable { file: file.display().to_string(), why: report.trim().lines().last().unwrap_or_default().into() })

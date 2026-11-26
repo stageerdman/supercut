@@ -67,6 +67,7 @@ pub fn check(app: &AppHandle) -> Option<Found> {
 /// Relaunches the app, which then runs the installed update.
 pub fn restart(app: &AppHandle) -> ! {
     log::info("updates", TRACE, "restarting into the update");
+    crate::jobs::kill_all(); // a restart skips RunEvent::Exit: its ffmpegs would outlive it
     app.restart()
 }
 
