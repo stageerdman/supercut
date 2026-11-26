@@ -6,8 +6,7 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 
 pub fn dir() -> PathBuf {
-    let home = std::env::var_os("HOME").unwrap_or_default();
-    Path::new(&home).join("Library/Application Support/xyz.supercut.editor/learning")
+    crate::paths::data("learning")
 }
 
 /// A file name stem that can't leave the folder (ids.rs).

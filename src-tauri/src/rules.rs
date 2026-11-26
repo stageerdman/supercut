@@ -6,8 +6,7 @@ use std::path::{Path, PathBuf};
 
 /// Next to the app's other saved data (the speech model lives in the same folder).
 pub fn path() -> PathBuf {
-    let home = std::env::var_os("HOME").unwrap_or_default();
-    Path::new(&home).join("Library/Application Support/xyz.supercut.editor/rules.json")
+    crate::paths::data("rules.json")
 }
 
 /// Trimmed, no empty lines, no repeats, order kept.

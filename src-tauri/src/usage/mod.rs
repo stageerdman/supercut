@@ -13,8 +13,7 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 
 pub fn dir() -> PathBuf {
-    let home = std::env::var_os("HOME").unwrap_or_default();
-    Path::new(&home).join("Library/Application Support/xyz.supercut.editor/usage")
+    crate::paths::data("usage")
 }
 
 pub fn ledger_file(dir: &Path) -> PathBuf {

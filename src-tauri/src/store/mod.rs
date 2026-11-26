@@ -26,8 +26,7 @@ impl Library {
 
     /// The app's own library: ~/Library/Application Support/xyz.supercut.editor/projects.
     pub fn at_home() -> Self {
-        let home = std::env::var_os("HOME").unwrap_or_default();
-        Self::new(Path::new(&home).join("Library/Application Support/xyz.supercut.editor/projects"))
+        Self::new(crate::paths::data("projects"))
     }
 
     /// The project's folder. Ids come from the web side, so one that could leave the library is refused.

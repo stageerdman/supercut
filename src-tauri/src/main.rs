@@ -17,6 +17,7 @@ mod log;
 mod media;
 mod onnx;
 mod parakeet;
+mod paths;
 mod project;
 mod recognizer;
 mod pieces;

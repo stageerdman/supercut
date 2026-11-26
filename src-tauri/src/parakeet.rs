@@ -15,8 +15,7 @@ pub fn model_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("SUPERCUT_MODEL_DIR") {
         return dir.into();
     }
-    let home = std::env::var_os("HOME").unwrap_or_default();
-    Path::new(&home).join("Library/Application Support/xyz.supercut.editor/models/parakeet-tdt-0.6b-v3-int8")
+    crate::paths::data("models/parakeet-tdt-0.6b-v3-int8")
 }
 
 pub fn model_ready(dir: &Path) -> bool {
