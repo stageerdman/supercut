@@ -59,6 +59,8 @@ pub enum AppError {
     NoUpdate,
     /// Reading or writing the token usage ledger (usage/).
     Usage(String),
+    /// Sending the debug report (report/); the detail goes to the log, the banner stays plain.
+    Report(String),
 }
 
 impl fmt::Display for AppError {
@@ -104,6 +106,7 @@ impl fmt::Display for AppError {
             Self::Update(why) => write!(f, "Couldn't update Magic Cut. Check your internet connection and try again. ({why})"),
             Self::NoUpdate => write!(f, "There's no update to install."),
             Self::Usage(why) => write!(f, "Couldn't read or save the token usage notes. ({why})"),
+            Self::Report(_) => write!(f, "Couldn't send. Check your connection and try again."),
         }
     }
 }

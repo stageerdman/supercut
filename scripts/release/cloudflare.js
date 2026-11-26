@@ -74,4 +74,4 @@ function deploy(uploads, dir) {
   return said.trim().split('\n').at(-1);
 }
 
-module.exports = { SITE_URL, loadEnv, assertCredentials, deploy };
+module.exports = { HOST, SITE_URL, loadEnv, assertCredentials, wrangler, deploy };

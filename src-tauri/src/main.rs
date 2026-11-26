@@ -20,6 +20,7 @@ mod parakeet;
 mod paths;
 mod project;
 mod recognizer;
+mod report;
 mod pieces;
 mod preview;
 mod rules;
@@ -74,6 +75,13 @@ async fn claude_setup() -> Result<(), AppError> {
         log::error("claude", "setup", &e.to_string());
     }
     result
+}
+
+/// Settings' "Send debug report": the fixed bundle to the Magic Cut server, answering its id (report/).
+#[tauri::command]
+async fn send_debug_report() -> Result<report::Sent, AppError> {
+    let sent = tauri::async_runtime::spawn_blocking(|| report::send_now("debug-report")).await;
+    sent.unwrap_or_else(|e| Err(AppError::Report(e.to_string())))
 }
 
 /// The self-test with its call recorded in the usage ledger (outside any project: never counted).
@@ -514,7 +522,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            claude_status, claude_setup, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip,
+            claude_status, claude_setup, send_debug_report,claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip,
             add_video, remove_part, swap_audio, use_camera_audio, transcribe_part, waveform, preview, export_video, export_cancel, export_target, export_reveal,
             list_projects, new_project, open_project, save_project, close_project, set_locked, delete_project, confirm_delete, sweep_projects,
             ui_log, update_check, update_install, update_restart, token_usage, token_usage_notes
