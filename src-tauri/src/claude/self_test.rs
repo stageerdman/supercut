@@ -2,7 +2,7 @@
 //! subscription and answers in our JSON shape. Catches CLI changes (e.g. `--bare` becoming
 //! the default for `-p`) before the user presses Magic.
 
-use super::ask::{ask, Ask};
+use super::ask::{ask, Ask, Usage};
 use super::picks::{self, Picks};
 use crate::error::AppError;
 use std::path::Path;
@@ -21,12 +21,20 @@ pub fn prompt(sentences: &[&str]) -> String {
     sentences.iter().enumerate().map(|(i, s)| format!("{}: {s}\n", i + 1)).collect()
 }
 
-pub fn run(bin: &Path, trace: &str) -> Result<Picks, AppError> {
+/// A passed self-test: Claude's picks, and what the call cost (for the usage ledger).
+pub struct Passed {
+    pub picks: Picks,
+    pub model: Option<String>,
+    pub usage: Usage,
+}
+
+pub fn run(bin: &Path, trace: &str) -> Result<Passed, AppError> {
     let schema = picks::schema();
     let prompt = prompt(&SENTENCES);
     // Magic's own rules, so the self-test proves what Magic will ask.
     let reply = ask(bin, &Ask { prompt: &prompt, system: crate::autocut::RULES, schema: &schema }, LIMIT, trace)?;
-    picks::parse(reply.answer, SENTENCES.len() as u32)
+    let picks = picks::parse(reply.answer, SENTENCES.len() as u32)?;
+    Ok(Passed { picks, model: reply.model, usage: reply.usage })
 }
 
 #[cfg(test)]
@@ -46,7 +54,7 @@ mod tests {
             "picker",
             r#"cat > /dev/null; echo '{"type":"result","is_error":false,"structured_output":{"keep":[2,3],"drop":[{"id":1,"reason":"false start"}]}}'"#,
         );
-        assert_eq!(run(&bin, "test").unwrap().keep, [2, 3]);
+        assert_eq!(run(&bin, "test").unwrap().picks.keep, [2, 3]);
     }
 
     /// The real thing: this Mac's `claude` on the user's subscription. Skipped if Claude
@@ -55,7 +63,7 @@ mod tests {
     fn live_sample_transcript_round_trip() {
         let Ok(bin) = locate() else { return println!("# skipped: Claude Code not installed") };
         let t0 = std::time::Instant::now();
-        let picks = run(&bin, "live-test").unwrap();
+        let picks = run(&bin, "live-test").unwrap().picks;
         println!("# claude answered in {:.1} s: {}", t0.elapsed().as_secs_f64(), serde_json::to_string(&picks).unwrap());
         assert!(picks.keep.contains(&2) && picks.keep.contains(&3), "kept the full take and the next sentence");
     }

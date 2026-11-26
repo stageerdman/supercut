@@ -64,21 +64,53 @@ async fn claude_status() -> claude::Status {
         .unwrap_or(claude::Status { state: "missing", message: "Couldn't check Claude Code.".into() })
 }
 
+/// The self-test with its call recorded in the usage ledger (outside any project: never counted).
+fn self_test(lib: &Library, tracker: &usage::Tracker, trace: &str) -> Result<claude::picks::Picks, AppError> {
+    let passed = claude::self_test::run(&claude::locate()?, trace)?;
+    tracker.call(lib, None, passed.model, passed.usage, trace);
+    Ok(passed.picks)
+}
+
+/// Records Magic's Claude call, if one was made (no `run`: nothing was sent). `project` is the project it ran for.
+fn record_magic(lib: &Library, tracker: &usage::Tracker, project: Option<&str>, proposal: &autocut::Proposal, trace: &str) {
+    if let Some(run) = &proposal.run {
+        tracker.call(lib, project, run.model.clone(), proposal.usage.clone(), trace);
+    }
+}
+
 /// One real Claude call on a sample transcript: proves Magic will work on this Mac.
 #[tauri::command]
-async fn claude_self_test() -> Result<claude::picks::Picks, AppError> {
-    tauri::async_runtime::spawn_blocking(|| claude::self_test::run(&claude::locate()?, "self-test"))
+async fn claude_self_test(app: tauri::AppHandle) -> Result<claude::picks::Picks, AppError> {
+    use tauri::Manager;
+    tauri::async_runtime::spawn_blocking(move || self_test(&app.state::<Library>(), &app.state::<usage::Tracker>(), "self-test"))
         .await
         .map_err(|e| AppError::ClaudeFailed(e.to_string()))?
 }
 
 /// Magic: the parts' transcripts (play order) → proposed cuts and notes, chosen by the user's Claude
-/// with the user's saved editing rules (read fresh each run, so a save applies at once).
+/// with the user's saved editing rules (read fresh each run, so a save applies at once). Its tokens go on the
+/// project open when it started.
 #[tauri::command]
-async fn auto_cut(parts: Vec<autocut::lines::PartWords>) -> Result<autocut::Proposal, AppError> {
-    tauri::async_runtime::spawn_blocking(move || autocut::run(&claude::locate()?, &parts, &rules::load(&rules::path())?, "magic"))
+async fn auto_cut(session: State<'_, Shared>, library: State<'_, Library>, tracker: State<'_, usage::Tracker>, parts: Vec<autocut::lines::PartWords>) -> Result<autocut::Proposal, AppError> {
+    let open = session.lock().unwrap().open_id().map(String::from);
+    let proposal = tauri::async_runtime::spawn_blocking(move || autocut::run(&claude::locate()?, &parts, &rules::load(&rules::path())?, "magic"))
         .await
-        .map_err(|e| AppError::ClaudeFailed(e.to_string()))?
+        .map_err(|e| AppError::ClaudeFailed(e.to_string()))??;
+    let _one_at_a_time = session.lock().unwrap(); // the tally rewrites project.json
+    record_magic(&library, &tracker, open.as_deref(), &proposal, "magic");
+    Ok(proposal)
+}
+
+/// Every exported project's Claude tokens, and the total (only exported projects count).
+#[tauri::command]
+fn token_usage(tracker: State<usage::Tracker>) -> Result<usage::report::Report, AppError> {
+    tracker.report()
+}
+
+/// The usage ledger's raw lines and where it lives.
+#[tauri::command]
+fn token_usage_notes(tracker: State<usage::Tracker>) -> Result<usage::Notes, AppError> {
+    tracker.notes()
 }
 
 /// The user's own editing rules, as saved.
@@ -159,12 +191,23 @@ struct ExportProgress {
 }
 
 /// The Export button (export/mod.rs): the kept spans, in play order, rendered at source quality into `out`, which
-/// appears only when complete. Contract: updates/2026-11-25 EXPORT - OPEN/update v1.md.
+/// appears only when complete. Contract: updates/2026-11-25 EXPORT - OPEN/update v1.md. A finished export makes
+/// the project open when it started count in the token-usage totals.
 #[tauri::command]
-async fn export_video(app: tauri::AppHandle, session: State<'_, Shared>, spans: Vec<PartSpan>, out: PathBuf, format: export::plan::Format) -> Result<export::Exported, AppError> {
-    use tauri::Manager;
+async fn export_video(app: tauri::AppHandle, session: State<'_, Shared>, library: State<'_, Library>, tracker: State<'_, usage::Tracker>, spans: Vec<PartSpan>, out: PathBuf, format: export::plan::Format) -> Result<export::Exported, AppError> {
     let spans = kept_spans(&session, &spans)?;
+    let open = session.lock().unwrap().open_id().map(String::from);
     let trace = format!("export-{}", now_ms());
+    let made = render_export(app, spans, out, format, trace.clone()).await?;
+    if let Some(id) = open {
+        let _one_at_a_time = session.lock().unwrap(); // marking rewrites project.json
+        tracker.export(&library, &id, &trace);
+    }
+    Ok(made)
+}
+
+async fn render_export(app: tauri::AppHandle, spans: Vec<preview::Span>, out: PathBuf, format: export::plan::Format, trace: String) -> Result<export::Exported, AppError> {
+    use tauri::Manager;
     tauri::async_runtime::spawn_blocking(move || {
         let _awake = keep_awake::KeepAwake::start(); // a sleeping Mac would stop it
         let job = export::Job { ffmpeg: &audio::bundled_ffmpeg(), spans: &spans, out: &out, format };
@@ -415,7 +458,9 @@ fn print_and_exit<T: Serialize>(result: Result<T, AppError>) -> ! {
 fn auto_cut_file(file: &Path) -> Result<autocut::Proposal, AppError> {
     let t = transcribe::transcribe_file(&parakeet::model_dir(), &audio::bundled_ffmpeg(), file, "cli", |_, _| {})?;
     let parts = [autocut::lines::PartWords { id: 1, words: t.words }];
-    autocut::run(&claude::locate()?, &parts, &rules::load(&rules::path())?, "cli")
+    let proposal = autocut::run(&claude::locate()?, &parts, &rules::load(&rules::path())?, "cli")?;
+    record_magic(&Library::at_home(), &usage::Tracker::at_home(), None, &proposal, "cli");
+    Ok(proposal)
 }
 
 fn main() {
@@ -436,8 +481,9 @@ fn main() {
             "cli",
             |_, _| {},
         )),
-        [_, "--claude-test"] => print_and_exit(claude::locate().and_then(|bin| claude::self_test::run(&bin, "cli"))),
+        [_, "--claude-test"] => print_and_exit(self_test(&Library::at_home(), &usage::Tracker::at_home(), "cli")),
         [_, "--auto-cut", file] => print_and_exit(auto_cut_file(Path::new(file))),
+        [_, "--token-usage"] => print_and_exit(usage::Tracker::at_home().report()),
         _ => {}
     }
 
@@ -450,6 +496,7 @@ fn main() {
         .manage(Library::at_home())
         .manage(updates::Updates::default())
         .manage(export::Exports::default())
+        .manage(usage::Tracker::at_home())
         .setup(|app| {
             updates::start(app.handle().clone());
             Ok(())
@@ -458,7 +505,7 @@ fn main() {
             claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip,
             add_video, remove_part, swap_audio, use_camera_audio, transcribe_part, waveform, preview, export_video, export_cancel, export_target, export_reveal,
             list_projects, new_project, open_project, save_project, close_project, set_locked, delete_project, confirm_delete, sweep_projects,
-            ui_log, update_check, update_install, update_restart
+            ui_log, update_check, update_install, update_restart, token_usage, token_usage_notes
         ])
         .run(tauri::generate_context!())
         .expect("error while running Magic Cut");

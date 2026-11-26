@@ -19,7 +19,7 @@ are kept in the ledger but never count.
 
 ### Ledger lines
 ```
-{"at":1764000000000,"kind":"call","project":"k3m9q2x7a1bz","trace":"magic","model":"claude-sonnet-5-5","input":1200,"output":340,"cacheRead":0,"cacheWrite":5000,"costUsd":0.021}
+{"at":1764000000000,"kind":"call","project":"k3m9q2x7a1bz","name":"my-video","trace":"magic","model":"claude-sonnet-5-5","input":1200,"output":340,"cacheRead":0,"cacheWrite":5000,"costUsd":0.021}
 {"at":1764000100000,"kind":"export","project":"k3m9q2x7a1bz","name":"my-video"}
 ```
 A line that doesn't parse is skipped (logged), never fatal. `costUsd` is the CLI's estimate: kept, not shown
@@ -75,3 +75,11 @@ and takes the user straight to the fix:
 
 ## Status
 - 2026-11-26: Phase A1 (roadmap) done.
+- 2026-11-26: Phases A2–A4 done (Part A complete). `claude/stream.rs` reads `Usage` onto `Reply` and Magic's
+  `Proposal`; `usage/` holds the ledger (`ledger.rs`), the pure report with the export rule (`report.rs`) and the
+  `Tracker` the commands call (`track.rs`). Call lines carry the project's name when known, so the report names
+  projects the sweep removed. `project.json` keeps `usage` (running tally) and `exportedAt`. Wired: `auto_cut`
+  records on the project open when Magic started (no Claude call made → nothing recorded), `claude_self_test`
+  and the CLI's `--claude-test` / `--auto-cut` record with no project, a finished `export_video` marks the open
+  project exported. New commands `token_usage`, `token_usage_notes`; CLI `--token-usage`. Bookkeeping failures
+  are logged, never fail Magic or an export. No UI yet: the commands are ready for it.
