@@ -16,6 +16,7 @@ can do is **sign in**. Everything else is ours.
 | An Automation prompt ("Magic Cut wants to control Terminal") | We open a `.command` file instead of scripting Terminal: macOS runs it in Terminal with no permission dialog. |
 | "I'm done" / "Check again" buttons | The app watches by itself and checks when the window comes back to the front. |
 | Pressing Magic again after signing in | They already pressed it. Magic waits and starts by itself. |
+| "Close this window and go back to Magic Cut" | An instruction to read and two steps to do. The script brings Magic Cut back to the front itself (`open -b xyz.supercut.editor`). |
 
 ## The two cases
 | Claude on this Mac | Banner | Button | Terminal runs |
@@ -34,21 +35,28 @@ One button each. The button is the banner's one action (`design/main-screen.md`,
    curl -fsSL https://claude.ai/install.sh | bash
    Now sign in to Claude in your browser.
    ~/.local/bin/claude auth login
-   All set. Close this window and go back to Magic Cut.
+   All set. Taking you back to Magic Cut…
+   open -b xyz.supercut.editor
    ```
    Banner (no button but **Open again**): "Installing Claude in Terminal…"
 3. Once `claude` exists, the banner says: "Claude is installed. Sign in in your browser." Browser shows Claude's own
    sign-in; they sign in. **← the only thing they do.**
-4. They come back to Magic Cut. The status is `ready`: banner goes away, Magic starts (status line: "Choosing the best
-   takes…"). If a transcript is still running, Magic stays queued exactly as today.
+4. `claude auth login` returns; the script brings Magic Cut to the front by itself. The window becoming active
+   triggers the check → `ready`: banner goes away, Magic starts (status line: "Choosing the best takes…"). If a
+   transcript is still running, Magic stays queued exactly as today. The Terminal window stays behind; nobody has
+   to close it.
+
+5 steps (was 7: "close this window" and "go back to Magic Cut" are gone). Of the 5, the person does three: press
+Magic, press Install Claude, sign in.
 
 ## Flow — signed out
 1. Press **✦ Magic** → `signed-out`. Banner "Sign in to Claude to use Magic Cut." **[Sign in]**. Pill "Magic waits for Claude ✕".
-2. Press **Sign in**. Terminal opens and runs `<found claude> auth login` (same three echo lines, minus install).
+2. Press **Sign in**. Terminal opens and runs `<found claude> auth login` (same lines, minus install), then
+   `open -b xyz.supercut.editor`.
    Banner: "Sign in in your browser. Magic starts when you're done." **[Open again]**.
-3. They sign in, come back. Magic starts.
+3. They sign in. Magic Cut comes to the front by itself and Magic starts. (Was 5 steps; now 3.)
 
-Total either way: **press Magic, press one button, sign in.**
+Total either way: **press Magic, press one button, sign in.** No coming back by hand.
 
 ## Waiting (what the app shows and does)
 | | Shows | Does |
@@ -74,7 +82,9 @@ Total either way: **press Magic, press one button, sign in.**
 - `invoke('claude_status')` unchanged: `{ state: "missing" | "signed-out" | "ready", message }`.
 - **`invoke('claude_setup')`** → `()` or a plain-sentence error. Reads the status itself, writes
   `$TMPDIR/magic-cut-claude-setup.command` (mode 0755, `#!/bin/zsh`), the lines above with `echo` before each step,
-  `|| exit 1` after the installer; then `open -a Terminal <file>`. Signed out: uses the `claude` that
+  `|| exit 1` after the installer and after `auth login`, and last `open -b xyz.supercut.editor` (only reached when
+sign-in succeeded, so a failed sign-in stays in Terminal where its error is); then `open -a Terminal <file>`.
+`script()` tests: both cases end with the `open -b` line, after `auth login`. Signed out: uses the `claude` that
   `claude::locate()` found, not `~/.local/bin`.
 - Error copy (`error.rs`): `ClaudeMissing` → "Claude isn't on this Mac yet."; `ClaudeSignedOut` → "Sign in to Claude
   to use Magic Cut." (Rust no longer tells people to open Terminal; the button does.)

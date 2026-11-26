@@ -18,9 +18,9 @@ Checked against `design/user-model.md` (hesitation "What leaves my Mac?"; new jo
 ## Layout (one `section`, see `design/settings.md`)
 ```
 Help
-Sends the app's log and versions to the Magic Cut team.    hint, body textSecondary
-File names are included; your videos, sound and
-transcripts never are.
+Sends the app's log, token counts per video and           hint, body textSecondary
+Mac details to the Magic Cut team. Video file names are
+included; your videos, sound and transcripts never are.
 [ Send debug report ]                                       secondary button, left-aligned
 ```
 - Button: the standard secondary button (`raised`, `text`, 28 pt tall, radius 6), never accent: it's not the panel's
@@ -47,8 +47,12 @@ transcripts never are.
 - Claude status: `missing` / `signed-out` / `ready` only. No account, no email.
 - An install id: a random UUID made once and kept in app data (lets us group reports from one Mac). Nothing else
   identifies the person.
-- **Never:** videos, audio, transcripts, rules, project files, the learning logs.
-The hint must stay true: if anything is added to this list, re-read the hint.
+- **Home folder hidden:** before sending, every occurrence of the home folder path (`$HOME`, e.g. `/Users/<account>`)
+  in the log and `usage.jsonl` is replaced with `~`. So the Mac's account name isn't sent; paths still read
+  `~/Movies/talk.mov`. Tested in `report.rs`.
+- **Never:** videos, audio, transcripts, rules, project files, the learning logs, the account name.
+The hint must stay true: it names the three things sent (log, token counts, Mac details) and says file names go
+too. If anything is added to this list, re-read the hint.
 
 ## Contract (Rust)
 - **Log to a file:** `log.rs` writes every line to stderr **and** to
@@ -64,7 +68,7 @@ The hint must stay true: if anything is added to this list, re-read the hint.
 ## Built in (proposed)
 `src/ui/debug-report.js`: `mountDebugReport(invoke)` → one `section` (tested with a fake `invoke`: ready → sending
 → sent ref, and → failed). Rust: `src-tauri/src/report.rs` (bundle building tested: includes the log, excludes
-project files). Worker deployed on the release site's domain, next to `scripts/release/cloudflare.js`.
+project files, no `$HOME` path left anywhere in it). Worker deployed on the release site's domain, next to `scripts/release/cloudflare.js`.
 
 ## Assumptions
 - A45: People will press it when asked by us, rarely on their own. Check: count reports with and without a chat
