@@ -1,6 +1,6 @@
 # Settings — the gear panel, in sections
 
-Author: Jony · 2026-11-26 · Status: **designed**. Feature: Token usage, one-click debug report, easy Claude setup.
+Author: Jony · 2026-11-26 · Status: **built** (2026-11-26). Feature: Token usage, one-click debug report, easy Claude setup.
 Checked against `design/user-model.md` ("Ignore: settings"; goal 6 rules; the new "Checking and getting help" job).
 Parts: `design/rules.md` (built), `design/usage.md`, `design/debug-report.md`. Claude setup is **not** here:
 it lives where the need appears, on Magic (`design/claude-setup.md`).

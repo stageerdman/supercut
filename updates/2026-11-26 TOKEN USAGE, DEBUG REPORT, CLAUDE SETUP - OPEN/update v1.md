@@ -91,3 +91,8 @@ and takes the user straight to the fix:
 - 2026-11-26: Part C phases 1–2 done. `claude_setup` opens Terminal on a `.command` script: install if missing,
   then `claude auth login`, then back to Magic Cut; `claude_status` tells missing / signed-out / ready. Not built:
   the setup card (phase 3) — frontend.
+- 2026-11-26: UI done (A, B, C3). The gear panel is "Settings": Your rules, then Usage (`src/ui/usage.js`,
+  refreshed on each open) and Help (`src/ui/debug-report.js`, Send debug report → "Sent · ref XXXX"), stacked with
+  `src/ui/settings-section.js`. Claude setup is a banner, not a card (`src/ui/claude-setup.js`, design/claude-setup.md):
+  Install Claude / Sign in opens Terminal, a quiet wait (every 3 s and on window focus, 15 min cap) notices
+  sign-in; Magic shows "Magic waits for Claude" and starts by itself. Tests: `test/settings.test.mjs`.

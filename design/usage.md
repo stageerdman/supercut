@@ -1,6 +1,6 @@
 # Usage — AI tokens per exported video
 
-Author: Jony · 2026-11-26 · Status: **designed**. Part of `design/settings.md`.
+Author: Jony · 2026-11-26 · Status: **built** (2026-11-26). Part of `design/settings.md`.
 Checked against `design/user-model.md` (new job "How much AI did that take?": rare, a glance, never mid-edit).
 
 ## User goal

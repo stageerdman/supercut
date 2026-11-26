@@ -41,8 +41,9 @@ export function createRulesStore(invoke, { wait = 400, timer = setTimeout, clear
   };
 }
 
-/** The DOM: gear toggles the panel; Esc, a click outside or ⌘, closes it. Closing saves. */
-export function mountRules({ gear, panel, box }, store, { onError }) {
+/** The DOM: gear toggles the panel; Esc, a click outside or ⌘, closes it. Closing saves.
+ *  onOpen/onClose: the other Settings sections in the panel (Usage refreshes, Help clears its line). */
+export function mountRules({ gear, panel, box }, store, { onError, onOpen = () => {}, onClose = () => {} }) {
   const isOpen = () => !panel.classList.contains('hidden');
 
   /** Resolves true once saved; false (after saying why) if it couldn't be. */
@@ -54,6 +55,7 @@ export function mountRules({ gear, panel, box }, store, { onError }) {
     gear.classList.add('text-accent');
     box.readOnly = !store.loaded;
     box.focus();
+    onOpen();
     try {
       box.value = await store.load();
       box.readOnly = false;
@@ -68,6 +70,7 @@ export function mountRules({ gear, panel, box }, store, { onError }) {
     panel.classList.add('hidden');
     gear.setAttribute('aria-expanded', 'false');
     gear.classList.remove('text-accent');
+    onClose();
     if (refocus) gear.focus();
     return save();
   }

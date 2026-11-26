@@ -22,7 +22,7 @@ import { createNoteCard } from './ui/note-card.js';
 import { createNoteControl } from './ui/note-control.js';
 import { createHistory, changed } from './ui/history.js';
 import { bit } from './ui/bit.js';
-import { createMagic, claudeBanner, withMagicRun, magicNotesOpen } from './ui/magic.js';
+import { createMagic, withMagicRun, magicNotesOpen } from './ui/magic.js';
 import { paintMagic, paintReview } from './ui/magic-button.js';
 import { createWindowPlay } from './ui/review-play.js';
 import { createReviewSession } from './ui/review-session.js';
@@ -31,6 +31,9 @@ import { createReviewControl, reviewButton } from './ui/review-control.js';
 import { createPlayer } from './ui/player.js';
 import { createPreview } from './ui/preview.js';
 import { createRulesStore, mountRules } from './ui/rules.js';
+import { mountUsage } from './ui/usage.js';
+import { mountDebugReport } from './ui/debug-report.js';
+import { createClaudeSetup } from './ui/claude-setup.js';
 import { emptyTrace, newRun, withRun, renameTracePart } from './ui/trace.js';
 import { learningLog, learningClips } from './ui/learning.js';
 import { createTranscripts, transcribing as owesWords, stale, regenerated } from './ui/transcripts.js';
@@ -258,8 +261,20 @@ function loadWaveform(id) {
   }, () => {});
 }
 
+// Claude setup (design/claude-setup.md): one banner button opens Terminal; the wait notices sign-in by itself.
+const setup = createClaudeSetup({
+  invoke,
+  banner: showBanner,
+  hideBanner,
+  focusAction: () => $('banner-action')?.focus(),
+  onReady: () => { claudeCheck = null; magic.claudeReady(); },
+  onGiveUp: () => magic.cancel(),
+});
+window.addEventListener('focus', () => setup.poke()); // back from Terminal or the browser: check at once
+
 const magic = createMagic({
   runner,
+  setup,
   claude: () => { claudeCheck = null; return claude(); }, // re-check on press: they may have signed in since
   project: () => ({ parts: edited(), transcribing: transcribing() }),
   paint: () => { paintToolbar(); status.render(); },
@@ -318,7 +333,15 @@ async function leaveProject() {
 getCurrentWindow().onCloseRequested(leaveProject);
 
 // Your rules (gear, ⌘,). Pressing Magic Cut closes the panel and saves first, so a rule typed a second ago is used.
-const rules = mountRules({ gear: $('rules-gear'), panel: $('rules-panel'), box: $('rules-box') }, createRulesStore(invoke), { onError: showBanner });
+// Below the rules, the panel stacks Usage and Help (design/settings.md); each fills in when the panel opens.
+const usage = mountUsage(invoke);
+const help = mountDebugReport(invoke);
+$('rules-panel').append(usage.node, help.node);
+const rules = mountRules({ gear: $('rules-gear'), panel: $('rules-panel'), box: $('rules-box') }, createRulesStore(invoke), {
+  onError: showBanner,
+  onOpen: () => usage.refresh(),
+  onClose: () => help.reset(),
+});
 const pressMagic = () => rules.close().then((saved) => saved && magic.press());
 $('magic').onclick = pressMagic;
 
@@ -510,7 +533,7 @@ function load(o) {
   if (parts.length) {
     player.show(0);
     $('player').focus(); // Space plays at once
-    if (runner) claude().then((c) => c.state !== 'ready' && showBanner(...claudeBanner(c)));
+    if (runner) claude().then((c) => c.state !== 'ready' && setup.offer(c));
   }
   render();
   window.uiLog?.(`showing ${screenShown()}`);
@@ -575,7 +598,7 @@ async function addVideos(paths) {
       if (parts.length === 1) {
         player.show(0);
         $('player').focus(); // Space plays at once
-        if (runner) claude().then((s) => s.state !== 'ready' && showBanner(...claudeBanner(s)));
+        if (runner) claude().then((s) => s.state !== 'ready' && setup.offer(s));
       }
       render();
       loadWaveform(part.id);

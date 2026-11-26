@@ -1,6 +1,6 @@
 # Claude setup — from Magic, one press
 
-Author: Jony · 2026-11-26 · Status: **designed**. Feature: Token usage, one-click debug report, easy Claude setup.
+Author: Jony · 2026-11-26 · Status: **built** (2026-11-26). Feature: Token usage, one-click debug report, easy Claude setup.
 Replaces the "Copy command" sign-in banner (`design/main-screen.md` state 9, `claudeBanner` in `src/ui/magic.js`).
 Checked against `design/user-model.md` (drop-off risk "technical Claude error"; goal 1 "clean video tonight").
 

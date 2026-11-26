@@ -1,6 +1,6 @@
 # Debug report — one click, honest
 
-Author: Jony · 2026-11-26 · Status: **designed**. Part of `design/settings.md`.
+Author: Jony · 2026-11-26 · Status: **built** (2026-11-26). Part of `design/settings.md`.
 Checked against `design/user-model.md` (hesitation "What leaves my Mac?"; new job "Something went wrong, tell them").
 
 ## User goal
