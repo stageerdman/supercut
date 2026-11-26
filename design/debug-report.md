@@ -61,8 +61,10 @@ too. If anything is added to this list, re-read the hint.
 - **`invoke('send_debug_report')`** → `{ id: string }`, or a plain-sentence error. Gzipped JSON
   `{ install, app, build, macos, model, disk, claude, log, usage }` POSTed to
   `https://magiccut.erdman.xyz/api/debug-report` (15 s limit).
-- **Server:** a Cloudflare Worker stores each report in R2 as `reports/<install>/<at>-<id>.json.gz` and answers
-  `{ id }`. Reports are read by us with the Cloudflare tools; no public read.
+- **Server:** a Cloudflare Worker (`scripts/reports/worker.mjs`, deploy with `npm run reports:deploy`) stores each
+  report in Workers KV (namespace `magic-cut-reports`) under `reports/<install>/<at>-<id>` and answers `{ id }`.
+  KV, not R2: reports are small and KV needs no extra product switched on. No public read; we read them with
+  `npx wrangler@4 kv key list --namespace-id <id> --prefix reports/`, then `kv key get <key> --namespace-id <id>`.
 - Max 1 report per 30 s per Mac (button disabled while sending covers the UI; the Worker rejects bursts).
 
 ## Built in (proposed)

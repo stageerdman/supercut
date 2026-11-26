@@ -83,3 +83,11 @@ and takes the user straight to the fix:
   and the CLI's `--claude-test` / `--auto-cut` record with no project, a finished `export_video` marks the open
   project exported. New commands `token_usage`, `token_usage_notes`; CLI `--token-usage`. Bookkeeping failures
   are logged, never fail Magic or an export. No UI yet: the commands are ready for it.
+- 2026-11-26: Part B engine done. Every log line also goes to `logs/magic-cut.log` (rotated at 2 MB);
+  `paths::data` is the one data-folder path. `report/` builds the bundle (log tail, usage notes, Mac details,
+  install id, home folder hidden), gzips and posts it; command `send_debug_report` → `{ id }`. Worker
+  `scripts/reports/worker.mjs` is live on `magiccut.erdman.xyz/api/*`, keeps reports in KV, 1 per 30 s per Mac.
+  Not built: the button (`src/ui/debug-report.js`) — frontend.
+- 2026-11-26: Part C phases 1–2 done. `claude_setup` opens Terminal on a `.command` script: install if missing,
+  then `claude auth login`, then back to Magic Cut; `claude_status` tells missing / signed-out / ready. Not built:
+  the setup card (phase 3) — frontend.
