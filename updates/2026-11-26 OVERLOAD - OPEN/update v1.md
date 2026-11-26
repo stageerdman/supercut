@@ -44,3 +44,8 @@ preview retries a few times with backoff, then stops.
   Rust through `paintEdit()` → `preview.changed()` (400 ms debounce, one key per edit), so the one-at-a-time,
   kill-when-stale and capped-retry rules cover every cut path.
 - Tests: 477 UI + 234 Rust pass.
+- 2026-11-26: Released as 0.1.6 (`npm run release`), live on magiccut.erdman.xyz. The installed 0.1.5 updated
+  itself (e2e-cloudflare-update.js: found 0.8 s, pill 3.5 s, ready 13.1 s, codesign valid, reopened as 0.1.6; a
+  first try timed out waiting for the pill, the second passed). `e2e-quit-clean.js 0.1.6`: quit by Apple Event,
+  0 app and 0 ffmpeg left, none back over 60 s. Not seen: a quit *during* a running render on the installed app
+  (none was rendering at the time; UI scripting is blocked here) — covered by the `jobs` Rust tests.
