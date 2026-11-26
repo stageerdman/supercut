@@ -1,6 +1,6 @@
 [package]
 name = "supercut"
-version = "0.1.3"
+version = "0.1.4"
 description = "Magic Cut: turn a raw recording into a clean, cut video"
 edition = "2021"
 

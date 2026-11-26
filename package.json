@@ -1,6 +1,6 @@
 {
   "name": "supercut",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Magic Cut: turn a raw recording into a clean, cut video (Tauri + Tailwind).",
   "scripts": {
