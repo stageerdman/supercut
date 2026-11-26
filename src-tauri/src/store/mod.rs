@@ -7,6 +7,7 @@ pub mod rules;
 pub mod session;
 pub mod thumb;
 
+use crate::claude::ask::Usage;
 use crate::error::AppError;
 use crate::log;
 use doc::{ProjectFile, Summary};
@@ -97,11 +98,27 @@ impl Library {
 
     /// Lock or unlock; the 30-day clock is left as it is.
     pub fn set_locked(&self, id: &str, locked: bool) -> Result<Summary, AppError> {
-        let mut project = self.read(id)?;
-        project.locked = locked;
-        self.write(&project)?;
+        let project = self.update(id, |p| p.locked = locked)?;
         log::info("store", id, if locked { "locked" } else { "unlocked" });
         Ok(self.summary(&project))
+    }
+
+    /// Adds one Claude call to the project's tally. Returns the project's name.
+    pub fn add_usage(&self, id: &str, usage: &Usage) -> Result<String, AppError> {
+        Ok(self.update(id, |p| p.usage.add_call(usage))?.name)
+    }
+
+    /// Notes that the project's video was exported at `at`. Returns the project's name.
+    pub fn mark_exported(&self, id: &str, at: u64) -> Result<String, AppError> {
+        Ok(self.update(id, |p| p.exported_at = Some(at))?.name)
+    }
+
+    /// Read, change, write back. Callers hold the session lock, so two writes never interleave.
+    fn update(&self, id: &str, change: impl FnOnce(&mut ProjectFile)) -> Result<ProjectFile, AppError> {
+        let mut project = self.read(id)?;
+        change(&mut project);
+        self.write(&project)?;
+        Ok(project)
     }
 
     /// Removes the project's folder. The open project is refused.

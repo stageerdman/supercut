@@ -3,6 +3,7 @@
 
 use super::rules;
 use crate::project::Part;
+use crate::usage::report::Counts;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -43,6 +44,12 @@ pub struct ProjectFile {
     pub parts: Vec<Part>,
     #[serde(default)]
     pub ui: Option<Value>,
+    /// This project's Claude calls, added up. The usage ledger keeps each one, and outlives the project.
+    #[serde(default)]
+    pub usage: Counts,
+    /// The latest export of its video; None until the first.
+    #[serde(default)]
+    pub exported_at: Option<u64>,
 }
 
 fn version() -> u32 {
@@ -52,7 +59,21 @@ fn version() -> u32 {
 impl ProjectFile {
     /// A fresh, empty project made and used at `now`.
     pub fn new(id: String, now: u64) -> Self {
-        Self { v: VERSION, id, name: String::new(), created_at: now, used_at: now, locked: false, length: 0.0, cover: None, next_part_id: 0, parts: Vec::new(), ui: None }
+        Self {
+            v: VERSION,
+            id,
+            name: String::new(),
+            created_at: now,
+            used_at: now,
+            locked: false,
+            length: 0.0,
+            cover: None,
+            next_part_id: 0,
+            parts: Vec::new(),
+            ui: None,
+            usage: Counts::default(),
+            exported_at: None,
+        }
     }
 
     pub fn parse(text: &str) -> serde_json::Result<Self> {
@@ -139,6 +160,7 @@ mod tests {
     fn an_old_file_missing_fields_still_opens() {
         let p = ProjectFile::parse(r#"{ "id": "old1", "parts": [{ "id": 4, "path": "/v/a.mov", "name": "a.mov", "swap": null }] }"#).unwrap();
         assert_eq!((p.v, p.used_at, p.locked, p.next_part_id, p.cover, p.ui), (VERSION, 0, false, 0, None, None));
+        assert_eq!((p.usage, p.exported_at), (Counts::default(), None), "made before token usage: nothing spent, not exported");
         assert_eq!(p.parts[0].id, 4);
         assert!(ProjectFile::parse("{ \"name\": \"no id\" }").is_err(), "the id is the one thing a file must have");
     }

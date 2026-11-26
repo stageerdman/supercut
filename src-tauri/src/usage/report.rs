@@ -4,10 +4,10 @@
 
 use super::ledger::Entry;
 use crate::claude::ask::Usage;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Debug, Default, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
 pub struct Counts {
     pub calls: u64,
     pub input: u64,
@@ -19,7 +19,7 @@ pub struct Counts {
 }
 
 impl Counts {
-    fn add_call(&mut self, u: &Usage) {
+    pub fn add_call(&mut self, u: &Usage) {
         self.calls += 1;
         self.input += u.input;
         self.output += u.output;
@@ -75,7 +75,7 @@ pub fn report(entries: &[Entry]) -> Report {
         };
         let p = project(&mut projects, id);
         p.last = p.last.max(at);
-        if let Some(name) = name {
+        if let Some(name) = name.filter(|n| !n.is_empty()) {
             p.name = name.to_owned();
         }
         match e {
