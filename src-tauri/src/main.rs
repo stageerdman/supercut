@@ -486,7 +486,8 @@ fn auto_cut_file(file: &Path) -> Result<autocut::Proposal, AppError> {
 fn main() {
     // CLI modes let `npm run smoke` prove the packaged app really works:
     // `--transcribe <file>` (bundled ffmpeg + ONNX Runtime), `--claude-test` (the user's Claude Code)
-    // and `--auto-cut <file>` (both, through Magic's engine). `--build-id` lets
+    // and `--auto-cut <file>` (both, through Magic's engine). `--token-usage`, `--debug-report` and
+    // `--claude-status` run what Settings and the Magic button run, for checking a release. `--build-id` lets
     // `npm run install-app` prove which frontend this binary embeds (see build.rs).
     let args: Vec<String> = std::env::args().collect();
     match args.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
@@ -504,6 +505,8 @@ fn main() {
         [_, "--claude-test"] => print_and_exit(self_test(&Library::at_home(), &usage::Tracker::at_home(), "cli")),
         [_, "--auto-cut", file] => print_and_exit(auto_cut_file(Path::new(file))),
         [_, "--token-usage"] => print_and_exit(usage::Tracker::at_home().report()),
+        [_, "--debug-report"] => print_and_exit(report::send_now("cli")),
+        [_, "--claude-status"] => print_and_exit(Ok::<_, AppError>(claude::status(claude::find(&claude::candidates())))),
         _ => {}
     }
 
