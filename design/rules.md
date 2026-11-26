@@ -1,6 +1,7 @@
 # Your rules — the settings panel
 
 Author: Jony · 2026-11-20 · Status: **built** (`src/ui/rules.js`). Feature: Custom AI editing rules.
+**2026-11-26:** the panel is now Settings, in sections; rules stay the first one. See `design/settings.md`.
 Checked against `design/user-model.md` (goal 6: "Teach the AI my taste", mostly after a first disappointing run).
 Storage and Magic Cut's use of the rules: Uncle Bob's `get_rules` / `save_rules` commands (`src-tauri/src/rules.rs`) (contract below).
 

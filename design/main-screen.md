@@ -151,7 +151,7 @@ A **banner** slides down under the toolbar, full width, 44 pt, surface-raised, o
 | Audio-only file | Replaced: an audio file dropped = Replace audio; with no video open the drop zone says "Add the video first" (`design/audio-swap.md`) | — |
 | Third file | "Two parts at most. Remove one to add another." | — |
 | Source moved | "Can't find my-video.mov." | Locate… |
-| Claude missing or not signed in (checked when a video loads; shown during transcription, shown again if Magic is pressed while still signed out) | "Sign in to Claude to use Magic: open Terminal and run `claude`." | Copy command |
+| Claude missing or not signed in (checked when a video loads; shown during transcription, shown again if Magic is pressed while still signed out) | Replaced 2026-11-26 by `design/claude-setup.md`: "Sign in to Claude to use Magic Cut." / "…It isn't on this Mac yet." | Sign in / Install Claude |
 
 ## Keyboard (works from the first second)
 | Key | Action |
