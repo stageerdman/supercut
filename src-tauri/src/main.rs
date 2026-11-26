@@ -64,6 +64,17 @@ async fn claude_status() -> claude::Status {
         .unwrap_or(claude::Status { state: "missing", message: "Couldn't check Claude Code.".into() })
 }
 
+/// Opens Terminal to install Claude and/or sign in, then come back here (claude/terminal.rs).
+#[tauri::command]
+async fn claude_setup() -> Result<(), AppError> {
+    let opened = tauri::async_runtime::spawn_blocking(claude::open_setup).await;
+    let result = opened.unwrap_or_else(|e| Err(AppError::ClaudeSetup(e.to_string())));
+    if let Err(e) = &result {
+        log::error("claude", "setup", &e.to_string());
+    }
+    result
+}
+
 /// The self-test with its call recorded in the usage ledger (outside any project: never counted).
 fn self_test(lib: &Library, tracker: &usage::Tracker, trace: &str) -> Result<claude::picks::Picks, AppError> {
     let passed = claude::self_test::run(&claude::locate()?, trace)?;
@@ -502,7 +513,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            claude_status, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip,
+            claude_status, claude_setup, claude_self_test, auto_cut, get_rules, save_rules, save_learning_log, save_learning_clip,
             add_video, remove_part, swap_audio, use_camera_audio, transcribe_part, waveform, preview, export_video, export_cancel, export_target, export_reveal,
             list_projects, new_project, open_project, save_project, close_project, set_locked, delete_project, confirm_delete, sweep_projects,
             ui_log, update_check, update_install, update_restart, token_usage, token_usage_notes
