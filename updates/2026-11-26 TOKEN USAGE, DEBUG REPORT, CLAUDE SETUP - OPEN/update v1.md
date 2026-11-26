@@ -96,3 +96,9 @@ and takes the user straight to the fix:
   `src/ui/settings-section.js`. Claude setup is a banner, not a card (`src/ui/claude-setup.js`, design/claude-setup.md):
   Install Claude / Sign in opens Terminal, a quiet wait (every 3 s and on window focus, 15 min cap) notices
   sign-in; Magic shows "Magic waits for Claude" and starts by itself. Tests: `test/settings.test.mjs`.
+- 2026-11-26: Released as 0.1.4 (and 0.1.5, which adds CLI `--debug-report` / `--claude-status`) through the
+  auto-update site; the installed app updated itself both times. Checked on the installed 0.1.5 (build id matches
+  this checkout's `src`): `--token-usage` returns the Usage report (empty: no Magic run yet on this Mac),
+  `--debug-report` sent report `080737bf…` and it is in KV `magic-cut-reports`, `--claude-status` says `ready`
+  (so the setup banner correctly stays hidden here; missing / signed-out are covered by the fake-binary tests).
+  Not seen on screen: UI scripting and screenshots are blocked on this Mac, so the CLI flags run the same code.

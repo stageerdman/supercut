@@ -45,6 +45,14 @@
   told 3.4 s, `update ready` 16.6 s, reopened as 0.1.2, codesign valid), and 0.1.2 → 0.1.3 (found 1.1 s, pill
   3.5 s, ready 7.7 s, reopened as 0.1.3, codesign valid).
 
+## Verified (2026-11-26)
+- 0.1.3 → 0.1.4 (ready 56 s) and 0.1.4 → 0.1.5 (ready 72 s), both live. Bundles are now ~36 MB and the network
+  was slow (a direct download took 42 s); one 0.1.5 try failed on connect timeouts and the next passed.
+- Right after a deploy the first check can still say "up to date": give the site a minute before the e2e.
+- Check an installed app without its window: `supercut --build-id` (compare with `frontendId('src')` from
+  `scripts/build-id`), `--token-usage`, `--debug-report` (→ `{id}`, log line `report cli sent <id>`),
+  `--claude-status` (→ `ready` / `missing` / `signed-out`).
+
 ## Not verified yet
 - A clean macOS user account opening the DMG (needs a second login on this Mac): first-open note written from
   macOS 15+ behaviour, where right-click → Open may be replaced by System Settings → Open Anyway.
