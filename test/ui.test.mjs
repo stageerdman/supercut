@@ -105,7 +105,8 @@ test('magic button looks', () => {
   assert.deepEqual(magicView({ kind: 'ready' }), { visible: true, pill: false, label: '✦ Magic Cut' });
   assert.equal(magicView({ kind: 'queued' }).label, 'Magic Cut queued');
   assert.equal(magicView({ kind: 'running', stage: 'Choosing the best takes' }).label, 'Magic Cut', 'the stage is in the status line');
-  assert.equal(claudeBanner({ state: 'signed-out' })[1].label, 'Copy command');
+  assert.deepEqual(magicView({ kind: 'waiting-claude' }), { visible: true, pill: true, label: 'Magic waits for Claude', cancel: 'Stop waiting' });
+  assert.deepEqual(claudeBanner({ state: 'signed-out' }), ['Sign in to Claude to use Magic Cut.']);
   assert.equal(claudeBanner({ state: 'missing' }).length, 1);
 });
 
@@ -190,13 +191,13 @@ test('pressing the pill cancels the queue', async () => {
   assert.equal(m.state.kind, 'ready');
 });
 
-test('signed out: banner with the command, nothing runs', async () => {
+test('signed out, no setup wired: one sentence, nothing runs', async () => {
   const r = okRunner();
   const { m, log } = rig({ runner: r, claudeState: 'signed-out' });
   m.update();
   await m.press();
   assert.equal(r.calls, 0);
-  assert.deepEqual(log.banners, [['Sign in to Claude to use Magic Cut: open Terminal and run `claude`.', 'Copy command']]);
+  assert.deepEqual(log.banners, [['Sign in to Claude to use Magic Cut.', undefined]]);
 });
 
 test('a failed run leaves the project untouched and offers Try again', async () => {

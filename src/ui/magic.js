@@ -7,6 +7,7 @@
 import { withMagic } from './cuts.js';
 import { notesOf } from './edit.js';
 import { withMagicNotes, openNotes } from './notes.js';
+import { setupBanner } from './claude-setup.js';
 
 /**
  * Pure: a run's `{ cuts, notes }` applied to the edit, as one edit (one "Magic Cut" undo step). Your cuts and notes
@@ -45,6 +46,7 @@ export function magicView(state) {
   switch (state.kind) {
     case 'off': return { visible: false };
     case 'queued': return { visible: true, pill: true, label: 'Magic Cut queued', cancel: 'Cancel Magic Cut' };
+    case 'waiting-claude': return { visible: true, pill: true, label: 'Magic waits for Claude', cancel: 'Stop waiting' };
     // What it's doing is said once, in the status line beside it (workText's magicStage); the pill only offers to stop.
     case 'running': return { visible: true, pill: true, label: 'Magic Cut', cancel: 'Cancel Magic Cut' };
     default: return { visible: true, pill: false, label: '✦ Magic Cut' };
@@ -98,25 +100,46 @@ export function createMagic(deps) {
     }
   }
 
+  const busy = () => ['queued', 'running', 'waiting-claude'].includes(state.kind);
+
   async function press() {
     if (state.kind === 'off') return;
-    if (state.kind === 'queued' || state.kind === 'running') return cancel();
+    if (busy()) return cancel();
     if (!deps.runner) return deps.banner(NOT_CONNECTED);
     const claude = await deps.claude();
-    if (claude.state !== 'ready') return deps.banner(...claudeBanner(claude));
+    if (claude.state !== 'ready') {
+      if (!deps.setup) return deps.banner(...claudeBanner(claude));
+      set({ kind: 'waiting-claude' }); // the banner offers setup; Magic starts by itself once Claude is ready
+      return deps.setup.offer(claude, { forMagic: true });
+    }
+    return go();
+  }
+
+  function go() {
     deps.transcribe?.(); // transcripts start only on demand: Magic is a demand, and waits for them
     if (deps.project().transcribing) return set({ kind: 'queued' });
     return run();
   }
 
+  /** Claude became ready while Magic waited for it: carry on as the press would have. */
+  function claudeReady() {
+    if (state.kind !== 'waiting-claude') return;
+    set({ kind: 'ready' });
+    const done = go();
+    if (state.kind === 'queued') deps.flash('Claude is ready.', 4000);
+    return done;
+  }
+
   function cancel() {
     if (state.kind === 'running') deps.runner.cancel();
-    if (state.kind === 'queued' || state.kind === 'running') set({ kind: 'ready' });
+    if (state.kind === 'waiting-claude') deps.setup?.stop();
+    if (busy()) set({ kind: 'ready' });
   }
 
   return {
     press,
     cancel,
+    claudeReady,
     get state() { return state; },
     /** Call whenever parts or transcripts change. */
     update() {
@@ -132,11 +155,6 @@ export function createMagic(deps) {
   };
 }
 
-/** Pure: the banner for a Claude that isn't ready. One sentence, one action. */
-export function claudeBanner(status) {
-  if (status.state === 'missing') return ['Magic Cut needs Claude Code. Install it and sign in, then try again.'];
-  return [
-    'Sign in to Claude to use Magic Cut: open Terminal and run `claude`.',
-    { label: 'Copy command', run: () => navigator.clipboard?.writeText('claude') },
-  ];
-}
+/** Pure: the banner for a Claude that isn't ready when no setup is wired in (tests): its first sentence, no action.
+ *  The app wires `deps.setup` (claude-setup.js), whose banner has the one button that sets Claude up. */
+export const claudeBanner = (status) => [setupBanner(status).text];
