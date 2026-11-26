@@ -29,6 +29,7 @@ mod swap;
 mod testkit;
 mod transcribe;
 mod updates;
+mod usage;
 mod vad;
 mod waveform;
 mod words;

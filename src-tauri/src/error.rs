@@ -55,6 +55,8 @@ pub enum AppError {
     Update(String),
     /// Install asked for with no newer version known.
     NoUpdate,
+    /// Reading or writing the token usage ledger (usage/).
+    Usage(String),
 }
 
 impl fmt::Display for AppError {
@@ -98,6 +100,7 @@ impl fmt::Display for AppError {
             Self::ExportBusy => write!(f, "An export is already running. Wait for it or cancel it."),
             Self::Update(why) => write!(f, "Couldn't update Magic Cut. Check your internet connection and try again. ({why})"),
             Self::NoUpdate => write!(f, "There's no update to install."),
+            Self::Usage(why) => write!(f, "Couldn't read or save the token usage notes. ({why})"),
         }
     }
 }
