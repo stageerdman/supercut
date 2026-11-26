@@ -154,6 +154,22 @@ What they asked for after trying it (the "why" after each is my reading, a guess
 | A43 | The recording's folder is where they look for the result | Count Change… on first export, and Show in Finder use |
 | A44 | People keep editing (or walk away) while it exports | Log popover closes and edits during export |
 
+## Setup, usage and help (2026-11-26, reasoned)
+- **Claude setup:** "I pressed Magic, make it work." They don't know Claude Code; only signing in is theirs to do.
+  Press Magic → one button (Install Claude / Sign in) → sign in → Magic starts by itself. Spec: `design/claude-setup.md`.
+- **Usage:** "How much AI did my videos take?" Rare, a glance, only exported videos count. Spec: `design/usage.md`.
+- **Help:** "Something broke, let them see." Usually because we asked. One button, an honest line. Spec:
+  `design/debug-report.md`. All three live in the gear panel's sections (`design/settings.md`) except setup, which
+  lives on Magic.
+
+| # | Assumption | Quick check |
+|---|---|---|
+| A45 | Debug reports are mostly sent when we ask | Count reports with / without a chat message around them |
+| A46 | "Press Send debug report in the gear" is enough to find it | Time the first 3 times we ask |
+| C1 | `claude auth login` signs in without first-run screens | Run on a clean macOS user before building |
+| C3 | Magic starting by itself after sign-in is expected | Watch 2 first-time users |
+| U1 | "Tokens" = all tokens, cache reads included | Ask 3 users next to Claude's own usage screen |
+
 ## Editing by hand (2026-11-22, reasoned)
 - Two views, one thing: cuts show in the transcript (struck) and on the timeline (hatched) at the same place, grey for
   yours, coral for Magic's. Specs: `design/edit-model.md`, `design/timeline.md`, `design/transcript-editing.md`.
