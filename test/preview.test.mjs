@@ -7,13 +7,14 @@ const settle = () => new Promise((r) => setImmediate(r));
 
 function rig() {
   const asks = [];
-  const state = { cuts: [] };
+  const state = { cuts: [], now: 0 };
   const preview = createPreview({
     invoke: (cmd, args) => new Promise((resolve, reject) => asks.push({ cmd, args, resolve, reject })),
     parts: () => [{ id: 1, duration: 10 }],
     cuts: () => state.cuts,
     size: () => ({ width: 1920, height: 1080 }),
     log() {},
+    now: () => state.now,
   });
   return { preview, asks, state };
 }
@@ -51,4 +52,43 @@ test('preview: an answer for an older edit is never used', async () => {
   await settle();
   assert.equal(preview.current().file, '/new.mp4');
   mock.timers.reset();
+});
+
+test('preview: a render that keeps failing is retried after 2, 4, 8 s, then never again', async () => {
+  const { preview, asks, state } = rig();
+  preview.current();
+  for (const wait of [2000, 4000, 8000]) {
+    asks.at(-1).reject(new Error('ffmpeg failed'));
+    await settle();
+    const tries = asks.length;
+    state.now += wait - 1;
+    preview.current();
+    assert.equal(asks.length, tries, `no retry before ${wait} ms`);
+    state.now += 1;
+    preview.current();
+    assert.equal(asks.length, tries + 1, `retried after ${wait} ms`);
+  }
+  asks.at(-1).reject(new Error('ffmpeg failed'));
+  await settle();
+  state.now += 3_600_000;
+  for (let i = 0; i < 100; i++) preview.current();
+  assert.equal(asks.length, 4, 'one try and three retries, no more');
+});
+
+test('preview: a new edit is tried at once, even after the old one gave up', async () => {
+  const { preview, asks, state } = rig();
+  preview.current();
+  for (let i = 0; i < 4; i++) {
+    asks.at(-1).reject(new Error('ffmpeg failed'));
+    await settle();
+    state.now += 60_000;
+    preview.current();
+  }
+  assert.equal(asks.length, 4);
+  state.cuts = [{ part: 1, s: 5, e: 6, by: 'you' }];
+  preview.current();
+  assert.equal(asks.length, 5);
+  asks[4].resolve({ file: '/new.mp4', map: [] });
+  await settle();
+  assert.equal(preview.current().file, '/new.mp4');
 });

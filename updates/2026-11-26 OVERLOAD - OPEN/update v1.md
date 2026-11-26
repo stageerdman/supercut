@@ -33,3 +33,14 @@ preview retries a few times with backoff, then stops.
 
 ## Status
 - Phase 1 done: process list clean at 21:21, no launch agents.
+- Phase 2 done: `src-tauri/src/jobs/` — a `Job` kills its ffmpeg on drop, `finish(live)` polls every 50 ms and
+  kills when `live()` turns false, `kill_all()` runs on app exit and before the updater's relaunch, and start-up
+  reaps orphaned bundled ffmpegs (parent launchd). Preview, export, audio, swap, thumbs, learning clips use it.
+- Phase 3 done: previews render one at a time (`RENDERING` lock; the older render sees `live` false and kills its
+  ffmpeg first); clips to make are de-duplicated by name, not only adjacent ones.
+- Phase 4 done: `createBackoff` in `src/ui/preview.js` — a failing edit retries after 2, 4, 8 s, then stops; a new
+  edit starts afresh. Tests in `test/preview.test.mjs` with an injected clock.
+- The user's lead (cuts start the renders) checked: adding, changing, undoing a cut and Magic Cut's cuts all reach
+  Rust through `paintEdit()` → `preview.changed()` (400 ms debounce, one key per edit), so the one-at-a-time,
+  kill-when-stale and capped-retry rules cover every cut path.
+- Tests: 477 UI + 234 Rust pass.

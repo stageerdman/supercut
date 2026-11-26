@@ -10,13 +10,15 @@ const WAIT = 400; // ms after the last edit before a render starts
 /**
  * @param {{ invoke: (cmd:string, args:object)=>Promise<{file:string, map:Array}>,
  *           parts: ()=>Array<{id:number,duration:number}>, cuts: ()=>Array,
- *           size: ()=>({width:number,height:number}|null), log?: (msg:string)=>void }} on
+ *           size: ()=>({width:number,height:number}|null), log?: (msg:string)=>void, now?: ()=>number }} on
  */
 export function createPreview(on) {
   let ready = null; // { key, file, map }
   let asked = null; // key of the render under way
   let timer = 0;
   let size = null; // the first video's size, kept: a new size would render every clip again
+  let failing = createBackoff();
+  const now = on.now ?? Date.now;
 
   /** What the preview of the edit as it is now would be: its spans and their key; null if it can't be made yet. */
   function wanted() {
@@ -32,11 +34,15 @@ export function createPreview(on) {
   function render() {
     timer = 0;
     const w = wanted();
-    if (!w || w.key === ready?.key || w.key === asked) return;
+    if (!w || w.key === ready?.key || w.key === asked || failing.holds(w.key, now())) return;
     asked = w.key;
     on.invoke('preview', { spans: w.spans, ...size }).then(
       (p) => { if (asked === w.key) { ready = { key: w.key, file: p.file, map: p.map }; asked = null; } },
-      (e) => { if (asked === w.key) asked = null; on.log?.(`preview: ${e}`); },
+      (e) => {
+        if (asked === w.key) asked = null;
+        failing.failed(w.key, now());
+        on.log?.(`preview: ${e}`);
+      },
     );
   }
 
@@ -54,7 +60,25 @@ export function createPreview(on) {
       return null;
     },
     /** A new project: nothing old is of use. */
-    reset() { ready = null; asked = null; size = null; },
+    reset() { ready = null; asked = null; size = null; failing = createBackoff(); },
+  };
+}
+
+/**
+ * Failed renders of one edit are tried again after 2, 4, then 8 s, then no more: a render that always fails
+ * (a broken file, a full disk) must not start an ffmpeg on every frame forever. A new edit starts afresh.
+ */
+export function createBackoff({ first = 2000, retries = 3 } = {}) {
+  let last = null; // { key, fails, until }
+  return {
+    /** Whether a render of this key must wait (or give up) because it failed before. */
+    holds(key, at) {
+      return last?.key === key && (last.fails > retries || at < last.until);
+    },
+    failed(key, at) {
+      const fails = last?.key === key ? last.fails + 1 : 1;
+      last = { key, fails, until: at + first * 2 ** (fails - 1) };
+    },
   };
 }
 
