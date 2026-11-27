@@ -7,7 +7,8 @@
 // second playing twin starves WebKit's decoders. Why it is done this way, and what stalls WebKit's picture:
 // twin-sync.js. Even one twin can't hide a seek after a kept stretch under ~0.85 s, so when a rendered preview of the
 // edit is ready (on.preview) playing plays that instead: one file, the kept spans back to back, no seek at any cut
-// (preview-play.js). The twin stays for playing before the preview is ready, or from inside a cut.
+// (preview-play.js). The twin stays for playing before the preview is ready. Every cut you see skips, the one the
+// playhead rests in too (cutting leaves it there): playing starts past it.
 // Spec: design/timeline.md § Playback.
 import { clock } from './dom.js';
 import { skipTarget, cutHere, editedTime, editedLength } from './playback.js';
@@ -37,7 +38,7 @@ export function createPlayer(first, on) {
   let seekLag = SEEK_LAG; // s the twin falls behind where a seek while playing sends it (learned at each seek)
   let swapTimer = 0; // a swap due within this frame
   let current = 0;
-  let through = null; // a cut you chose to play from inside: it plays, the next ones skip
+  let hair = null; // the cut a swap landed a hair short of the end of (≤ TOLERANCE): that hair plays, a seek would hitch
   let selfSeek = false; // our own jump over a cut, not the user's seek
 
   if (twin) {
@@ -99,17 +100,22 @@ export function createPlayer(first, on) {
     on.onPart(i);
   }
 
-  /** The timeline as playing walks it from here (built per call: parts, cuts and `through` change). */
+  /** The timeline as playing walks it from here (built per call: parts and cuts change). */
   const jumps = () => createJumps({
     parts: on.parts(),
     cuts: on.cuts(),
     lenOf: (i) => (i === current ? len() : on.parts()[i]?.duration || 0),
-    through,
-    throughIn: current,
   });
   const nextKept = () => jumps().nextKept(current);
-  /** Where playing lands after the cut at time `from` (and any cut touching it): { i, t }, or null (stop). */
-  const landing = (from) => jumps().landing(current, from);
+  /** Where playing lands after the cut at time `from` in part `i` (and any cut touching it): { i, t }, or null (stop). */
+  const landing = (from, i = current) => jumps().landing(i, from);
+
+  /** Where playing from part `i` at `t` really starts: there, or past the cut it is in (every cut skips). null: all cut. */
+  function startAt(i, t) {
+    const p = on.parts()[i];
+    if (!p || !cutHere(on.cuts(), p.id, t)) return { i, t };
+    return landing(t, i);
+  }
 
   const pathAt = (dest) => mediaOf(on.parts()[dest.i]);
   const holds = (dest) => !!cue && cue.path === pathAt(dest) && Math.abs(cue.t - dest.t) < EPS;
@@ -191,7 +197,9 @@ export function createPlayer(first, on) {
     old.removeAttribute('id');
     standby(old); // it plays on, hidden and inaudible, as the twin for the next cut
     if (focused) video.focus?.();
-    meant(); // a twin a hair short of the far side plays that hair, not seeks over it (the seek is the hitch)
+    // A twin a hair short of the far side plays that hair, not seeks over it (the seek is the hitch).
+    const c = cutHere(on.cuts(), part().id, video.currentTime);
+    hair = c && c.e - video.currentTime <= TOLERANCE ? c : null;
     // The glide clock runs on: the twin's clock reads a little behind and settles, and the line must not follow it back.
     if (moved) on.onPart(current);
     on.onTime(current, video.currentTime);
@@ -201,8 +209,8 @@ export function createPlayer(first, on) {
   function tick() {
     if (video.paused || !part()) return;
     const id = part().id, cuts = on.cuts(), t = video.currentTime;
-    if (through && !(through.s <= t && t < through.e)) through = null;
-    if (!skipTarget(id, t, cuts, len(), through)) return prepare(t);
+    if (hair && !(hair.s <= t && t < hair.e)) hair = null;
+    if (hair || !skipTarget(id, t, cuts, len())) return prepare(t);
     const dest = landing(t);
     dest ? jump(dest) : video.pause();
   }
@@ -248,15 +256,19 @@ export function createPlayer(first, on) {
 
   const playing = () => (preview?.shown ? !preview.element.paused : !video.paused);
 
-  /** Play: the preview when it has this spot (not a cut you start in), else the source with its twin. */
+  /** Play from here, or from past the cut the playhead rests in (cutting leaves it there): the preview when it has
+   * that spot, else the source with its twin. All cut from here on: nothing plays. */
   function play() {
     if (playing()) return;
-    const p = on.preview?.(), id = part()?.id, t = video.currentTime;
-    const T = p && id !== undefined && !cutHere(on.cuts(), id, t) ? preview.editTime(p, id, t) : null;
-    if (T === null) return video.play();
+    if (!part()) return video.play();
+    const t = video.currentTime, dest = startAt(current, t);
+    if (!dest) return;
+    const p = on.preview?.(), id = on.parts()[dest.i]?.id;
+    const T = p && id !== undefined ? preview.editTime(p, id, dest.t) : null;
+    if (T === null) return dest.i === current && dest.t === t ? video.play() : show(dest.i, dest.t, true);
     idle();
     if (twin && !twin.paused) twin.pause();
-    shownAt = { i: current, t };
+    shownAt = { i: dest.i, t: dest.t };
     preview.start(p, T, video);
   }
 
@@ -272,9 +284,6 @@ export function createPlayer(first, on) {
     else video.pause();
   }
   const startGlide = () => { glideClock.reset(); if (!frameReq && globalThis.requestAnimationFrame) frameReq = requestAnimationFrame(glide); };
-
-  /** You start (or seek) inside a cut: you asked to hear it. */
-  const meant = () => { through = part() ? cutHere(on.cuts(), part().id, video.currentTime) ?? null : null; };
 
   // All videos get the listeners; only the visible one's events count (twinF: what a hidden one's mean).
   const listen = (k, f, twinF) => {
@@ -292,14 +301,14 @@ export function createPlayer(first, on) {
   listen('timeupdate', () => on.onTime(current, video.currentTime));
   listen('seeked', () => {
     if (!selfSeek) {
-      meant();
+      hair = null;
       glideClock.reset(); // your seek: the line goes straight there (a skipped cut is a jump forward it takes anyway)
     }
     selfSeek = false;
     idle(); // the twin's cue was timed to where you were
     on.onTime(current, video.currentTime);
   });
-  listen('play', () => { meant(); paintPlay(true); loop(++run); startGlide(); });
+  listen('play', () => { paintPlay(true); loop(++run); startGlide(); });
   listen('pause', () => {
     if (twin && !twin.paused) twin.pause(); // it only plays along while you do
     paintPlay(false);
@@ -319,13 +328,15 @@ export function createPlayer(first, on) {
 
   /** Go to part `i` at `at`; `play` plays from there (in the preview if it is playing and has that spot). */
   function seek(i, at = 0, play = false) {
-    if (preview?.shown) {
-      const p = on.parts()[i];
-      const T = play && p && !cutHere(on.cuts(), p.id, at) ? preview.editTime(preview.shown, p.id, at) : null;
+    const dest = play ? startAt(i, at) : { i, t: at }; // playing from inside a cut starts past it
+    if (preview?.shown && dest) {
+      const p = on.parts()[dest.i];
+      const T = play && p ? preview.editTime(preview.shown, p.id, dest.t) : null;
       if (T !== null) return previewSeek(T);
-      leave(false);
     }
-    show(i, at, play);
+    if (preview?.shown) leave(false);
+    if (!dest) return show(i, at); // all cut from there: go there, paused
+    show(dest.i, dest.t, play);
   }
 
   function previewSeek(T) {

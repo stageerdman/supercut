@@ -31,8 +31,7 @@ test('jumps: next stops where playing stops (nothing kept after)', () => {
   assert.deepEqual(rig([cut(2, 0, 5)]).next(0, 9), { at: 10, dest: null });
 });
 
-test('jumps: the cut you play from inside plays, only in its own part', () => {
-  const through = cut(1, 2, 3);
-  assert.deepEqual(rig([through], { through, throughIn: 0 }).landing(0, 2), { i: 0, t: 2 }, 'it plays: no jump');
-  assert.deepEqual(rig([through], { through, throughIn: 1 }).landing(0, 2), { i: 0, t: 3 }, 'not its part: it skips');
+test('jumps: from just before, at, or inside a cut, landing is past it (no cut ever plays)', () => {
+  const j = rig([cut(1, 2, 3)]);
+  for (const t of [2 - 1 / 120, 2, 2.5, 2.999]) assert.deepEqual(j.landing(0, t), { i: 0, t: 3 }, `from ${t}`);
 });

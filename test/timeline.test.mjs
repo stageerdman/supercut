@@ -30,14 +30,14 @@ test('keptSpans: what plays, in order, across two parts', () => {
   assert.deepEqual(keptSpans(two, []), [{ part: 1, s: 0, e: 10 }, { part: 2, s: 0, e: 5 }]);
 });
 
-test('skipTarget: a cut ahead → its end; to the part end → end; inside the one you chose → keep playing', () => {
+test('skipTarget: a cut ahead → its end; to the part end → end; inside any cut → its end (no cut ever plays)', () => {
   const cuts = [you(2, 3), you(8, 10)];
   assert.equal(skipTarget(1, 1.5, cuts, 10), null, 'nothing near');
   assert.deepEqual(skipTarget(1, 2 - FRAME / 2, cuts, 10), { t: 3 }, 'the next frame would be in the cut');
+  assert.deepEqual(skipTarget(1, 2, cuts, 10), { t: 3 }, 'right at its start');
   assert.deepEqual(skipTarget(1, 2.5, cuts, 10), { t: 3 }, 'already inside');
   assert.deepEqual(skipTarget(1, 7.99, cuts, 10), { end: true }, 'cut to the end of the part');
-  assert.equal(skipTarget(1, 2.5, cuts, 10, you(2, 3)), null, 'started inside it: it plays');
-  assert.deepEqual(skipTarget(1, 7.99, cuts, 10, you(2, 3)), { end: true }, '…and the next one still skips');
+  assert.equal(skipTarget(1, 3, cuts, 10), null, 'at its end: kept time');
   assert.equal(skipTarget(2, 2.5, cuts, 5), null, 'other parts are not touched');
 });
 
@@ -436,7 +436,7 @@ test('player: with a preview ready, playing plays the preview over every cut (no
   frames.done();
 });
 
-test('player: playing from inside a cut, or with an outdated preview, plays the source; an edit mid-play hands back to it', async () => {
+test('player: playing from inside a cut plays the preview from past it; an edit mid-play hands back to the source', async () => {
   const { laidOut } = await import('../src/ui/edit-map.js');
   const cuts = [you(2, 3)];
   const preview = { now: null };
@@ -445,7 +445,8 @@ test('player: playing from inside a cut, or with an outdated preview, plays the 
   preview.now = { key: 'k', file: 'preview.mp4', map: laidOut(keptSpans(parts, cuts)) };
   player.show(0, 2.5);
   player.play();
-  assert.ok(!video.paused && pv.paused, 'you asked to hear the cut: the source plays it');
+  assert.ok(video.paused && !pv.paused, 'the preview plays');
+  near(pv.currentTime, 2, 'from the cut’s far side (edit time 2), the cut never plays');
   player.pause();
   player.show(0, 1);
   player.play();
@@ -580,12 +581,12 @@ test('player: playing skips each cut on the frame before it, and cuts that touch
   assert.equal(video.currentTime, 4.5);
 });
 
-test('player: started inside a cut, that cut plays; a cut to the part end goes on to the next part', async () => {
+test('player: started inside a cut, it still skips; a cut to the part end goes on to the next part', async () => {
   const { video, player } = await rigPlayer([you(2, 3), you(8, 10), you(0, 1, 2)]);
   player.show(0, 2.5);
   video.play();
   player.tick();
-  assert.equal(video.currentTime, 2.5, 'you asked to hear it');
+  assert.equal(video.currentTime, 3, 'past it on the first frame');
   video.currentTime = 7.99;
   player.tick();
   assert.equal(player.current, 1, 'on to part 2');

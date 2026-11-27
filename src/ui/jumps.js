@@ -6,11 +6,10 @@ import { cutsOf } from './cuts.js';
 const EPS = 1e-6;
 
 /**
- * The timeline as the player walks it. `lenOf(i)`: part i's length (the loaded file's when known);
- * `through`: the cut you chose to play from inside (it plays; only in the part you are in, `throughIn`).
+ * The timeline as the player walks it. `lenOf(i)`: part i's length (the loaded file's when known).
+ * Every cut is jumped over, the one playing starts in too.
  */
-export function createJumps({ parts, cuts, lenOf, through = null, throughIn = -1 }) {
-  const thru = (i) => (i === throughIn ? through : null);
+export function createJumps({ parts, cuts, lenOf }) {
 
   /** The first kept moment after part `i`: { i, t }, or null when the rest is all cut. */
   function nextKept(i) {
@@ -24,8 +23,8 @@ export function createJumps({ parts, cuts, lenOf, through = null, throughIn = -1
   /** Where playing lands from `from` in part `i`, over the cut there and any touching it: { i, t }, or null (stop). */
   function landing(i, from) {
     const id = parts[i].id, len = lenOf(i);
-    let to = from, r = skipTarget(id, to, cuts, len, thru(i));
-    for (let n = 0; r?.t != null && n < 1000; n++) { to = r.t; r = skipTarget(id, to, cuts, len, thru(i)); }
+    let to = from, r = skipTarget(id, to, cuts, len);
+    for (let n = 0; r?.t != null && n < 1000; n++) { to = r.t; r = skipTarget(id, to, cuts, len); }
     return r?.end || to >= len - EPS ? nextKept(i) : { i, t: to };
   }
 

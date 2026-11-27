@@ -5,7 +5,6 @@ import { FRAME } from './bit.js';
 import { cutsOf } from './cuts.js';
 
 const EPS = 1e-6;
-const same = (a, b) => !!a && !!b && a.part === b.part && a.s === b.s && a.e === b.e;
 
 /** The kept spans in play order: [{ part, s, e }]. Export will read the same list. */
 export function keptSpans(parts, cuts) {
@@ -34,10 +33,10 @@ export function firstKept(cuts, part, len) {
 /**
  * Where to be next frame while playing part `part` (of length `len`) at time t.
  * → null: keep playing · { t }: jump there in this part · { end: true }: the rest of this part is cut.
- * `through` is a cut you started playing inside of: it plays, the next ones skip.
+ * Every cut skips, wherever playing starts: a cut you see never plays (to hear one: Review, or restore it).
  */
-export function skipTarget(part, t, cuts, len, through = null) {
-  const c = cutsOf(cuts, part).find((x) => x.s <= t + FRAME && t < x.e - EPS && !same(x, through));
+export function skipTarget(part, t, cuts, len) {
+  const c = cutsOf(cuts, part).find((x) => x.s <= t + FRAME && t < x.e - EPS);
   if (!c) return null;
   return c.e >= len - EPS ? { end: true } : { t: c.e };
 }
