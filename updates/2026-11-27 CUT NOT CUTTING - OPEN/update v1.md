@@ -35,6 +35,12 @@ The edit model is not stale: player, timeline, preview and export all read `cuts
 
 ## Status
 
-- [ ] Phase 1
-- [ ] Phase 2
-- [ ] Phase 3
+- [x] Phase 1 — `through` deleted from `player.js`, `playback.js` (`skipTarget(part, t, cuts, len)`) and `jumps.js`
+  (`createJumps({ parts, cuts, lenOf })`). `player.js` `startAt(i, t)`: play and seek-and-play start at the landing
+  past a cut the playhead rests in (preview or source); nothing kept after → nothing plays.
+- [x] Phase 2 — `test/cut-playback.test.mjs` (in `npm test`): every cut gesture × play from before / at / inside,
+  preview path, export spans = player's kept spans. They fail on the old code and pass now. 486 UI + 234 Rust pass.
+- [x] Phase 3 — 2026-11-27: released as 0.1.7 (`npm run release`), live on magiccut.erdman.xyz. The installed 0.1.6
+  updated itself (e2e-cloudflare-update.js 0.1.7: found 1.3 s, pill 3.5 s, ready 9.8 s, codesign valid, reopened as
+  0.1.7). `install-app --no-build` confirmed /Applications holds this checkout's build (frontend d4da3d4b4db9ba62).
+  To hear a cut: use Review, or restore it.
