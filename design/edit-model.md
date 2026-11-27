@@ -98,10 +98,12 @@ Undo/redo over the whole `edit` (cuts **and** words). Each entry: `{ edit, label
 
 ## Playback — playback.js
 - `keptSpans(parts, cuts)` → `[{ part, s, e }]` in play order. Export will read the same list.
-- `skipTarget(part, t, cuts, through)` → where to be next frame: inside a cut → its end; a cut to the part's end → the
+- `skipTarget(part, t, cuts, len)` → where to be next frame: inside a cut → its end; a cut to the part's end → the
   next part's first kept time; to the very end → stop there and pause.
-- **Playing from inside a cut plays that cut** (you asked to hear it), then skips the rest as normal. `through` is that
-  cut until the playhead leaves it.
+- **Every cut you see is skipped, always.** Cutting leaves the playhead at or inside the new cut (a word click, a
+  block click), so Play from inside a cut starts on its far side; with nothing kept after, Play does nothing. To hear a
+  cut: Review, or restore it. (Until 0.1.6 playing from inside a cut played it: users read that as "the cut doesn't
+  work".)
 - `editedTime(parts, cuts, part, t)` and `editedLength(parts, cuts)` for the readout. Inside a cut, edited time is the
   time of the join.
 - The player checks every frame (`requestVideoFrameCallback`, per the Phase 0 spike), not on `timeupdate` (4×/s runs

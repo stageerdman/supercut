@@ -80,8 +80,9 @@ is loaded, and no cut block reaches it.
   the edit map (`src/ui/edit-map.js`) turns it back into part and time for the playhead. It shows from its first
   played frame (until then the source's paused frame stays). Pause shows the source at the same spot. An edit while
   it plays hands back to the source at the same spot, which plays on (with the twin) until the next Play.
-- **The source with a twin (fallback)**: before the preview is ready, or when you play from inside a cut (you asked
-  to hear it).
+- **The source with a twin (fallback)**: before the preview is ready.
+- **Every cut skips, the one the playhead rests in too**: Play from inside a cut starts on its far side (preview or
+  source). To hear a cut: Review, or restore it.
 - **No hitch at a cut** (twin, measured: ≤ 1 frame): seeking a playing `<video>` holds its picture while it decodes, and a
   paused audible one takes ~0.3 s to start. So a hidden twin `<video>` (out of the tab order) **plays along** at an
   inaudible volume, in step on the far side of the next cut (or the next part's first kept moment), from up to 3 s
